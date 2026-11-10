@@ -79,12 +79,20 @@ async function generateRefNumber(schoolId) {
 async function resolveIssuedBy(req) {
   // Management JWT payload: { id, schoolId, role, type } — name is not in the token.
   // Both admin and management users are rows in teachers; look up by id for both.
-  // A 'staff' role's id is a school_staff.id instead — different table.
+  // A 'staff' role's id is a school_staff.id instead — different table, and
+  // general_letters.issued_by_id is FK'd to teachers(id), so a staff author
+  // goes in the separate issued_by_staff_id column instead (same two-column
+  // pattern this codebase already uses elsewhere for "teacher OR school_staff").
   const id = req.user?.id ?? null;
-  if (!id) return { issued_by_id: null, issued_by_name: '' };
-  const table = req.user?.role === 'staff' ? 'school_staff' : 'teachers';
+  if (!id) return { issued_by_id: null, issued_by_staff_id: null, issued_by_name: '' };
+  const isStaff = req.user?.role === 'staff';
+  const table = isStaff ? 'school_staff' : 'teachers';
   const { rows } = await pool.query(`SELECT name FROM ${table} WHERE id = $1`, [id]);
-  return { issued_by_id: id, issued_by_name: rows[0]?.name ?? '' };
+  return {
+    issued_by_id: isStaff ? null : id,
+    issued_by_staff_id: isStaff ? id : null,
+    issued_by_name: rows[0]?.name ?? '',
+  };
 }
 
 // GET /api/general-letters/school — just the letterhead/signature/contact
@@ -168,7 +176,7 @@ router.get('/', accountantLetterAccess, async (req, res, next) => {
     // else's. Admin/management are unrestricted (unchanged).
     if (req.user?.role === 'staff') {
       params.push(req.user.id);
-      clauses.push(`gl.issued_by_id = $${params.length}`);
+      clauses.push(`gl.issued_by_staff_id = $${params.length}`);
       params.push('parent_communication');
       clauses.push(`gl.classification = $${params.length}`);
     }
@@ -255,7 +263,7 @@ router.post('/', accountantLetterAccess, async (req, res, next) => {
       if (!recRows.length) return res.status(404).json({ error: 'Recipient not found in this school' });
     }
 
-    const { issued_by_id, issued_by_name } = await resolveIssuedBy(req);
+    const { issued_by_id, issued_by_staff_id, issued_by_name } = await resolveIssuedBy(req);
     const sensitive = isAccountantStaff ? false : (is_sensitive === true || is_sensitive === 'true');
     const requires_approval = computeRequiresApproval(classification, sensitive, issuedAs);
 
@@ -270,7 +278,7 @@ router.post('/', accountantLetterAccess, async (req, res, next) => {
 
     const { rows } = await pool.query(
       `INSERT INTO general_letters (
-         school_id, issued_by_id, issued_by_name, issued_by_signature_url, issued_by_title,
+         school_id, issued_by_id, issued_by_staff_id, issued_by_name, issued_by_signature_url, issued_by_title,
          classification, recipient_type,
          internal_recipient_id, internal_recipient_table,
          ext_recipient_name, ext_recipient_title, ext_recipient_org, ext_recipient_address,
@@ -279,10 +287,10 @@ router.post('/', accountantLetterAccess, async (req, res, next) => {
          ref_number, status, requires_approval, issued_as, requires_acceptance
        ) VALUES (
          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
-         $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25
+         $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26
        ) RETURNING *, issued_date::text`,
       [
-        req.schoolId, issued_by_id, issued_by_name, signature_url, issued_by_title?.trim() || null,
+        req.schoolId, issued_by_id, issued_by_staff_id, issued_by_name, signature_url, issued_by_title?.trim() || null,
         classification, recipient_type,
         internal_recipient_id || null, internal_recipient_table || null,
         ext_recipient_name?.trim() || null, ext_recipient_title?.trim() || null,
@@ -315,7 +323,7 @@ router.patch('/:id/finalize', accountantLetterAccess, async (req, res, next) => 
     // An accountant staff caller may only finalize their own draft — the
     // classification/issued_as/is_sensitive were already forced correctly
     // at draft-creation (POST / above), so no need to re-check those here.
-    if (req.user?.role === 'staff' && draft.issued_by_id !== req.user.id) {
+    if (req.user?.role === 'staff' && draft.issued_by_staff_id !== req.user.id) {
       return res.status(404).json({ error: 'Letter not found' });
     }
     if (draft.status !== 'draft') {
@@ -366,7 +374,7 @@ router.post('/:id/pdf', accountantLetterAccess, async (req, res, next) => {
     const raw = lRows[0];
     // An accountant staff caller may only generate a PDF for their own
     // parent-communication letter — never anyone else's correspondence.
-    if (req.user?.role === 'staff' && (raw.issued_by_id !== req.user.id || raw.classification !== 'parent_communication')) {
+    if (req.user?.role === 'staff' && (raw.issued_by_staff_id !== req.user.id || raw.classification !== 'parent_communication')) {
       return res.status(404).json({ error: 'Letter not found' });
     }
 
@@ -498,7 +506,7 @@ router.get('/:id', async (req, res, next) => {
     if (!rows.length) return res.status(404).json({ error: 'Letter not found' });
     const letter = rows[0];
     if (isAccountantStaff) {
-      if (letter.issued_by_id !== req.user.id || letter.classification !== 'parent_communication') {
+      if (letter.issued_by_staff_id !== req.user.id || letter.classification !== 'parent_communication') {
         return res.status(404).json({ error: 'Letter not found' });
       }
     } else if (!isStaff && !(letter.recipient_type === 'teacher' && letter.internal_recipient_id === req.user.id)) {

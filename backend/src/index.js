@@ -3340,6 +3340,19 @@ async function runMigrations() {
     await pool.query(`ALTER TABLE general_letters ADD COLUMN IF NOT EXISTS decline_reason TEXT`);
     } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] general_letters issued_as + acceptance fields:', e.message); }
 
+    // ── General letters: school_staff as an issuer ─────────────────────────────
+    // issued_by_id is FK'd to teachers(id) — fine for admin/management authors,
+    // but an 'accountant'-role school_staff account (see routes/general-letters.js's
+    // accountantLetterAccess) has its id in school_staff, not teachers, so it can
+    // never satisfy that FK. Same two-column pattern this codebase already uses
+    // for "either a teacher or a school_staff member" (e.g.
+    // clearance_office_staff.teacher_id/school_staff_id,
+    // student_clearance_items.actioned_by_teacher_id/actioned_by_school_staff_id)
+    // rather than relaxing the existing FK.
+    try {
+    await pool.query(`ALTER TABLE general_letters ADD COLUMN IF NOT EXISTS issued_by_staff_id UUID REFERENCES school_staff(id) ON DELETE SET NULL`);
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] general_letters.issued_by_staff_id:', e.message); }
+
     // ── General letters: edit + void (for a letter issued wrongly) ────────────
     // 'voided' is a terminal status alongside the existing ones — a voided
     // letter is kept (never hard-deleted) for audit, just hidden from the
