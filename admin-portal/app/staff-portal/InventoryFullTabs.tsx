@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { AxiosInstance } from 'axios';
 
 const inputCls = 'w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]';
@@ -13,6 +13,7 @@ interface FullItem {
   description: string | null; serial_number: string | null; asset_tag: string | null;
   quantity_total: number; quantity_available: number; condition: string; location: string | null;
   acquired_date: string | null; notes: string | null; ownership_type: 'general' | 'departmental'; department_id: string | null;
+  is_returnable: boolean;
 }
 interface Transaction {
   id: string; type: string; quantity: number; item_name: string; item_type: string; ownership_type: string;
@@ -35,11 +36,21 @@ export function InventoryFullTabs({
   return <ReportTab api={api} />;
 }
 
+const ITEM_TYPES = [
+  { value: 'equipment', label: 'Equipment' },
+  { value: 'book',      label: 'Book' },
+  { value: 'asset',     label: 'Asset' },
+];
+
+// ownership_value is 'general' or a department id — one select, so an item
+// can never be saved as departmental without a department.
 const emptyItem = {
   name: '', item_type: 'equipment', category_id: '', description: '', serial_number: '',
   asset_tag: '', quantity: '1', condition: 'Good', location: '', acquired_date: '', notes: '',
-  ownership_type: 'general' as 'general' | 'departmental', department_id: '',
+  ownership_value: 'general', is_returnable: false,
 };
+
+const labelCls = 'text-xs font-semibold text-slate-500 dark:text-slate-400 block mb-1';
 
 // ── Manage Items (full CRUD) ─────────────────────────────────────────────────
 function ManageItemsTab({ api, primary, onItemsChanged }: { api: AxiosInstance; primary: string; onItemsChanged: () => void }) {
@@ -48,9 +59,11 @@ function ManageItemsTab({ api, primary, onItemsChanged }: { api: AxiosInstance; 
   const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | 'new' | null>(null);
+  const [editingOriginal, setEditingOriginal] = useState<FullItem | null>(null);
   const [form, setForm] = useState(emptyItem);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const formRef = useRef<HTMLDivElement>(null);
 
   function load() {
     setLoading(true);
@@ -63,25 +76,58 @@ function ManageItemsTab({ api, primary, onItemsChanged }: { api: AxiosInstance; 
   }
   useEffect(() => { load(); }, []);
 
-  function openNew() { setEditingId('new'); setForm(emptyItem); setError(''); }
+  function scrollToForm() {
+    setTimeout(() => formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
+  }
+
+  function openNew() {
+    setEditingId('new'); setEditingOriginal(null); setForm(emptyItem); setError('');
+    scrollToForm();
+  }
   function openEdit(i: FullItem) {
-    setEditingId(i.id);
+    setEditingId(i.id); setEditingOriginal(i);
     setForm({
       name: i.name, item_type: i.item_type, category_id: i.category_id ?? '', description: i.description ?? '',
       serial_number: i.serial_number ?? '', asset_tag: i.asset_tag ?? '', quantity: String(i.quantity_total),
-      condition: i.condition, location: i.location ?? '', acquired_date: i.acquired_date ?? '', notes: i.notes ?? '',
-      ownership_type: i.ownership_type, department_id: i.department_id ?? '',
+      condition: i.condition, location: i.location ?? '',
+      acquired_date: i.acquired_date ? i.acquired_date.slice(0, 10) : '', notes: i.notes ?? '',
+      ownership_value: i.ownership_type === 'departmental' && i.department_id ? i.department_id : 'general',
+      is_returnable: i.is_returnable,
     });
     setError('');
+    scrollToForm();
   }
 
   async function save() {
     if (!form.name.trim()) { setError('Item name is required.'); return; }
+    const qty = parseInt(form.quantity);
+    if (editingId === 'new' && (!qty || qty < 1)) { setError('Quantity must be at least 1.'); return; }
+    const conditionChanged = editingOriginal && form.condition !== editingOriginal.condition;
+    if (conditionChanged && form.condition === 'Written Off'
+      && !confirm('Writing off this item sets its available quantity to 0. Continue?')) return;
+
     setSaving(true); setError('');
+    const isGeneral = form.ownership_value === 'general';
+    const payload = {
+      name: form.name, item_type: form.item_type, category_id: form.category_id || null,
+      description: form.description, serial_number: form.serial_number, asset_tag: form.asset_tag,
+      location: form.location, acquired_date: form.acquired_date || null, notes: form.notes,
+      ownership_type: isGeneral ? 'general' : 'departmental',
+      department_id: isGeneral ? null : form.ownership_value,
+      is_returnable: form.is_returnable,
+    };
     try {
-      if (editingId === 'new') await api.post('/api/inventory/items', form);
-      else await api.put(`/api/inventory/items/${editingId}`, form);
-      setEditingId(null); load(); onItemsChanged();
+      if (editingId === 'new') {
+        await api.post('/api/inventory/items', { ...payload, quantity: qty, condition: form.condition });
+      } else {
+        await api.put(`/api/inventory/items/${editingId}`, payload);
+        // The edit route doesn't touch condition — it has its own route
+        // because Written Off also zeroes availability and logs a transaction.
+        if (conditionChanged) {
+          await api.post(`/api/inventory/items/${editingId}/condition`, { condition: form.condition });
+        }
+      }
+      setEditingId(null); setEditingOriginal(null); load(); onItemsChanged();
     } catch (e: any) { setError(e?.response?.data?.error ?? 'Failed to save.'); }
     finally { setSaving(false); }
   }
@@ -97,42 +143,114 @@ function ManageItemsTab({ api, primary, onItemsChanged }: { api: AxiosInstance; 
       <button onClick={openNew} className="py-2.5 px-4 rounded-xl text-sm font-semibold text-white" style={{ background: primary }}>+ Add Item</button>
 
       {editingId && (
-        <div className={`${cardCls} p-4 space-y-3`}>
-          <input className={inputCls} placeholder="Item name" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
-          <div className="grid grid-cols-2 gap-2">
-            <select className={inputCls} value={form.category_id} onChange={e => setForm(f => ({ ...f, category_id: e.target.value }))}>
-              <option value="">No category</option>
-              {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-            <input className={inputCls} placeholder="Item type" value={form.item_type} onChange={e => setForm(f => ({ ...f, item_type: e.target.value }))} />
+        <div ref={formRef} className={`${cardCls} p-4 space-y-3 scroll-mt-4`}>
+          <p className="text-sm font-bold text-slate-800 dark:text-white">
+            {editingId === 'new' ? 'Add Item' : `Edit ${editingOriginal?.name ?? 'Item'}`}
+          </p>
+
+          <div>
+            <label className={labelCls}>Name *</label>
+            <input className={inputCls} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
           </div>
+
           <div className="grid grid-cols-2 gap-2">
-            <input type="number" min="1" className={inputCls} placeholder="Quantity" value={form.quantity} onChange={e => setForm(f => ({ ...f, quantity: e.target.value }))} disabled={editingId !== 'new'} />
-            <select className={inputCls} value={form.condition} onChange={e => setForm(f => ({ ...f, condition: e.target.value }))}>
-              <option value="Good">Good</option>
-              <option value="Damaged">Damaged</option>
-              <option value="Written Off">Written Off</option>
-            </select>
-          </div>
-          <input className={inputCls} placeholder="Location (optional)" value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} />
-          <input className={inputCls} placeholder="Serial number (optional)" value={form.serial_number} onChange={e => setForm(f => ({ ...f, serial_number: e.target.value }))} />
-          <div className="grid grid-cols-2 gap-2">
-            <select className={inputCls} value={form.ownership_type} onChange={e => setForm(f => ({ ...f, ownership_type: e.target.value as 'general' | 'departmental' }))}>
-              <option value="general">General</option>
-              <option value="departmental">Departmental</option>
-            </select>
-            {form.ownership_type === 'departmental' && (
-              <select className={inputCls} value={form.department_id} onChange={e => setForm(f => ({ ...f, department_id: e.target.value }))}>
-                <option value="">— Department —</option>
-                {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+            <div>
+              <label className={labelCls}>Type</label>
+              <select className={inputCls} value={form.item_type} onChange={e => setForm(f => ({ ...f, item_type: e.target.value }))}>
+                {ITEM_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                {!ITEM_TYPES.some(t => t.value === form.item_type) && (
+                  <option value={form.item_type}>{form.item_type}</option>
+                )}
               </select>
-            )}
+            </div>
+            <div>
+              <label className={labelCls}>Category</label>
+              <select className={inputCls} value={form.category_id} onChange={e => setForm(f => ({ ...f, category_id: e.target.value }))}>
+                <option value="">No category</option>
+                {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
           </div>
-          <input className={inputCls} placeholder="Notes (optional)" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
+
+          <label className="flex items-start gap-2 cursor-pointer select-none">
+            <input type="checkbox" checked={form.is_returnable}
+              onChange={e => setForm(f => ({ ...f, is_returnable: e.target.checked }))}
+              className="w-4 h-4 mt-0.5 accent-[#145C44] rounded shrink-0" />
+            <span className="text-sm text-slate-700 dark:text-slate-300">
+              Returnable <span className="text-slate-400">— must come back (test books, tablets, drawing boards). Leave unticked for consumables like pens or A4 sheets.</span>
+            </span>
+          </label>
+
+          <div>
+            <label className={labelCls}>Ownership</label>
+            <select className={inputCls} value={form.ownership_value} onChange={e => setForm(f => ({ ...f, ownership_value: e.target.value }))}>
+              <option value="general">General (Stores)</option>
+              {departments.map(d => <option key={d.id} value={d.id}>{d.name} Department</option>)}
+            </select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            {editingId === 'new' ? (
+              <div>
+                <label className={labelCls}>Quantity *</label>
+                <input type="number" min="1" className={inputCls} value={form.quantity} onChange={e => setForm(f => ({ ...f, quantity: e.target.value }))} />
+              </div>
+            ) : (
+              <div>
+                <label className={labelCls}>Quantity</label>
+                <p className="text-sm text-slate-700 dark:text-slate-300 py-2">
+                  {editingOriginal?.quantity_available} available of {editingOriginal?.quantity_total}
+                </p>
+              </div>
+            )}
+            <div>
+              <label className={labelCls}>Condition</label>
+              <select className={inputCls} value={form.condition} onChange={e => setForm(f => ({ ...f, condition: e.target.value }))}>
+                <option value="Good">Good</option>
+                <option value="Damaged">Damaged</option>
+                {editingId !== 'new' && <option value="Written Off">Written Off</option>}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className={labelCls}>Serial Number</label>
+              <input className={inputCls} value={form.serial_number} onChange={e => setForm(f => ({ ...f, serial_number: e.target.value }))} />
+            </div>
+            <div>
+              <label className={labelCls}>Asset Tag <span className="font-normal text-slate-400">(auto if blank)</span></label>
+              <input className={inputCls} placeholder="AST-0001" value={form.asset_tag} onChange={e => setForm(f => ({ ...f, asset_tag: e.target.value }))} />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className={labelCls}>Location</label>
+              <input className={inputCls} value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} />
+            </div>
+            <div>
+              <label className={labelCls}>Acquired Date</label>
+              <input type="date" className={inputCls} value={form.acquired_date} onChange={e => setForm(f => ({ ...f, acquired_date: e.target.value }))} />
+            </div>
+          </div>
+
+          <div>
+            <label className={labelCls}>Description</label>
+            <textarea rows={2} className={`${inputCls} resize-none`} value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
+          </div>
+
+          <div>
+            <label className={labelCls}>Notes</label>
+            <textarea rows={2} className={`${inputCls} resize-none`} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
+          </div>
+
           {error && <p className="text-sm text-red-600">{error}</p>}
           <div className="flex gap-2">
-            <button onClick={() => setEditingId(null)} className="flex-1 py-2 rounded-xl text-sm font-semibold border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300">Cancel</button>
-            <button onClick={save} disabled={saving} className="flex-1 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-50" style={{ background: primary }}>{saving ? 'Saving…' : 'Save'}</button>
+            <button onClick={() => { setEditingId(null); setEditingOriginal(null); }} className="flex-1 py-2 rounded-xl text-sm font-semibold border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300">Cancel</button>
+            <button onClick={save} disabled={saving} className="flex-1 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-50" style={{ background: primary }}>
+              {saving ? 'Saving…' : editingId === 'new' ? 'Add Item' : 'Save Changes'}
+            </button>
           </div>
         </div>
       )}
@@ -147,9 +265,18 @@ function ManageItemsTab({ api, primary, onItemsChanged }: { api: AxiosInstance; 
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-slate-800 dark:text-white truncate">{i.name}</p>
                   <p className="text-xs text-slate-400">
-                    {i.category_name ?? i.item_type} · {i.ownership_type === 'departmental' ? 'Departmental' : 'General'}
+                    {i.category_name ?? (ITEM_TYPES.find(t => t.value === i.item_type)?.label ?? i.item_type)}
+                    {' · '}{i.ownership_type === 'departmental' ? (departments.find(d => d.id === i.department_id)?.name ?? 'Departmental') : 'General'}
                     {i.asset_tag ? ` · ${i.asset_tag}` : ''}
                   </p>
+                  <div className="flex gap-1 mt-1">
+                    {i.is_returnable && (
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">Returnable</span>
+                    )}
+                    {i.condition !== 'Good' && (
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${i.condition === 'Damaged' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>{i.condition}</span>
+                    )}
+                  </div>
                 </div>
                 <p className="text-sm font-bold text-slate-900 dark:text-white shrink-0">{i.quantity_available}/{i.quantity_total}</p>
                 <button onClick={() => openEdit(i)} className="text-xs text-blue-600 dark:text-blue-400 hover:underline shrink-0">Edit</button>
