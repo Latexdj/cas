@@ -2246,6 +2246,11 @@ async function runMigrations() {
     // Inventory transaction recipient typing
     await pool.query(`ALTER TABLE inventory_transactions ADD COLUMN IF NOT EXISTS issued_to_type TEXT CHECK (issued_to_type IN ('student', 'staff', 'department'))`);
     await pool.query(`ALTER TABLE inventory_transactions ADD COLUMN IF NOT EXISTS student_id UUID REFERENCES students(id) ON DELETE SET NULL`);
+    // performed_by_id is FK'd to teachers(id) — a 'stores'-role school_staff
+    // account's id lives in school_staff instead, so every transaction they
+    // log (issue/return/condition-change/add) would fail that FK. Same
+    // two-column teacher/school_staff pattern as general_letters.issued_by_staff_id.
+    await pool.query(`ALTER TABLE inventory_transactions ADD COLUMN IF NOT EXISTS performed_by_staff_id UUID REFERENCES school_staff(id) ON DELETE SET NULL`);
     // Fix school_staff_roles CHECK constraint to allow 'inventory' role
     await pool.query(`
       DO $$ BEGIN

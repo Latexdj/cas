@@ -78,6 +78,13 @@ function checkItemScope(scope, deptId, item) {
   return null;
 }
 
+// performed_by_id is FK'd to teachers(id); a 'stores'-role school_staff
+// account's id lives in school_staff instead, so it goes in the separate
+// performed_by_staff_id column — returns [performed_by_id, performed_by_staff_id].
+function performedBy(req) {
+  return req.user?.role === 'staff' ? [null, req.user.id] : [req.user.id, null];
+}
+
 // Auto-generate next asset tag (AST-0001 pattern)
 async function nextAssetTag(schoolId) {
   const { rows } = await pool.query(
@@ -254,9 +261,9 @@ router.post('/items', async (req, res, next) => {
        notes?.trim() || null, ownershipType, deptId]
     );
     await pool.query(
-      `INSERT INTO inventory_transactions (school_id,item_id,type,quantity,notes,performed_by_id,performed_by_name)
-       VALUES ($1,$2,'added',$3,'Item added to inventory',$4,$5)`,
-      [req.schoolId, rows[0].id, qty, req.user.id, req.user.name]
+      `INSERT INTO inventory_transactions (school_id,item_id,type,quantity,notes,performed_by_id,performed_by_staff_id,performed_by_name)
+       VALUES ($1,$2,'added',$3,'Item added to inventory',$4,$5,$6)`,
+      [req.schoolId, rows[0].id, qty, ...performedBy(req), req.user.name]
     );
     res.status(201).json(rows[0]);
   } catch (err) { next(err); }
@@ -356,13 +363,13 @@ router.post('/items/:id/issue', async (req, res, next) => {
     );
     await pool.query(
       `INSERT INTO inventory_transactions
-         (school_id,item_id,type,quantity,issued_to_name,issued_to_role,issued_to_type,student_id,notes,performed_by_id,performed_by_name)
-       VALUES ($1,$2,'issued',$3,$4,$5,$6,$7,$8,$9,$10)`,
+         (school_id,item_id,type,quantity,issued_to_name,issued_to_role,issued_to_type,student_id,notes,performed_by_id,performed_by_staff_id,performed_by_name)
+       VALUES ($1,$2,'issued',$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
       [req.schoolId, req.params.id, qty, issued_to_name.trim(),
        issued_to_role?.trim() || null,
        issued_to_type || 'staff',
        student_id || null,
-       notes?.trim() || null, req.user.id, req.user.name]
+       notes?.trim() || null, ...performedBy(req), req.user.name]
     );
     res.json(updated[0]);
   } catch (err) { next(err); }
@@ -390,9 +397,9 @@ router.post('/items/:id/return', async (req, res, next) => {
       [qty, newCondition, req.params.id, req.schoolId]
     );
     await pool.query(
-      `INSERT INTO inventory_transactions (school_id,item_id,type,quantity,notes,performed_by_id,performed_by_name)
-       VALUES ($1,$2,'returned',$3,$4,$5,$6)`,
-      [req.schoolId, req.params.id, qty, notes?.trim() || null, req.user.id, req.user.name]
+      `INSERT INTO inventory_transactions (school_id,item_id,type,quantity,notes,performed_by_id,performed_by_staff_id,performed_by_name)
+       VALUES ($1,$2,'returned',$3,$4,$5,$6,$7)`,
+      [req.schoolId, req.params.id, qty, notes?.trim() || null, ...performedBy(req), req.user.name]
     );
     res.json(updated[0]);
   } catch (err) { next(err); }
@@ -420,9 +427,9 @@ router.post('/items/:id/condition', async (req, res, next) => {
       [condition, req.params.id, req.schoolId]
     );
     await pool.query(
-      `INSERT INTO inventory_transactions (school_id,item_id,type,quantity,notes,performed_by_id,performed_by_name)
-       VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-      [req.schoolId, req.params.id, txnType, updated[0].quantity_total, notes?.trim() || null, req.user.id, req.user.name]
+      `INSERT INTO inventory_transactions (school_id,item_id,type,quantity,notes,performed_by_id,performed_by_staff_id,performed_by_name)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+      [req.schoolId, req.params.id, txnType, updated[0].quantity_total, notes?.trim() || null, ...performedBy(req), req.user.name]
     );
     res.json(updated[0]);
   } catch (err) { next(err); }
