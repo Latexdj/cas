@@ -20,6 +20,20 @@ function adminOrManagement(req, res, next) {
   next();
 }
 
+// Admin/management unchanged, OR school_staff with the 'accountant' role —
+// restricted to parent-communication correspondence only (fee reminders
+// etc.), never disciplinary/external/internal letters, never approve/void.
+// classification/issued_as/is_sensitive are force-set server-side for staff
+// callers in POST / below, and GET /, GET /:id are scoped to the caller's
+// own letters — see those handlers for the staff-specific branches.
+function accountantLetterAccess(req, res, next) {
+  const role = req.user?.role;
+  const type = req.user?.type;
+  if (role === 'admin' || role === 'super_admin' || type === 'management') return next();
+  if (role === 'staff' && req.staffRoles?.includes('accountant')) return next();
+  return res.status(403).json({ error: 'Admin, management, or accountant access required' });
+}
+
 const VALID_CLASSIFICATIONS = ['parent_communication', 'external_official', 'internal_administrative', 'other'];
 const VALID_RECIPIENT_TYPES  = ['student', 'teacher', 'parent', 'external'];
 const VALID_ISSUED_AS = ['own_office', 'on_behalf_of_head'];
@@ -65,9 +79,11 @@ async function generateRefNumber(schoolId) {
 async function resolveIssuedBy(req) {
   // Management JWT payload: { id, schoolId, role, type } — name is not in the token.
   // Both admin and management users are rows in teachers; look up by id for both.
+  // A 'staff' role's id is a school_staff.id instead — different table.
   const id = req.user?.id ?? null;
   if (!id) return { issued_by_id: null, issued_by_name: '' };
-  const { rows } = await pool.query(`SELECT name FROM teachers WHERE id = $1`, [id]);
+  const table = req.user?.role === 'staff' ? 'school_staff' : 'teachers';
+  const { rows } = await pool.query(`SELECT name FROM ${table} WHERE id = $1`, [id]);
   return { issued_by_id: id, issued_by_name: rows[0]?.name ?? '' };
 }
 
@@ -133,7 +149,7 @@ router.post('/contacts', adminOrManagement, async (req, res, next) => {
 // ─── GENERAL LETTERS ──────────────────────────────────────────────────────────
 
 // GET /api/general-letters
-router.get('/', adminOrManagement, async (req, res, next) => {
+router.get('/', accountantLetterAccess, async (req, res, next) => {
   try {
     const { status, classification } = req.query;
     const params = [req.schoolId];
@@ -147,6 +163,15 @@ router.get('/', adminOrManagement, async (req, res, next) => {
       clauses.push(`gl.status != 'draft'`);
     }
     if (classification) { params.push(classification); clauses.push(`gl.classification = $${params.length}`); }
+    // An 'accountant' staff caller only ever sees their own parent-communication
+    // correspondence — never disciplinary/external/internal letters or anyone
+    // else's. Admin/management are unrestricted (unchanged).
+    if (req.user?.role === 'staff') {
+      params.push(req.user.id);
+      clauses.push(`gl.issued_by_id = $${params.length}`);
+      params.push('parent_communication');
+      clauses.push(`gl.classification = $${params.length}`);
+    }
     const where = clauses.length ? ' AND ' + clauses.join(' AND ') : '';
 
     const { rows } = await pool.query(
@@ -176,7 +201,7 @@ router.get('/', adminOrManagement, async (req, res, next) => {
 // POST /api/general-letters
 // Pass status:'draft' (with empty body) to pre-create a shell record for the AI drafting flow.
 // The draft is invisible in the list and must be finalized via PATCH /:id/finalize.
-router.post('/', adminOrManagement, async (req, res, next) => {
+router.post('/', accountantLetterAccess, async (req, res, next) => {
   try {
     const {
       classification, recipient_type,
@@ -189,8 +214,19 @@ router.post('/', adminOrManagement, async (req, res, next) => {
     } = req.body;
 
     const savingAsDraft = requestedStatus === 'draft';
-    const issuedAs = VALID_ISSUED_AS.includes(issued_as) ? issued_as : 'on_behalf_of_head';
     const requiresAcceptance = requires_acceptance === true || requires_acceptance === 'true';
+
+    // An 'accountant' staff caller may only ever issue parent-communication
+    // correspondence, from their own office, never flagged sensitive — these
+    // are enforced server-side, not just hidden in the UI, since they decide
+    // whether the letter requires management approval (computeRequiresApproval
+    // below) and whose signature it's allowed to carry.
+    const isAccountantStaff = req.user?.role === 'staff' && req.staffRoles?.includes('accountant');
+    if (isAccountantStaff && classification !== 'parent_communication') {
+      return res.status(403).json({ error: 'Accountant staff may only issue parent-communication letters' });
+    }
+    const issuedAs = isAccountantStaff ? 'own_office'
+      : (VALID_ISSUED_AS.includes(issued_as) ? issued_as : 'on_behalf_of_head');
 
     if (!VALID_CLASSIFICATIONS.includes(classification))
       return res.status(400).json({ error: 'Invalid classification' });
@@ -220,7 +256,7 @@ router.post('/', adminOrManagement, async (req, res, next) => {
     }
 
     const { issued_by_id, issued_by_name } = await resolveIssuedBy(req);
-    const sensitive = is_sensitive === true || is_sensitive === 'true';
+    const sensitive = isAccountantStaff ? false : (is_sensitive === true || is_sensitive === 'true');
     const requires_approval = computeRequiresApproval(classification, sensitive, issuedAs);
 
     // Drafts skip ref_number generation — no counter is incremented until finalize.
@@ -265,7 +301,7 @@ router.post('/', adminOrManagement, async (req, res, next) => {
 // PATCH /api/general-letters/:id/finalize — finalizes an AI-drafted letter
 // Generates ref_number, sets body, transitions draft → issued/pending_approval.
 // Must be defined before /:id to avoid Express matching 'finalize' as an id.
-router.patch('/:id/finalize', adminOrManagement, async (req, res, next) => {
+router.patch('/:id/finalize', accountantLetterAccess, async (req, res, next) => {
   try {
     const { body } = req.body;
     if (!body?.trim()) return res.status(400).json({ error: 'body is required' });
@@ -276,6 +312,12 @@ router.patch('/:id/finalize', adminOrManagement, async (req, res, next) => {
     );
     if (!existing.length) return res.status(404).json({ error: 'Letter not found' });
     const draft = existing[0];
+    // An accountant staff caller may only finalize their own draft — the
+    // classification/issued_as/is_sensitive were already forced correctly
+    // at draft-creation (POST / above), so no need to re-check those here.
+    if (req.user?.role === 'staff' && draft.issued_by_id !== req.user.id) {
+      return res.status(404).json({ error: 'Letter not found' });
+    }
     if (draft.status !== 'draft') {
       return res.status(400).json({ error: 'Letter is not a draft — use /approve to change status' });
     }
@@ -302,7 +344,7 @@ router.patch('/:id/finalize', adminOrManagement, async (req, res, next) => {
 // POST /api/general-letters/:id/pdf — generate (or re-generate) PDF
 // Watermarked if status is pending_approval; final clean PDF otherwise.
 // Must be registered before GET /:id to prevent Express matching 'pdf' as an id.
-router.post('/:id/pdf', adminOrManagement, async (req, res, next) => {
+router.post('/:id/pdf', accountantLetterAccess, async (req, res, next) => {
   try {
     const { rows: lRows } = await pool.query(
       `SELECT gl.*, gl.issued_date::text,
@@ -322,6 +364,11 @@ router.post('/:id/pdf', adminOrManagement, async (req, res, next) => {
     );
     if (!lRows.length) return res.status(404).json({ error: 'Letter not found' });
     const raw = lRows[0];
+    // An accountant staff caller may only generate a PDF for their own
+    // parent-communication letter — never anyone else's correspondence.
+    if (req.user?.role === 'staff' && (raw.issued_by_id !== req.user.id || raw.classification !== 'parent_communication')) {
+      return res.status(404).json({ error: 'Letter not found' });
+    }
 
     const { rows: sRows } = await pool.query(
       `SELECT name, address, phone, email, motto, letterhead_url, headmaster_signature_url, headmaster_name
@@ -428,7 +475,8 @@ router.get('/:id', async (req, res, next) => {
   try {
     const role = req.user?.role;
     const isStaff = role === 'admin' || role === 'super_admin' || req.user?.type === 'management';
-    if (!isStaff && role !== 'teacher') {
+    const isAccountantStaff = role === 'staff' && req.staffRoles?.includes('accountant');
+    if (!isStaff && !isAccountantStaff && role !== 'teacher') {
       return res.status(403).json({ error: 'Admin or management access required' });
     }
     const { rows } = await pool.query(
@@ -449,7 +497,11 @@ router.get('/:id', async (req, res, next) => {
     );
     if (!rows.length) return res.status(404).json({ error: 'Letter not found' });
     const letter = rows[0];
-    if (!isStaff && !(letter.recipient_type === 'teacher' && letter.internal_recipient_id === req.user.id)) {
+    if (isAccountantStaff) {
+      if (letter.issued_by_id !== req.user.id || letter.classification !== 'parent_communication') {
+        return res.status(404).json({ error: 'Letter not found' });
+      }
+    } else if (!isStaff && !(letter.recipient_type === 'teacher' && letter.internal_recipient_id === req.user.id)) {
       return res.status(404).json({ error: 'Letter not found' });
     }
     letter.return_history = isStaff ? await getReturnHistory({

@@ -2275,6 +2275,19 @@ async function runMigrations() {
           CHECK (role IN ('clearance','library','inventory','accounts','clinic'));
       EXCEPTION WHEN OTHERS THEN NULL; END $$
     `);
+    // Fix school_staff_roles CHECK constraint to allow 'accountant' and
+    // 'stores' roles — full-access tiers alongside the existing limited
+    // 'accounts' (bill collector) and 'inventory' (general issue/return)
+    // roles. See fees.js's accountantAccess, inventory.js's inventoryAccess
+    // 'stores' branch, and general-letters.js's accountantLetterAccess.
+    await pool.query(`
+      DO $$ BEGIN
+        ALTER TABLE school_staff_roles DROP CONSTRAINT IF EXISTS school_staff_roles_role_check;
+        ALTER TABLE school_staff_roles
+          ADD CONSTRAINT school_staff_roles_role_check
+          CHECK (role IN ('clearance','library','inventory','accounts','clinic','accountant','stores'));
+      EXCEPTION WHEN OTHERS THEN NULL; END $$
+    `);
 
     // Fix student_attendance_records CHECK constraint to allow an
     // 'Excused' status (auto-applied when a student has a qualifying

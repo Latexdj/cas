@@ -6,6 +6,9 @@ import { FeeReportsPanel } from '@/components/fees/FeeReportsPanel';
 import { IdCardScanner } from '@/components/IdCardScanner';
 import { staffApi } from '@/lib/staff-api';
 import { getStaffUser, getStaffColors } from './layout';
+import { AccountsFullTabs } from './AccountsFullTabs';
+import { InventoryFullTabs } from './InventoryFullTabs';
+import { LettersSection } from './LettersSection';
 
 // ─── Clearance types ──────────────────────────────────────────────────────────
 interface Office { id: string; name: string; office_type: string; sort_order: number; }
@@ -106,11 +109,11 @@ interface ClinicInvItem {
   reorder_level: number; is_low_stock: boolean; batch_number: string | null; expiry_date: string | null;
 }
 
-type Section     = 'clearance' | 'library' | 'inventory' | 'accounts' | 'clinic';
+type Section     = 'clearance' | 'library' | 'inventory' | 'accounts' | 'clinic' | 'letters';
 type ClTab       = 'pending' | 'lookup' | 'history';
 type LibTab      = 'dashboard' | 'issue' | 'return' | 'overdue';
-type AcctTab     = 'dashboard' | 'collect' | 'reports';
-type InvTab      = 'items' | 'issue' | 'return' | 'sign-list';
+type AcctTab     = 'dashboard' | 'collect' | 'reports' | 'fee-items' | 'schedules' | 'expenditure' | 'arrears' | 'maintenance';
+type InvTab      = 'items' | 'issue' | 'return' | 'sign-list' | 'categories' | 'manage-items' | 'log' | 'report';
 type ClinicTab   = 'dashboard' | 'new-visit' | 'open' | 'history' | 'inventory';
 
 interface SlFilters {
@@ -129,13 +132,18 @@ export default function StaffPortalPage() {
   const staffRoles: string[] = user?.staffRoles ?? [];
   const hasLib  = staffRoles.includes('library');
   const hasCl   = staffRoles.includes('clearance');
-  const hasInv  = staffRoles.includes('inventory');
-  const hasAcc  = staffRoles.includes('accounts');
+  const hasInv  = staffRoles.includes('inventory') || staffRoles.includes('stores');
+  const hasAcc  = staffRoles.includes('accounts') || staffRoles.includes('accountant');
   const hasClinic = staffRoles.includes('clinic');
+  // Full-access tiers — distinct from the plain 'inventory'/'accounts' clerk
+  // roles above. See backend/src/routes/{inventory,fees}.js.
+  const isStores     = staffRoles.includes('stores');
+  const isAccountant = staffRoles.includes('accountant');
+  const hasLetters   = isAccountant;
 
   const [idScanOpen, setIdScanOpen] = useState(false);
 
-  const defaultSection: Section = hasCl ? 'clearance' : hasLib ? 'library' : hasInv ? 'inventory' : hasAcc ? 'accounts' : 'clinic';
+  const defaultSection: Section = hasCl ? 'clearance' : hasLib ? 'library' : hasInv ? 'inventory' : hasAcc ? 'accounts' : hasClinic ? 'clinic' : 'letters';
   const [section, setSection] = useState<Section>(defaultSection);
 
   // ── Clearance state ─────────────────────────────────────────────────────────
@@ -807,15 +815,15 @@ export default function StaffPortalPage() {
       </div>
 
       {/* Section switcher (shown when user has more than one role) */}
-      {([hasCl, hasLib, hasInv, hasAcc, hasClinic].filter(Boolean).length > 1) && (
-        <div className="flex gap-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-1">
-          {([hasCl && 'clearance', hasLib && 'library', hasInv && 'inventory', hasAcc && 'accounts', hasClinic && 'clinic'] as (Section | false)[])
+      {([hasCl, hasLib, hasInv, hasAcc, hasClinic, hasLetters].filter(Boolean).length > 1) && (
+        <div className="flex gap-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-1 flex-wrap">
+          {([hasCl && 'clearance', hasLib && 'library', hasInv && 'inventory', hasAcc && 'accounts', hasClinic && 'clinic', hasLetters && 'letters'] as (Section | false)[])
             .filter((s): s is Section => !!s)
             .map(s => (
               <button key={s} onClick={() => setSection(s)}
                 className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors capitalize ${section === s ? 'text-white' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
                 style={section === s ? { background: primary } : {}}>
-                {s === 'clearance' ? 'Clearance' : s === 'library' ? 'Library' : s === 'inventory' ? 'Inventory' : s === 'accounts' ? 'Accounts' : 'Clinic'}
+                {s === 'clearance' ? 'Clearance' : s === 'library' ? 'Library' : s === 'inventory' ? (isStores ? 'Stores' : 'Inventory') : s === 'accounts' ? (isAccountant ? 'Accountant' : 'Accounts') : s === 'letters' ? 'Letters' : 'Clinic'}
               </button>
             ))}
         </div>
@@ -1165,8 +1173,16 @@ export default function StaffPortalPage() {
       {/* ── Inventory Section ─────────────────────────────────────────────── */}
       {hasInv && section === 'inventory' && (
         <div className="space-y-4">
-          <div className="flex gap-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-1">
-            {([['items', 'Items'], ['issue', 'Issue'], ['return', 'Return'], ['sign-list', 'Sign List']] as const).map(([key, label]) => (
+          <div className="flex gap-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-1 flex-wrap">
+            {([
+              ['items', 'Items'], ['issue', 'Issue'], ['return', 'Return'], ['sign-list', 'Sign List'],
+              ...(isStores ? ([
+                ['manage-items', 'Manage Items'],
+                ['categories',   'Categories'],
+                ['log',          'Transaction Log'],
+                ['report',       'Asset Report'],
+              ] as const) : []),
+            ] as const).map(([key, label]) => (
               <button key={key} onClick={() => { setInvTab(key); setInvReturnOk(false); if (key === 'sign-list') { loadSlFilters(); slRefreshCount(); } }}
                 className={`flex-1 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-colors ${invTab === key ? 'text-white' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700'}`}
                 style={invTab === key ? { background: primary } : {}}>
@@ -1175,7 +1191,15 @@ export default function StaffPortalPage() {
             ))}
           </div>
 
-          {invLoading && <div className="flex justify-center py-10"><div className="w-7 h-7 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: primary, borderTopColor: 'transparent' }} /></div>}
+          {isStores && ['manage-items', 'categories', 'log', 'report'].includes(invTab) && (
+            <InventoryFullTabs
+              tab={invTab as 'manage-items' | 'categories' | 'log' | 'report'}
+              api={api} primary={primary}
+              onItemsChanged={loadInvItems}
+            />
+          )}
+
+          {!['manage-items', 'categories', 'log', 'report'].includes(invTab) && invLoading && <div className="flex justify-center py-10"><div className="w-7 h-7 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: primary, borderTopColor: 'transparent' }} /></div>}
 
           {/* Items list */}
           {invTab === 'items' && !invLoading && (
@@ -1445,11 +1469,18 @@ export default function StaffPortalPage() {
       {/* ── Accounts Section ──────────────────────────────────────────────── */}
       {hasAcc && section === 'accounts' && (
         <div className="space-y-4">
-          <div className="flex gap-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-1">
+          <div className="flex gap-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-1 flex-wrap">
             {([
               ['dashboard', 'Dashboard'],
               ['collect',   'Collect Payment'],
               ['reports',   'Reports'],
+              ...(isAccountant ? ([
+                ['fee-items',   'Fee Items'],
+                ['schedules',   'Schedules'],
+                ['expenditure', 'Expenditure'],
+                ['arrears',     'Arrears'],
+                ['maintenance', 'Maintenance'],
+              ] as const) : []),
             ] as const).map(([key, label]) => (
               <button key={key} onClick={() => setAcctTab(key)}
                 className={`flex-1 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-colors ${acctTab === key ? 'text-white' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
@@ -1459,7 +1490,7 @@ export default function StaffPortalPage() {
             ))}
           </div>
 
-          {acctTab !== 'reports' && (
+          {!['reports', 'fee-items', 'schedules', 'expenditure', 'arrears', 'maintenance'].includes(acctTab) && (
           <div className="relative max-w-md">
             <input value={acctQuery}
               onChange={e => setAcctQuery(e.target.value)}
@@ -1627,6 +1658,10 @@ export default function StaffPortalPage() {
           )}
 
           {acctTab === 'reports' && <FeeReportsPanel apiClient={api} />}
+
+          {isAccountant && ['fee-items', 'schedules', 'expenditure', 'arrears', 'maintenance'].includes(acctTab) && (
+            <AccountsFullTabs tab={acctTab as 'fee-items' | 'schedules' | 'expenditure' | 'arrears' | 'maintenance'} api={api} primary={primary} />
+          )}
         </div>
       )}
 
@@ -1930,6 +1965,11 @@ export default function StaffPortalPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── Letters Section ───────────────────────────────────────────────── */}
+      {hasLetters && section === 'letters' && (
+        <LettersSection api={api} primary={primary} />
       )}
 
       {/* ── Scan ID Card Modal ───────────────────────────────────────────── */}
