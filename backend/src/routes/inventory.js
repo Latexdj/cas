@@ -546,6 +546,26 @@ router.get('/students/:code', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// Debounced search (Issue flow — browsing for a teacher borrower, same
+// shape as clinic.js's /teachers/search). Must be registered BEFORE
+// /teachers/:code below — Express matches routes in registration order,
+// so a wildcard :code param would otherwise swallow the literal "search"
+// path segment and this route would be unreachable.
+router.get('/teachers/search', async (req, res, next) => {
+  try {
+    const { q } = req.query;
+    if (!q || String(q).length < 2) return res.json([]);
+    const { rows } = await pool.query(
+      `SELECT id, name, teacher_code, department
+       FROM teachers WHERE school_id=$1 AND status='Active'
+         AND (name ILIKE $2 OR teacher_code ILIKE $2)
+       ORDER BY name LIMIT 15`,
+      [req.schoolId, `%${q}%`]
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
 router.get('/teachers/:code', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
@@ -566,23 +586,6 @@ router.get('/teachers/:code', async (req, res, next) => {
       loanParams
     );
     res.json({ ...rows[0], loans });
-  } catch (err) { next(err); }
-});
-
-// Debounced search (Issue flow — browsing for a teacher borrower, same
-// shape as clinic.js's /teachers/search).
-router.get('/teachers/search', async (req, res, next) => {
-  try {
-    const { q } = req.query;
-    if (!q || String(q).length < 2) return res.json([]);
-    const { rows } = await pool.query(
-      `SELECT id, name, teacher_code, department
-       FROM teachers WHERE school_id=$1 AND status='Active'
-         AND (name ILIKE $2 OR teacher_code ILIKE $2)
-       ORDER BY name LIMIT 15`,
-      [req.schoolId, `%${q}%`]
-    );
-    res.json(rows);
   } catch (err) { next(err); }
 });
 
