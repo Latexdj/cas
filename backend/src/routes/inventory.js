@@ -235,11 +235,12 @@ router.post('/items', async (req, res, next) => {
   try {
     const { name, item_type, category_id, description, serial_number,
             asset_tag, quantity, condition, location, acquired_date, notes,
-            ownership_type, department_id } = req.body;
+            ownership_type, department_id, is_returnable } = req.body;
     if (!name?.trim()) return res.status(400).json({ error: 'Item name is required' });
 
     const ownershipType = (['general', 'departmental'].includes(ownership_type)) ? ownership_type : 'general';
     const deptId = ownershipType === 'departmental' ? (department_id || null) : null;
+    const returnable = is_returnable === true || is_returnable === 'true';
 
     // Scope check: non-admin can only create within their scope
     const scopeErr = checkItemScope(req.inventoryScope, req.inventoryDeptId, { ownership_type: ownershipType, department_id: deptId });
@@ -252,13 +253,13 @@ router.post('/items', async (req, res, next) => {
       `INSERT INTO inventory_items
          (school_id, category_id, name, item_type, description, serial_number, asset_tag,
           quantity_total, quantity_available, condition, location, acquired_date, notes,
-          ownership_type, department_id)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$8,$9,$10,$11,$12,$13,$14)
+          ownership_type, department_id, is_returnable)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$8,$9,$10,$11,$12,$13,$14,$15)
        RETURNING *`,
       [req.schoolId, category_id || null, name.trim(), item_type || 'equipment',
        description?.trim() || null, serial_number?.trim() || null, tag, qty,
        condition || 'Good', location?.trim() || null, acquired_date || null,
-       notes?.trim() || null, ownershipType, deptId]
+       notes?.trim() || null, ownershipType, deptId, returnable]
     );
     await pool.query(
       `INSERT INTO inventory_transactions (school_id,item_id,type,quantity,notes,performed_by_id,performed_by_staff_id,performed_by_name)
@@ -294,7 +295,7 @@ router.get('/items/:id', async (req, res, next) => {
 router.put('/items/:id', async (req, res, next) => {
   try {
     const { name, item_type, category_id, description, serial_number, asset_tag,
-            location, acquired_date, notes, ownership_type, department_id } = req.body;
+            location, acquired_date, notes, ownership_type, department_id, is_returnable } = req.body;
     if (!name?.trim()) return res.status(400).json({ error: 'Item name is required' });
 
     const { rows: existing } = await pool.query(
@@ -308,17 +309,18 @@ router.put('/items/:id', async (req, res, next) => {
     const ownershipType = (['general', 'departmental'].includes(ownership_type)) ? ownership_type : existing[0].ownership_type;
     const deptId = ownershipType === 'departmental' ? (department_id || null) : null;
     const tag = asset_tag?.trim() || existing[0].asset_tag || await nextAssetTag(req.schoolId);
+    const returnable = is_returnable === undefined ? existing[0].is_returnable : (is_returnable === true || is_returnable === 'true');
 
     const { rows } = await pool.query(
       `UPDATE inventory_items
        SET name=$1, item_type=$2, category_id=$3, description=$4, serial_number=$5,
            asset_tag=$6, location=$7, acquired_date=$8, notes=$9, updated_at=now(),
-           ownership_type=$10, department_id=$11
-       WHERE id=$12 AND school_id=$13 RETURNING *`,
+           ownership_type=$10, department_id=$11, is_returnable=$12
+       WHERE id=$13 AND school_id=$14 RETURNING *`,
       [name.trim(), item_type || 'equipment', category_id || null,
        description?.trim() || null, serial_number?.trim() || null, tag,
        location?.trim() || null, acquired_date || null, notes?.trim() || null,
-       ownershipType, deptId, req.params.id, req.schoolId]
+       ownershipType, deptId, returnable, req.params.id, req.schoolId]
     );
     res.json(rows[0]);
   } catch (err) { next(err); }
@@ -334,7 +336,25 @@ router.delete('/items/:id', async (req, res, next) => {
     const scopeErr = checkItemScope(req.inventoryScope, req.inventoryDeptId, existing[0]);
     if (scopeErr) return res.status(403).json({ error: scopeErr });
 
-    await pool.query(`DELETE FROM inventory_items WHERE id=$1 AND school_id=$2`, [req.params.id, req.schoolId]);
+    const { rows: activeLoans } = await pool.query(
+      `SELECT COUNT(*)::int AS cnt FROM inventory_loans WHERE item_id=$1 AND status='active'`,
+      [req.params.id]
+    );
+    if (activeLoans[0].cnt > 0) {
+      return res.status(400).json({ error: `Cannot delete — ${activeLoans[0].cnt} active loan(s) reference this item. Return them first.` });
+    }
+
+    try {
+      await pool.query(`DELETE FROM inventory_items WHERE id=$1 AND school_id=$2`, [req.params.id, req.schoolId]);
+    } catch (delErr) {
+      // item_id on inventory_loans is ON DELETE RESTRICT — an item with only
+      // returned (closed) loan history still blocks deletion, by design,
+      // same as a library book that's ever circulated.
+      if (delErr.code === '23503') {
+        return res.status(400).json({ error: 'Cannot delete — this item has loan history and cannot be removed.' });
+      }
+      throw delErr;
+    }
     res.json({ message: 'Item deleted' });
   } catch (err) { next(err); }
 });
@@ -342,7 +362,7 @@ router.delete('/items/:id', async (req, res, next) => {
 // ── Issue / Return / Condition ────────────────────────────────────────────────
 router.post('/items/:id/issue', async (req, res, next) => {
   try {
-    const { issued_to_name, issued_to_role, issued_to_type, student_id, quantity, notes } = req.body;
+    const { issued_to_name, issued_to_role, issued_to_type, student_id, teacher_id, due_date, quantity, notes } = req.body;
     if (!issued_to_name?.trim()) return res.status(400).json({ error: 'Recipient name is required' });
     const qty = parseInt(quantity) || 1;
 
@@ -356,6 +376,18 @@ router.post('/items/:id/issue', async (req, res, next) => {
     if (item[0].condition === 'Written Off') return res.status(400).json({ error: 'Cannot issue a written-off item' });
     if (item[0].quantity_available < qty) return res.status(400).json({ error: `Only ${item[0].quantity_available} unit(s) available` });
 
+    // A returnable item (test books, tablets, drawing boards — anything
+    // expected back) must be issued to a named student or teacher so a
+    // loan can be tracked; a non-returnable consumable keeps today's
+    // behavior unchanged (free-text staff/department recipient, no loan).
+    if (item[0].is_returnable) {
+      if (!['student', 'teacher'].includes(issued_to_type)) {
+        return res.status(400).json({ error: 'Returnable items can only be issued to a student or teacher' });
+      }
+      if (issued_to_type === 'student' && !student_id) return res.status(400).json({ error: 'student_id is required' });
+      if (issued_to_type === 'teacher' && !teacher_id) return res.status(400).json({ error: 'teacher_id is required' });
+    }
+
     const { rows: updated } = await pool.query(
       `UPDATE inventory_items SET quantity_available=quantity_available-$1, updated_at=now()
        WHERE id=$2 AND school_id=$3 RETURNING *`,
@@ -363,15 +395,31 @@ router.post('/items/:id/issue', async (req, res, next) => {
     );
     await pool.query(
       `INSERT INTO inventory_transactions
-         (school_id,item_id,type,quantity,issued_to_name,issued_to_role,issued_to_type,student_id,notes,performed_by_id,performed_by_staff_id,performed_by_name)
-       VALUES ($1,$2,'issued',$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+         (school_id,item_id,type,quantity,issued_to_name,issued_to_role,issued_to_type,student_id,teacher_id,notes,performed_by_id,performed_by_staff_id,performed_by_name)
+       VALUES ($1,$2,'issued',$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
       [req.schoolId, req.params.id, qty, issued_to_name.trim(),
        issued_to_role?.trim() || null,
        issued_to_type || 'staff',
-       student_id || null,
+       student_id || null, teacher_id || null,
        notes?.trim() || null, ...performedBy(req), req.user.name]
     );
-    res.json(updated[0]);
+
+    let loan = null;
+    if (item[0].is_returnable) {
+      const [issuedByTeacherId, issuedBySchoolStaffId] = performedBy(req);
+      const { rows: loanRows } = await pool.query(
+        `INSERT INTO inventory_loans
+           (school_id,item_id,quantity,borrower_type,student_id,teacher_id,borrower_name,borrower_detail,
+            due_date,notes,issued_by_teacher_id,issued_by_school_staff_id)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
+        [req.schoolId, req.params.id, qty, issued_to_type, student_id || null, teacher_id || null,
+         issued_to_name.trim(), issued_to_role?.trim() || null,
+         due_date || null, notes?.trim() || null, issuedByTeacherId, issuedBySchoolStaffId]
+      );
+      loan = loanRows[0];
+    }
+
+    res.json({ ...updated[0], loan });
   } catch (err) { next(err); }
 });
 
@@ -471,7 +519,10 @@ router.get('/transactions', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ── Student lookup (for issue workflows) ─────────────────────────────────────
+// ── Student / teacher lookup (for issue + loan-return workflows) ─────────────
+// Exact-code lookup (not search) — the caller already knows who they're
+// looking for (issuing to them, or finding their outstanding loans to
+// return one), same convention library.js's own student-code lookup uses.
 router.get('/students/:code', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
@@ -480,7 +531,125 @@ router.get('/students/:code', async (req, res, next) => {
       [req.schoolId, req.params.code]
     );
     if (!rows.length) return res.status(404).json({ error: 'Student not found' });
-    res.json(rows[0]);
+    const { rows: loans } = await pool.query(
+      `SELECT l.id, l.quantity, l.issued_at, l.due_date, l.notes,
+              (l.due_date IS NOT NULL AND l.due_date < CURRENT_DATE)::boolean AS is_overdue,
+              i.name AS item_name, i.asset_tag
+       FROM inventory_loans l JOIN inventory_items i ON i.id = l.item_id
+       WHERE l.student_id=$1 AND l.school_id=$2 AND l.status='active'
+       ORDER BY l.due_date ASC NULLS LAST`,
+      [rows[0].id, req.schoolId]
+    );
+    res.json({ ...rows[0], loans });
+  } catch (err) { next(err); }
+});
+
+router.get('/teachers/:code', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT id, name, teacher_code, department
+       FROM teachers WHERE school_id=$1 AND UPPER(teacher_code)=UPPER($2) AND status='Active'`,
+      [req.schoolId, req.params.code]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Teacher not found' });
+    const { rows: loans } = await pool.query(
+      `SELECT l.id, l.quantity, l.issued_at, l.due_date, l.notes,
+              (l.due_date IS NOT NULL AND l.due_date < CURRENT_DATE)::boolean AS is_overdue,
+              i.name AS item_name, i.asset_tag
+       FROM inventory_loans l JOIN inventory_items i ON i.id = l.item_id
+       WHERE l.teacher_id=$1 AND l.school_id=$2 AND l.status='active'
+       ORDER BY l.due_date ASC NULLS LAST`,
+      [rows[0].id, req.schoolId]
+    );
+    res.json({ ...rows[0], loans });
+  } catch (err) { next(err); }
+});
+
+// Debounced search (Issue flow — browsing for a teacher borrower, same
+// shape as clinic.js's /teachers/search).
+router.get('/teachers/search', async (req, res, next) => {
+  try {
+    const { q } = req.query;
+    if (!q || String(q).length < 2) return res.json([]);
+    const { rows } = await pool.query(
+      `SELECT id, name, teacher_code, department
+       FROM teachers WHERE school_id=$1 AND status='Active'
+         AND (name ILIKE $2 OR teacher_code ILIKE $2)
+       ORDER BY name LIMIT 15`,
+      [req.schoolId, `%${q}%`]
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+// ── Loans (returnable items) ─────────────────────────────────────────────────
+router.get('/loans/active', async (req, res, next) => {
+  try {
+    const { search, overdue_only, item_id } = req.query;
+    const { inventoryScope: scope, inventoryDeptId: deptId } = req;
+    const conditions = [`l.school_id=$1`, `l.status='active'`];
+    const params = [req.schoolId];
+    if (scope === 'general') {
+      conditions.push(`i.ownership_type='general'`);
+    } else if (scope === 'department') {
+      params.push('departmental', deptId);
+      conditions.push(`i.ownership_type=$${params.length - 1} AND i.department_id=$${params.length}`);
+    }
+    if (item_id) { params.push(item_id); conditions.push(`l.item_id=$${params.length}`); }
+    if (overdue_only === 'true') conditions.push(`l.due_date IS NOT NULL AND l.due_date < CURRENT_DATE`);
+    if (search) { params.push(`%${search}%`); conditions.push(`(l.borrower_name ILIKE $${params.length} OR i.name ILIKE $${params.length})`); }
+
+    const { rows } = await pool.query(
+      `SELECT l.*, i.name AS item_name, i.asset_tag,
+              (l.due_date IS NOT NULL AND l.due_date < CURRENT_DATE)::boolean AS is_overdue
+       FROM inventory_loans l JOIN inventory_items i ON i.id = l.item_id
+       WHERE ${conditions.join(' AND ')}
+       ORDER BY (l.due_date IS NULL), l.due_date ASC, l.issued_at DESC`,
+      params
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+router.post('/loans/:id/return', async (req, res, next) => {
+  try {
+    const { condition_on_return, notes } = req.body;
+    const { rows: loanRows } = await pool.query(
+      `SELECT l.*, i.quantity_total, i.quantity_available, i.ownership_type, i.department_id
+       FROM inventory_loans l JOIN inventory_items i ON i.id = l.item_id
+       WHERE l.id=$1 AND l.school_id=$2 AND l.status='active'`,
+      [req.params.id, req.schoolId]
+    );
+    if (!loanRows.length) return res.status(404).json({ error: 'Active loan not found' });
+    const loan = loanRows[0];
+    const scopeErr = checkItemScope(req.inventoryScope, req.inventoryDeptId, loan);
+    if (scopeErr) return res.status(403).json({ error: scopeErr });
+
+    // Written Off has side effects (zeroing availability) that belong in
+    // the dedicated /items/:id/condition route, not a loan return.
+    const newCondition = ['Good', 'Damaged'].includes(condition_on_return) ? condition_on_return : null;
+
+    const { rows: updatedItem } = await pool.query(
+      `UPDATE inventory_items
+       SET quantity_available = LEAST(quantity_total, quantity_available + $1),
+           condition = COALESCE($2, condition), updated_at = now()
+       WHERE id=$3 AND school_id=$4 RETURNING *`,
+      [loan.quantity, newCondition, loan.item_id, req.schoolId]
+    );
+    const { rows: updatedLoan } = await pool.query(
+      `UPDATE inventory_loans SET status='returned', returned_at=now(),
+              condition_on_return=$1, notes=COALESCE($2, notes)
+       WHERE id=$3 RETURNING *`,
+      [newCondition, notes?.trim() || null, loan.id]
+    );
+    await pool.query(
+      `INSERT INTO inventory_transactions
+         (school_id,item_id,type,quantity,issued_to_name,issued_to_type,student_id,teacher_id,notes,performed_by_id,performed_by_staff_id,performed_by_name)
+       VALUES ($1,$2,'returned',$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+      [req.schoolId, loan.item_id, loan.quantity, loan.borrower_name, loan.borrower_type,
+       loan.student_id, loan.teacher_id, notes?.trim() || null, ...performedBy(req), req.user.name]
+    );
+    res.json({ item: updatedItem[0], loan: updatedLoan[0] });
   } catch (err) { next(err); }
 });
 

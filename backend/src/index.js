@@ -2251,6 +2251,58 @@ async function runMigrations() {
     // log (issue/return/condition-change/add) would fail that FK. Same
     // two-column teacher/school_staff pattern as general_letters.issued_by_staff_id.
     await pool.query(`ALTER TABLE inventory_transactions ADD COLUMN IF NOT EXISTS performed_by_staff_id UUID REFERENCES school_staff(id) ON DELETE SET NULL`);
+
+    // Inventory: returnable item loan tracking — mirrors library_loans, but
+    // supports BOTH student and teacher borrowers (library_loans is
+    // student-only via a NOT NULL student_id). Department-level issuing is
+    // intentionally NOT tracked as a loan — only named student/teacher
+    // borrowers get a loan row; a plain consumable issue still just adjusts
+    // quantity_available + logs a transaction, unchanged.
+    await pool.query(`ALTER TABLE inventory_items ADD COLUMN IF NOT EXISTS is_returnable BOOLEAN NOT NULL DEFAULT false`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS inventory_loans (
+        id                        UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id                 UUID        NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        item_id                   UUID        NOT NULL REFERENCES inventory_items(id) ON DELETE RESTRICT,
+        quantity                  INTEGER     NOT NULL DEFAULT 1,
+        borrower_type             TEXT        NOT NULL CHECK (borrower_type IN ('student','teacher')),
+        student_id                UUID        REFERENCES students(id) ON DELETE RESTRICT,
+        teacher_id                UUID        REFERENCES teachers(id) ON DELETE RESTRICT,
+        borrower_name             TEXT        NOT NULL,
+        borrower_detail           TEXT,
+        issued_at                 TIMESTAMPTZ NOT NULL DEFAULT now(),
+        due_date                  DATE,
+        returned_at               TIMESTAMPTZ,
+        status                    TEXT        NOT NULL DEFAULT 'active' CHECK (status IN ('active','returned')),
+        condition_on_return       TEXT        CHECK (condition_on_return IN ('Good','Damaged')),
+        notes                     TEXT,
+        issued_by_teacher_id      UUID        REFERENCES teachers(id) ON DELETE SET NULL,
+        issued_by_school_staff_id UUID        REFERENCES school_staff(id) ON DELETE SET NULL,
+        created_at                TIMESTAMPTZ NOT NULL DEFAULT now(),
+        CONSTRAINT inventory_loans_borrower_check CHECK (
+          (borrower_type = 'student' AND student_id IS NOT NULL AND teacher_id IS NULL) OR
+          (borrower_type = 'teacher' AND teacher_id IS NOT NULL AND student_id IS NULL)
+        )
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_inventory_loans_school_status ON inventory_loans(school_id, status)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_inventory_loans_item    ON inventory_loans(item_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_inventory_loans_student ON inventory_loans(student_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_inventory_loans_teacher ON inventory_loans(teacher_id)`);
+    // Widen issued_to_type to allow 'teacher' (previously student/staff/department
+    // only) — required before a returnable item can be issued to a teacher
+    // borrower via the shared /items/:id/issue route, which also logs this
+    // transaction. Teacher-borrower parity with the existing student_id column.
+    await pool.query(`
+      DO $$ BEGIN
+        ALTER TABLE inventory_transactions DROP CONSTRAINT IF EXISTS inventory_transactions_issued_to_type_check;
+        ALTER TABLE inventory_transactions
+          ADD CONSTRAINT inventory_transactions_issued_to_type_check
+          CHECK (issued_to_type IN ('student','staff','department','teacher'));
+      EXCEPTION WHEN OTHERS THEN NULL; END $$
+    `);
+    await pool.query(`ALTER TABLE inventory_transactions ADD COLUMN IF NOT EXISTS teacher_id UUID REFERENCES teachers(id) ON DELETE SET NULL`);
+
     // Fix school_staff_roles CHECK constraint to allow 'inventory' role
     await pool.query(`
       DO $$ BEGIN
