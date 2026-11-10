@@ -9,6 +9,7 @@ import { getStaffUser, getStaffColors } from './layout';
 import { AccountsFullTabs } from './AccountsFullTabs';
 import { InventoryFullTabs } from './InventoryFullTabs';
 import { LettersSection } from './LettersSection';
+import { StaffSidebar, type StaffSidebarGroup } from './StaffSidebar';
 
 // ─── Clearance types ──────────────────────────────────────────────────────────
 interface Office { id: string; name: string; office_type: string; sort_order: number; }
@@ -142,6 +143,7 @@ export default function StaffPortalPage() {
   const hasLetters   = isAccountant;
 
   const [idScanOpen, setIdScanOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const defaultSection: Section = hasCl ? 'clearance' : hasLib ? 'library' : hasInv ? 'inventory' : hasAcc ? 'accounts' : hasClinic ? 'clinic' : 'letters';
   const [section, setSection] = useState<Section>(defaultSection);
@@ -795,41 +797,128 @@ export default function StaffPortalPage() {
 
   const filteredPending = officeFilter ? pending.filter(p => p.office_id === officeFilter) : pending;
 
+  // ── Sidebar groups ───────────────────────────────────────────────────────────
+  // One group per role the staff actually has; each group's items are that
+  // role's tabs (identical labels/keys/side-effects to the tab-bars they
+  // replace). Letters has no sub-tabs — a single directly-clickable row.
+  const sidebarGroups: StaffSidebarGroup[] = ([
+    hasCl && {
+      key: 'clearance', label: 'Clearance',
+      items: ([
+        ['pending', `Pending${pending.length > 0 ? ` (${pending.length})` : ''}`],
+        ['lookup',  'Student Lookup'],
+        ['history', 'History'],
+      ] as const).map(([key, label]) => ({
+        key, label, active: section === 'clearance' && clTab === key,
+        onClick: () => { setSection('clearance'); setClTab(key); },
+      })),
+    },
+    hasLib && {
+      key: 'library', label: 'Library',
+      items: ([
+        ['dashboard', 'Dashboard'],
+        ['issue',     'Issue Book'],
+        ['return',    'Return Book'],
+        ['overdue',   `Overdue${overdue.length > 0 ? ` (${overdue.length})` : ''}`],
+      ] as const).map(([key, label]) => ({
+        key, label, active: section === 'library' && libTab === key,
+        onClick: () => { setSection('library'); setLibTab(key); },
+      })),
+    },
+    hasInv && {
+      key: 'inventory', label: isStores ? 'Stores' : 'Inventory',
+      items: ([
+        ['items', 'Items'], ['issue', 'Issue'], ['return', 'Return'], ['sign-list', 'Sign List'],
+        ...(isStores ? ([
+          ['manage-items', 'Manage Items'],
+          ['categories',   'Categories'],
+          ['log',          'Transaction Log'],
+          ['report',       'Asset Report'],
+        ] as const) : []),
+      ] as const).map(([key, label]) => ({
+        key, label, active: section === 'inventory' && invTab === key,
+        onClick: () => {
+          setSection('inventory'); setInvTab(key); setInvReturnOk(false);
+          if (key === 'sign-list') { loadSlFilters(); slRefreshCount(); }
+        },
+      })),
+    },
+    hasAcc && {
+      key: 'accounts', label: isAccountant ? 'Accountant' : 'Accounts',
+      items: ([
+        ['dashboard', 'Dashboard'],
+        ['collect',   'Collect Payment'],
+        ['reports',   'Reports'],
+        ...(isAccountant ? ([
+          ['fee-items',   'Fee Items'],
+          ['schedules',   'Schedules'],
+          ['expenditure', 'Expenditure'],
+          ['arrears',     'Arrears'],
+          ['maintenance', 'Maintenance'],
+        ] as const) : []),
+      ] as const).map(([key, label]) => ({
+        key, label, active: section === 'accounts' && acctTab === key,
+        onClick: () => { setSection('accounts'); setAcctTab(key); },
+      })),
+    },
+    hasClinic && {
+      key: 'clinic', label: 'Clinic',
+      items: ([
+        ['dashboard',  'Dashboard'],
+        ['new-visit',  'New Visit'],
+        ['open',       `Open${clinicDash && clinicDash.open_visits.length > 0 ? ` (${clinicDash.open_visits.length})` : ''}`],
+        ['history',    'History'],
+        ['inventory',  'Inventory'],
+      ] as const).map(([key, label]) => ({
+        key, label, active: section === 'clinic' && clinicTab === key,
+        onClick: () => { setSection('clinic'); setClinicTab(key); },
+      })),
+    },
+    hasLetters && {
+      key: 'letters', label: 'Letters', items: [],
+      onClick: () => setSection('letters'),
+    },
+  ] as (StaffSidebarGroup | false)[]).filter((g): g is StaffSidebarGroup => !!g);
+
   // ── Render ────────────────────────────────────────────────────────────────────
   return (
-    <div className="space-y-5">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-bold text-slate-800 dark:text-white">
-            {user?.name ?? 'Staff'}&apos;s Desk
-          </h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-            {staffRoles.map(r => r.charAt(0).toUpperCase() + r.slice(1)).join(' & ')} Portal
-          </p>
-        </div>
-        <button onClick={() => setIdScanOpen(true)}
-          className="shrink-0 px-3 py-2 rounded-lg text-xs font-semibold text-white"
-          style={{ background: primary }}>
-          Scan ID Card
-        </button>
-      </div>
+    <div className="flex items-start">
+      <StaffSidebar
+        groups={sidebarGroups}
+        activeGroupKey={section}
+        primary={primary}
+        mobileOpen={sidebarOpen}
+        onMobileClose={() => setSidebarOpen(false)}
+      />
 
-      {/* Section switcher (shown when user has more than one role) */}
-      {([hasCl, hasLib, hasInv, hasAcc, hasClinic, hasLetters].filter(Boolean).length > 1) && (
-        <div className="flex gap-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-1 flex-wrap">
-          {([hasCl && 'clearance', hasLib && 'library', hasInv && 'inventory', hasAcc && 'accounts', hasClinic && 'clinic', hasLetters && 'letters'] as (Section | false)[])
-            .filter((s): s is Section => !!s)
-            .map(s => (
-              <button key={s} onClick={() => setSection(s)}
-                className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors capitalize ${section === s ? 'text-white' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
-                style={section === s ? { background: primary } : {}}>
-                {s === 'clearance' ? 'Clearance' : s === 'library' ? 'Library' : s === 'inventory' ? (isStores ? 'Stores' : 'Inventory') : s === 'accounts' ? (isAccountant ? 'Accountant' : 'Accounts') : s === 'letters' ? 'Letters' : 'Clinic'}
-              </button>
-            ))}
+      <div className="flex-1 min-w-0 space-y-5 p-4 md:p-6">
+        <div className="flex items-center gap-3 md:hidden">
+          <button onClick={() => setSidebarOpen(true)}
+            className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-5 h-5">
+              <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" />
+            </svg>
+          </button>
+          <span className="text-sm font-semibold text-slate-600 dark:text-slate-300">Menu</span>
         </div>
-      )}
 
-      {/* ── Clearance Section ─────────────────────────────────────────────── */}
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h1 className="text-xl font-bold text-slate-800 dark:text-white">
+              {user?.name ?? 'Staff'}&apos;s Desk
+            </h1>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+              {staffRoles.map(r => r.charAt(0).toUpperCase() + r.slice(1)).join(' & ')} Portal
+            </p>
+          </div>
+          <button onClick={() => setIdScanOpen(true)}
+            className="shrink-0 px-3 py-2 rounded-lg text-xs font-semibold text-white"
+            style={{ background: primary }}>
+            Scan ID Card
+          </button>
+        </div>
+
+        {/* ── Clearance Section ─────────────────────────────────────────────── */}
       {hasCl && section === 'clearance' && (
         <div className="space-y-4">
           {offices.length > 0 && (
@@ -840,16 +929,6 @@ export default function StaffPortalPage() {
               ))}
             </div>
           )}
-
-          <div className="flex gap-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-1">
-            {([['pending', `Pending${pending.length > 0 ? ` (${pending.length})` : ''}`], ['lookup', 'Student Lookup'], ['history', 'History']] as const).map(([key, label]) => (
-              <button key={key} onClick={() => setClTab(key)}
-                className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${clTab === key ? 'text-white' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700'}`}
-                style={clTab === key ? { background: primary } : {}}>
-                {label}
-              </button>
-            ))}
-          </div>
 
           {clLoading && <div className="flex justify-center py-10"><div className="w-7 h-7 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: primary, borderTopColor: 'transparent' }} /></div>}
 
@@ -972,21 +1051,6 @@ export default function StaffPortalPage() {
       {/* ── Library Section ───────────────────────────────────────────────── */}
       {hasLib && section === 'library' && (
         <div className="space-y-4">
-          <div className="flex gap-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-1">
-            {([
-              ['dashboard', 'Dashboard'],
-              ['issue',     'Issue Book'],
-              ['return',    'Return Book'],
-              ['overdue',   `Overdue${overdue.length > 0 ? ` (${overdue.length})` : ''}`],
-            ] as const).map(([key, label]) => (
-              <button key={key} onClick={() => setLibTab(key)}
-                className={`flex-1 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-colors ${libTab === key ? 'text-white' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
-                style={libTab === key ? { background: primary } : {}}>
-                {label}
-              </button>
-            ))}
-          </div>
-
           {libTab === 'dashboard' && (
             <div className="space-y-4">
               {statsLoading ? <p className="text-sm text-slate-500">Loading…</p> : stats ? (
@@ -1173,24 +1237,6 @@ export default function StaffPortalPage() {
       {/* ── Inventory Section ─────────────────────────────────────────────── */}
       {hasInv && section === 'inventory' && (
         <div className="space-y-4">
-          <div className="flex gap-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-1 flex-wrap">
-            {([
-              ['items', 'Items'], ['issue', 'Issue'], ['return', 'Return'], ['sign-list', 'Sign List'],
-              ...(isStores ? ([
-                ['manage-items', 'Manage Items'],
-                ['categories',   'Categories'],
-                ['log',          'Transaction Log'],
-                ['report',       'Asset Report'],
-              ] as const) : []),
-            ] as const).map(([key, label]) => (
-              <button key={key} onClick={() => { setInvTab(key); setInvReturnOk(false); if (key === 'sign-list') { loadSlFilters(); slRefreshCount(); } }}
-                className={`flex-1 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-colors ${invTab === key ? 'text-white' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700'}`}
-                style={invTab === key ? { background: primary } : {}}>
-                {label}
-              </button>
-            ))}
-          </div>
-
           {isStores && ['manage-items', 'categories', 'log', 'report'].includes(invTab) && (
             <InventoryFullTabs
               tab={invTab as 'manage-items' | 'categories' | 'log' | 'report'}
@@ -1469,27 +1515,6 @@ export default function StaffPortalPage() {
       {/* ── Accounts Section ──────────────────────────────────────────────── */}
       {hasAcc && section === 'accounts' && (
         <div className="space-y-4">
-          <div className="flex gap-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-1 flex-wrap">
-            {([
-              ['dashboard', 'Dashboard'],
-              ['collect',   'Collect Payment'],
-              ['reports',   'Reports'],
-              ...(isAccountant ? ([
-                ['fee-items',   'Fee Items'],
-                ['schedules',   'Schedules'],
-                ['expenditure', 'Expenditure'],
-                ['arrears',     'Arrears'],
-                ['maintenance', 'Maintenance'],
-              ] as const) : []),
-            ] as const).map(([key, label]) => (
-              <button key={key} onClick={() => setAcctTab(key)}
-                className={`flex-1 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-colors ${acctTab === key ? 'text-white' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
-                style={acctTab === key ? { background: primary } : {}}>
-                {label}
-              </button>
-            ))}
-          </div>
-
           {!['reports', 'fee-items', 'schedules', 'expenditure', 'arrears', 'maintenance'].includes(acctTab) && (
           <div className="relative max-w-md">
             <input value={acctQuery}
@@ -1668,22 +1693,6 @@ export default function StaffPortalPage() {
       {/* ── Clinic Section ────────────────────────────────────────────────── */}
       {hasClinic && section === 'clinic' && (
         <div className="space-y-4">
-          <div className="flex gap-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-1">
-            {([
-              ['dashboard', 'Dashboard'],
-              ['new-visit', 'New Visit'],
-              ['open',      `Open${clinicDash && clinicDash.open_visits.length > 0 ? ` (${clinicDash.open_visits.length})` : ''}`],
-              ['history',   'History'],
-              ['inventory', 'Inventory'],
-            ] as const).map(([key, label]) => (
-              <button key={key} onClick={() => setClinicTab(key)}
-                className={`flex-1 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-colors ${clinicTab === key ? 'text-white' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
-                style={clinicTab === key ? { background: primary } : {}}>
-                {label}
-              </button>
-            ))}
-          </div>
-
           {clinicTab === 'dashboard' && (
             <div className="space-y-4">
               {clinicDashLoad ? <p className="text-sm text-slate-500">Loading…</p> : clinicDash ? (
@@ -2034,6 +2043,7 @@ export default function StaffPortalPage() {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }
