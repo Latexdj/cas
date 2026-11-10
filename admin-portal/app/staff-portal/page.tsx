@@ -114,7 +114,7 @@ interface ClinicInvItem {
   reorder_level: number; is_low_stock: boolean; batch_number: string | null; expiry_date: string | null;
 }
 
-type Section     = 'clearance' | 'library' | 'inventory' | 'accounts' | 'clinic' | 'letters';
+type Section     = 'clearance' | 'library' | 'inventory' | 'accounts' | 'clinic' | 'letters' | 'scan';
 type ClTab       = 'pending' | 'lookup' | 'history';
 type LibTab      = 'dashboard' | 'issue' | 'return' | 'overdue';
 type AcctTab     = 'dashboard' | 'collect' | 'reports' | 'fee-items' | 'schedules' | 'expenditure' | 'arrears' | 'maintenance';
@@ -146,7 +146,6 @@ export default function StaffPortalPage() {
   const isAccountant = staffRoles.includes('accountant');
   const hasLetters   = isAccountant;
 
-  const [idScanOpen, setIdScanOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const defaultSection: Section = hasCl ? 'clearance' : hasLib ? 'library' : hasInv ? 'inventory' : hasAcc ? 'accounts' : hasClinic ? 'clinic' : 'letters';
@@ -857,10 +856,9 @@ export default function StaffPortalPage() {
       items: ([
         ['items', 'Items'], ['issue', 'Issue'], ['return', 'Return'], ['loans', 'Loans'], ['sign-list', 'Sign List'],
         ...(isStores ? ([
-          ['manage-items', 'Manage Items'],
-          ['categories',   'Categories'],
-          ['log',          'Transaction Log'],
-          ['report',       'Asset Report'],
+          ['categories', 'Categories'],
+          ['log',        'Transaction Log'],
+          ['report',     'Asset Report'],
         ] as const) : []),
       ] as const).map(([key, label]) => ({
         key, label, active: section === 'inventory' && invTab === key,
@@ -905,6 +903,10 @@ export default function StaffPortalPage() {
       key: 'letters', label: 'Letters', items: [],
       onClick: () => setSection('letters'),
     },
+    {
+      key: 'scan', label: 'Scan ID', items: [],
+      onClick: () => setSection('scan'),
+    },
   ] as (StaffSidebarGroup | false)[]).filter((g): g is StaffSidebarGroup => !!g);
 
   // ── Render ────────────────────────────────────────────────────────────────────
@@ -938,11 +940,6 @@ export default function StaffPortalPage() {
               {staffRoles.map(r => r.charAt(0).toUpperCase() + r.slice(1)).join(' & ')} Portal
             </p>
           </div>
-          <button onClick={() => setIdScanOpen(true)}
-            className="shrink-0 px-3 py-2 rounded-lg text-xs font-semibold text-white"
-            style={{ background: primary }}>
-            Scan ID Card
-          </button>
         </div>
 
         {/* ── Clearance Section ─────────────────────────────────────────────── */}
@@ -1264,9 +1261,13 @@ export default function StaffPortalPage() {
       {/* ── Inventory Section ─────────────────────────────────────────────── */}
       {hasInv && section === 'inventory' && (
         <div className="space-y-4">
-          {isStores && ['manage-items', 'categories', 'log', 'report'].includes(invTab) && (
+          {isStores && invTab === 'items' && (
+            <InventoryFullTabs tab="manage-items" api={api} primary={primary} onItemsChanged={loadInvItems} />
+          )}
+
+          {isStores && ['categories', 'log', 'report'].includes(invTab) && (
             <InventoryFullTabs
-              tab={invTab as 'manage-items' | 'categories' | 'log' | 'report'}
+              tab={invTab as 'categories' | 'log' | 'report'}
               api={api} primary={primary}
               onItemsChanged={loadInvItems}
             />
@@ -1274,10 +1275,10 @@ export default function StaffPortalPage() {
 
           {invTab === 'loans' && <InventoryLoans api={api} primary={primary} onItemsChanged={loadInvItems} />}
 
-          {!['manage-items', 'categories', 'log', 'report', 'loans'].includes(invTab) && invLoading && <div className="flex justify-center py-10"><div className="w-7 h-7 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: primary, borderTopColor: 'transparent' }} /></div>}
+          {!(isStores && invTab === 'items') && !['categories', 'log', 'report', 'loans'].includes(invTab) && invLoading && <div className="flex justify-center py-10"><div className="w-7 h-7 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: primary, borderTopColor: 'transparent' }} /></div>}
 
-          {/* Items list */}
-          {invTab === 'items' && !invLoading && (
+          {/* Items list (plain inventory role — read-only browse; stores gets full CRUD above instead) */}
+          {invTab === 'items' && !isStores && !invLoading && (
             <div>
               {invItems.length === 0
                 ? <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-10 text-center text-slate-400 text-sm">No inventory items found.</div>
@@ -2054,20 +2055,16 @@ export default function StaffPortalPage() {
         <LettersSection api={api} primary={primary} />
       )}
 
-      {/* ── Scan ID Card Modal ───────────────────────────────────────────── */}
-      {idScanOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/55 p-4">
-          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-sm max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-700">
-              <p className="font-bold text-slate-800 dark:text-white">Scan ID Card</p>
-              <button onClick={() => setIdScanOpen(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-5 h-5"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-              </button>
-            </div>
-            <div className="px-5 py-4">
-              <IdCardScanner apiClient={api} />
-            </div>
+      {/* ── Scan ID Section ───────────────────────────────────────────────── */}
+      {section === 'scan' && (
+        <div className="max-w-sm space-y-3">
+          <div>
+            <h2 className="text-lg font-bold text-slate-800 dark:text-white">Scan ID Card</h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+              Scan a student's QR ID card, or enter the code manually, to check exeat status.
+            </p>
           </div>
+          <IdCardScanner apiClient={api} />
         </div>
       )}
 
