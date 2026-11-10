@@ -531,14 +531,16 @@ router.get('/students/:code', async (req, res, next) => {
       [req.schoolId, req.params.code]
     );
     if (!rows.length) return res.status(404).json({ error: 'Student not found' });
+    const loanParams = [rows[0].id, req.schoolId];
+    const loanScope = appendScope(loanParams, req.inventoryScope, req.inventoryDeptId);
     const { rows: loans } = await pool.query(
       `SELECT l.id, l.quantity, l.issued_at, l.due_date, l.notes,
               (l.due_date IS NOT NULL AND l.due_date < CURRENT_DATE)::boolean AS is_overdue,
               i.name AS item_name, i.asset_tag
        FROM inventory_loans l JOIN inventory_items i ON i.id = l.item_id
-       WHERE l.student_id=$1 AND l.school_id=$2 AND l.status='active'
+       WHERE l.student_id=$1 AND l.school_id=$2 AND l.status='active' ${loanScope}
        ORDER BY l.due_date ASC NULLS LAST`,
-      [rows[0].id, req.schoolId]
+      loanParams
     );
     res.json({ ...rows[0], loans });
   } catch (err) { next(err); }
@@ -552,14 +554,16 @@ router.get('/teachers/:code', async (req, res, next) => {
       [req.schoolId, req.params.code]
     );
     if (!rows.length) return res.status(404).json({ error: 'Teacher not found' });
+    const loanParams = [rows[0].id, req.schoolId];
+    const loanScope = appendScope(loanParams, req.inventoryScope, req.inventoryDeptId);
     const { rows: loans } = await pool.query(
       `SELECT l.id, l.quantity, l.issued_at, l.due_date, l.notes,
               (l.due_date IS NOT NULL AND l.due_date < CURRENT_DATE)::boolean AS is_overdue,
               i.name AS item_name, i.asset_tag
        FROM inventory_loans l JOIN inventory_items i ON i.id = l.item_id
-       WHERE l.teacher_id=$1 AND l.school_id=$2 AND l.status='active'
+       WHERE l.teacher_id=$1 AND l.school_id=$2 AND l.status='active' ${loanScope}
        ORDER BY l.due_date ASC NULLS LAST`,
-      [rows[0].id, req.schoolId]
+      loanParams
     );
     res.json({ ...rows[0], loans });
   } catch (err) { next(err); }

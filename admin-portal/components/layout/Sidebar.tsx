@@ -379,6 +379,11 @@ const sections: Section[] = [
         module: 'inventory',
       },
       {
+        href: '/inventory/loans', label: 'Loans',
+        icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 6v12m-7-6h14M6 20h12a2 2 0 002-2V8.414a2 2 0 00-.586-1.414l-3.414-3.414A2 2 0 0014.586 3H6a2 2 0 00-2 2v13a2 2 0 002 2z" />,
+        module: 'inventory',
+      },
+      {
         href: '/inventory/transactions', label: 'Transaction Log',
         icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 7.5h1.5m-1.5 3h1.5m-7.5 3h7.5m-7.5 3h7.5m3-9h3.375c.621 0 1.125.504 1.125 1.125V18a2.25 2.25 0 01-2.25 2.25M16.5 7.5V18a2.25 2.25 0 002.25 2.25M16.5 7.5V4.875c0-.621-.504-1.125-1.125-1.125H4.125C3.504 3.75 3 4.254 3 4.875V18a2.25 2.25 0 002.25 2.25h13.5M6 7.5h3v3H6v-3z" />,
         module: 'inventory',

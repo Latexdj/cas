@@ -1,16 +1,19 @@
 ﻿'use client';
 import { useEffect, useState, useCallback } from 'react';
+import Link from 'next/link';
 import { api } from '@/lib/api';
 
 interface Category { id: string; name: string; }
 interface Department { id: string; name: string; }
 interface Student { id: string; name: string; student_code: string; class_name: string; picture_url: string | null; }
+interface TeacherLookup { id: string; name: string; teacher_code: string; department: string | null; }
 interface Item {
   id: string; name: string; item_type: string; category_id: string | null;
   category_name: string | null; description: string | null; serial_number: string | null;
   asset_tag: string | null; quantity_total: number; quantity_available: number;
   condition: string; location: string | null; acquired_date: string | null; notes: string | null;
   ownership_type: string; department_id: string | null; department_name: string | null;
+  is_returnable: boolean;
 }
 
 const TYPE_LABELS: Record<string, string> = { equipment: 'Equipment', book: 'Book', asset: 'Asset' };
@@ -28,13 +31,19 @@ const OWN_COLORS: Record<string, string> = {
 const EMPTY_FORM = {
   name: '', item_type: 'equipment', category_id: '', description: '', serial_number: '',
   asset_tag: '', quantity: '1', condition: 'Good', location: '', acquired_date: '', notes: '',
-  ownership_value: 'general',
+  ownership_value: 'general', is_returnable: false,
 };
 
 const ISSUE_TYPES = [
   { value: 'student',    label: 'Student' },
   { value: 'staff',      label: 'Staff Member' },
   { value: 'department', label: 'Department' },
+];
+// A returnable item (must come back — test books, tablets, drawing boards)
+// can only go to a named student or teacher, so a loan can be tracked.
+const RETURNABLE_ISSUE_TYPES = [
+  { value: 'student', label: 'Student' },
+  { value: 'teacher',  label: 'Teacher' },
 ];
 
 export default function InventoryItemsPage() {
@@ -57,11 +66,16 @@ export default function InventoryItemsPage() {
 
   // Issue modal
   const [issueItem,        setIssueItem]        = useState<Item | null>(null);
-  const [issueToType,      setIssueToType]      = useState<'student'|'staff'|'department'>('staff');
+  const [issueToType,      setIssueToType]      = useState<'student'|'teacher'|'staff'|'department'>('staff');
   const [issueStudentCode, setIssueStudentCode] = useState('');
   const [issueStudent,     setIssueStudent]     = useState<Student | null>(null);
   const [issueStudentErr,  setIssueStudentErr]  = useState('');
   const [issueStudentLoading, setIssueStudentLoading] = useState(false);
+  const [issueTeacherCode,    setIssueTeacherCode]    = useState('');
+  const [issueTeacher,        setIssueTeacher]        = useState<TeacherLookup | null>(null);
+  const [issueTeacherErr,     setIssueTeacherErr]     = useState('');
+  const [issueTeacherLoading, setIssueTeacherLoading] = useState(false);
+  const [issueDueDate,     setIssueDueDate]     = useState('');
   const [issueTo,          setIssueTo]          = useState('');
   const [issueRole,        setIssueRole]        = useState('');
   const [issueQty,         setIssueQty]         = useState('1');
@@ -128,6 +142,7 @@ export default function InventoryItemsPage() {
       acquired_date: item.acquired_date ? item.acquired_date.slice(0, 10) : '',
       notes: item.notes ?? '',
       ownership_value: item.ownership_type === 'departmental' && item.department_id ? item.department_id : 'general',
+      is_returnable: item.is_returnable,
     });
     setFormError(''); setShowForm(true);
   }
@@ -167,8 +182,10 @@ export default function InventoryItemsPage() {
 
   function openIssue(item: Item) {
     setIssueItem(item);
-    setIssueToType('staff'); setIssueTo(''); setIssueRole('');
+    setIssueToType(item.is_returnable ? 'student' : 'staff'); setIssueTo(''); setIssueRole('');
     setIssueStudentCode(''); setIssueStudent(null); setIssueStudentErr('');
+    setIssueTeacherCode(''); setIssueTeacher(null); setIssueTeacherErr('');
+    setIssueDueDate('');
     setIssueQty('1'); setIssueNotes(''); setIssueError('');
   }
 
@@ -182,16 +199,30 @@ export default function InventoryItemsPage() {
     finally { setIssueStudentLoading(false); }
   }
 
+  async function lookupIssueTeacher() {
+    if (!issueTeacherCode.trim()) return;
+    setIssueTeacherLoading(true); setIssueTeacherErr(''); setIssueTeacher(null);
+    try {
+      const r = await api.get<TeacherLookup>(`/api/inventory/teachers/${issueTeacherCode.trim()}`);
+      setIssueTeacher(r.data);
+    } catch { setIssueTeacherErr('Teacher not found'); }
+    finally { setIssueTeacherLoading(false); }
+  }
+
   async function submitIssue() {
     setIssueSaving(true); setIssueError('');
     try {
-      const recipientName = issueToType === 'student' ? (issueStudent?.name ?? '') : issueTo;
+      const recipientName = issueToType === 'student' ? (issueStudent?.name ?? '')
+        : issueToType === 'teacher' ? (issueTeacher?.name ?? '')
+        : issueTo;
       if (!recipientName.trim()) { setIssueError('Recipient name is required'); setIssueSaving(false); return; }
       await api.post(`/api/inventory/items/${issueItem!.id}/issue`, {
         issued_to_name: recipientName,
-        issued_to_role: issueRole || null,
+        issued_to_role: issueToType === 'teacher' ? (issueTeacher?.department || null) : (issueRole || null),
         issued_to_type: issueToType,
         student_id: issueToType === 'student' ? (issueStudent?.id ?? null) : null,
+        teacher_id: issueToType === 'teacher' ? (issueTeacher?.id ?? null) : null,
+        due_date: issueItem?.is_returnable ? (issueDueDate || null) : null,
         quantity: parseInt(issueQty) || 1,
         notes: issueNotes,
       });
@@ -324,8 +355,13 @@ export default function InventoryItemsPage() {
                             className="px-2.5 py-1 rounded-md text-xs font-semibold bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 hover:bg-blue-100">Issue</button>
                         )}
                         {issued > 0 && (
-                          <button onClick={() => { setReturnItem(item); setReturnQty('1'); setReturnCond('Good'); setReturnNotes(''); setReturnError(''); }}
-                            className="px-2.5 py-1 rounded-md text-xs font-semibold bg-[#E8F4EE] dark:bg-green-900/20 text-[#145C44] dark:text-[#2ab289] hover:bg-[#D1EAD9]">Return</button>
+                          item.is_returnable ? (
+                            <Link href={`/inventory/loans?item_id=${item.id}`}
+                              className="px-2.5 py-1 rounded-md text-xs font-semibold bg-[#E8F4EE] dark:bg-green-900/20 text-[#145C44] dark:text-[#2ab289] hover:bg-[#D1EAD9]">Manage Loans</Link>
+                          ) : (
+                            <button onClick={() => { setReturnItem(item); setReturnQty('1'); setReturnCond('Good'); setReturnNotes(''); setReturnError(''); }}
+                              className="px-2.5 py-1 rounded-md text-xs font-semibold bg-[#E8F4EE] dark:bg-green-900/20 text-[#145C44] dark:text-[#2ab289] hover:bg-[#D1EAD9]">Return</button>
+                          )
                         )}
                         <button onClick={() => { setCondItem(item); setNewCond(item.condition === 'Written Off' ? 'Good' : item.condition); setCondNotes(''); setCondError(''); }}
                           className="px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200">Condition</button>
@@ -371,6 +407,12 @@ export default function InventoryItemsPage() {
                     </select>
                   </div>
                 </div>
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input type="checkbox" checked={form.is_returnable}
+                    onChange={e => setForm(f => ({ ...f, is_returnable: e.target.checked }))}
+                    className="w-4 h-4 accent-blue-600 rounded" />
+                  <span className="text-sm text-slate-700 dark:text-slate-300">Returnable <span className="text-slate-400">(must be returned — test books, tablets, drawing boards)</span></span>
+                </label>
                 {/* Ownership */}
                 <div>
                   <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 font-medium">Ownership / Department</label>
@@ -436,12 +478,22 @@ export default function InventoryItemsPage() {
               <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-1">Issue Item</h2>
               <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">{issueItem.name} — {issueItem.quantity_available} available</p>
               <div className="space-y-3">
+                {issueItem.is_returnable && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-lg px-3 py-2">
+                    This item is returnable — it must be issued to a named student or teacher so the loan can be tracked.
+                  </p>
+                )}
                 <div>
                   <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 font-medium">Issuing To</label>
-                  <div className="grid grid-cols-3 gap-1 mt-1">
-                    {ISSUE_TYPES.map(t => (
+                  <div className={`grid gap-1 mt-1 ${issueItem.is_returnable ? 'grid-cols-2' : 'grid-cols-3'}`}>
+                    {(issueItem.is_returnable ? RETURNABLE_ISSUE_TYPES : ISSUE_TYPES).map(t => (
                       <button key={t.value} type="button"
-                        onClick={() => { setIssueToType(t.value as typeof issueToType); setIssueStudent(null); setIssueStudentCode(''); setIssueTo(''); setIssueStudentErr(''); }}
+                        onClick={() => {
+                          setIssueToType(t.value as typeof issueToType);
+                          setIssueStudent(null); setIssueStudentCode(''); setIssueStudentErr('');
+                          setIssueTeacher(null); setIssueTeacherCode(''); setIssueTeacherErr('');
+                          setIssueTo('');
+                        }}
                         className={`py-2 rounded-lg text-xs font-semibold border transition-colors ${issueToType === t.value ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300'}`}>
                         {t.label}
                       </button>
@@ -474,6 +526,31 @@ export default function InventoryItemsPage() {
                       </div>
                     )}
                   </div>
+                ) : issueToType === 'teacher' ? (
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 font-medium">Teacher ID</label>
+                    <div className="flex gap-2 mt-1">
+                      <input value={issueTeacherCode} onChange={e => { setIssueTeacherCode(e.target.value.toUpperCase()); setIssueTeacher(null); setIssueTeacherErr(''); }}
+                        onKeyDown={e => e.key === 'Enter' && lookupIssueTeacher()}
+                        placeholder="Enter teacher code…" className={`${inputCls} mt-0 flex-1 font-mono`} />
+                      <button onClick={lookupIssueTeacher} disabled={issueTeacherLoading || !issueTeacherCode.trim()}
+                        className="px-3 py-2 rounded-lg text-sm font-semibold bg-slate-700 dark:bg-slate-600 text-white disabled:opacity-50">
+                        {issueTeacherLoading ? '…' : 'Find'}
+                      </button>
+                    </div>
+                    {issueTeacherErr && <p className="text-xs text-red-500 mt-1">{issueTeacherErr}</p>}
+                    {issueTeacher && (
+                      <div className="mt-2 flex items-center gap-2 bg-[#E8F4EE] dark:bg-green-900/20 border border-[#B8D9C8] dark:border-green-800 rounded-lg px-3 py-2">
+                        <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-xs font-bold text-slate-500 shrink-0">
+                          {issueTeacher.name[0]}
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-slate-800 dark:text-white">{issueTeacher.name}</p>
+                          <p className="text-xs text-slate-500">{issueTeacher.teacher_code}{issueTeacher.department ? ` · ${issueTeacher.department}` : ''}</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 ) : (
                   <>
                     <div>
@@ -492,6 +569,13 @@ export default function InventoryItemsPage() {
                       </div>
                     )}
                   </>
+                )}
+
+                {issueItem.is_returnable && (
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 font-medium">Due Date <span className="normal-case font-normal text-slate-400">(optional)</span></label>
+                    <input type="date" value={issueDueDate} onChange={e => setIssueDueDate(e.target.value)} className={inputCls} />
+                  </div>
                 )}
 
                 <div>

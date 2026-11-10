@@ -8,6 +8,7 @@ import { staffApi } from '@/lib/staff-api';
 import { getStaffUser, getStaffColors } from './layout';
 import { AccountsFullTabs } from './AccountsFullTabs';
 import { InventoryFullTabs } from './InventoryFullTabs';
+import { InventoryLoans } from './InventoryLoans';
 import { LettersSection } from './LettersSection';
 import { StaffSidebar, type StaffSidebarGroup } from './StaffSidebar';
 
@@ -30,10 +31,13 @@ interface HistoryItem {
 interface InvItem {
   id: string; name: string; item_type: string; asset_tag: string | null;
   quantity_total: number; quantity_available: number; condition: string;
-  location: string | null; category_name: string | null;
+  location: string | null; category_name: string | null; is_returnable: boolean;
 }
 interface InvStudent {
   id: string; name: string; student_code: string; class_name: string; picture_url: string | null;
+}
+interface InvTeacher {
+  id: string; name: string; teacher_code: string; department: string | null;
 }
 
 // ─── Accounts types ───────────────────────────────────────────────────────────
@@ -114,7 +118,7 @@ type Section     = 'clearance' | 'library' | 'inventory' | 'accounts' | 'clinic'
 type ClTab       = 'pending' | 'lookup' | 'history';
 type LibTab      = 'dashboard' | 'issue' | 'return' | 'overdue';
 type AcctTab     = 'dashboard' | 'collect' | 'reports' | 'fee-items' | 'schedules' | 'expenditure' | 'arrears' | 'maintenance';
-type InvTab      = 'items' | 'issue' | 'return' | 'sign-list' | 'categories' | 'manage-items' | 'log' | 'report';
+type InvTab      = 'items' | 'issue' | 'return' | 'loans' | 'sign-list' | 'categories' | 'manage-items' | 'log' | 'report';
 type ClinicTab   = 'dashboard' | 'new-visit' | 'open' | 'history' | 'inventory';
 
 interface SlFilters {
@@ -201,11 +205,17 @@ export default function StaffPortalPage() {
   const [invLoading,      setInvLoading]      = useState(false);
 
   // Issue
+  const [invIssueItem,    setInvIssueItem]    = useState('');
+  const [invIssueBorrower,setInvIssueBorrower]= useState<'student' | 'teacher'>('student');
   const [invIssueCode,    setInvIssueCode]    = useState('');
   const [invIssueStudent, setInvIssueStudent] = useState<InvStudent | null>(null);
   const [invIssueStudErr, setInvIssueStudErr] = useState('');
   const [invIssueStudLoad,setInvIssueStudLoad]= useState(false);
-  const [invIssueItem,    setInvIssueItem]    = useState('');
+  const [invIssueTCode,   setInvIssueTCode]   = useState('');
+  const [invIssueTeacher, setInvIssueTeacher] = useState<InvTeacher | null>(null);
+  const [invIssueTErr,    setInvIssueTErr]    = useState('');
+  const [invIssueTLoad,   setInvIssueTLoad]   = useState(false);
+  const [invIssueDueDate, setInvIssueDueDate] = useState('');
   const [invIssueQty,     setInvIssueQty]     = useState('1');
   const [invIssueNotes,   setInvIssueNotes]   = useState('');
   const [invIssuing,      setInvIssuing]      = useState(false);
@@ -562,20 +572,37 @@ export default function StaffPortalPage() {
     finally { setInvIssueStudLoad(false); }
   }
 
+  async function lookupInvTeacher() {
+    if (!invIssueTCode.trim()) return;
+    setInvIssueTLoad(true); setInvIssueTErr(''); setInvIssueTeacher(null);
+    try {
+      const r = await api.get<InvTeacher>(`/api/inventory/teachers/${invIssueTCode.trim()}`);
+      setInvIssueTeacher(r.data);
+    } catch { setInvIssueTErr('Teacher not found.'); }
+    finally { setInvIssueTLoad(false); }
+  }
+
   async function submitInvIssue() {
-    if (!invIssueStudent || !invIssueItem) return;
     const item = invItems.find(i => i.id === invIssueItem);
     if (!item) return;
+    // Non-returnable items keep today's exact behavior: student-only, no due date.
+    const borrower = item.is_returnable ? invIssueBorrower : 'student';
+    const recipient = borrower === 'teacher' ? invIssueTeacher : invIssueStudent;
+    if (!recipient) return;
     setInvIssuing(true); setInvIssueErr('');
     try {
       await api.post(`/api/inventory/items/${invIssueItem}/issue`, {
-        issued_to_name: invIssueStudent.name,
-        issued_to_type: 'student',
-        student_id: invIssueStudent.id,
+        issued_to_name: recipient.name,
+        issued_to_type: borrower,
+        student_id: borrower === 'student' ? recipient.id : undefined,
+        teacher_id: borrower === 'teacher' ? recipient.id : undefined,
+        due_date: item.is_returnable ? (invIssueDueDate || undefined) : undefined,
         quantity: parseInt(invIssueQty) || 1,
         notes: invIssueNotes || null,
       });
-      setInvIssueStudent(null); setInvIssueCode(''); setInvIssueItem(''); setInvIssueQty('1'); setInvIssueNotes('');
+      setInvIssueStudent(null); setInvIssueCode('');
+      setInvIssueTeacher(null); setInvIssueTCode(''); setInvIssueDueDate('');
+      setInvIssueItem(''); setInvIssueQty('1'); setInvIssueNotes('');
       loadInvItems();
     } catch (e: any) { setInvIssueErr(e.response?.data?.error ?? 'Failed to issue'); }
     finally { setInvIssuing(false); }
@@ -828,7 +855,7 @@ export default function StaffPortalPage() {
     hasInv && {
       key: 'inventory', label: isStores ? 'Stores' : 'Inventory',
       items: ([
-        ['items', 'Items'], ['issue', 'Issue'], ['return', 'Return'], ['sign-list', 'Sign List'],
+        ['items', 'Items'], ['issue', 'Issue'], ['return', 'Return'], ['loans', 'Loans'], ['sign-list', 'Sign List'],
         ...(isStores ? ([
           ['manage-items', 'Manage Items'],
           ['categories',   'Categories'],
@@ -1245,7 +1272,9 @@ export default function StaffPortalPage() {
             />
           )}
 
-          {!['manage-items', 'categories', 'log', 'report'].includes(invTab) && invLoading && <div className="flex justify-center py-10"><div className="w-7 h-7 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: primary, borderTopColor: 'transparent' }} /></div>}
+          {invTab === 'loans' && <InventoryLoans api={api} primary={primary} onItemsChanged={loadInvItems} />}
+
+          {!['manage-items', 'categories', 'log', 'report', 'loans'].includes(invTab) && invLoading && <div className="flex justify-center py-10"><div className="w-7 h-7 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: primary, borderTopColor: 'transparent' }} /></div>}
 
           {/* Items list */}
           {invTab === 'items' && !invLoading && (
@@ -1277,58 +1306,101 @@ export default function StaffPortalPage() {
           )}
 
           {/* Issue */}
-          {invTab === 'issue' && (
+          {invTab === 'issue' && (() => {
+            const issueItemObj = invItems.find(i => i.id === invIssueItem);
+            const returnable = issueItemObj?.is_returnable ?? false;
+            const recipient = (returnable ? invIssueBorrower : 'student') === 'teacher' ? invIssueTeacher : invIssueStudent;
+            return (
             <div className="space-y-4">
-              <div className="flex gap-2">
-                <input value={invIssueCode}
-                  onChange={e => { setInvIssueCode(e.target.value.toUpperCase()); setInvIssueStudent(null); setInvIssueStudErr(''); }}
-                  onKeyDown={e => e.key === 'Enter' && lookupInvStudent()}
-                  placeholder="Enter Student ID…"
-                  className="flex-1 border border-slate-200 dark:border-slate-600 rounded-xl px-4 py-2.5 text-sm font-mono font-medium bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
-                <button onClick={lookupInvStudent} disabled={invIssueStudLoad || !invIssueCode.trim()}
-                  className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50" style={{ background: primary }}>
-                  {invIssueStudLoad ? '…' : 'Find'}
-                </button>
+              <div>
+                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-medium block mb-1.5">Select Item</label>
+                <select className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none"
+                  value={invIssueItem} onChange={e => {
+                    setInvIssueItem(e.target.value); setInvIssueQty('1');
+                    setInvIssueStudent(null); setInvIssueCode(''); setInvIssueStudErr('');
+                    setInvIssueTeacher(null); setInvIssueTCode(''); setInvIssueTErr(''); setInvIssueDueDate('');
+                  }}>
+                  <option value="">— Select item —</option>
+                  {invItems.filter(i => i.quantity_available > 0 && i.condition !== 'Written Off').map(i => (
+                    <option key={i.id} value={i.id}>{i.name} ({i.quantity_available} avail.){i.is_returnable ? ' · returnable' : ''}</option>
+                  ))}
+                </select>
               </div>
-              {invIssueStudErr && <p className="text-sm text-red-600 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3">{invIssueStudErr}</p>}
-              {invIssueStudent && (
+
+              {invIssueItem && returnable && (
+                <div className="flex gap-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-1">
+                  {(['student', 'teacher'] as const).map(t => (
+                    <button key={t} onClick={() => setInvIssueBorrower(t)}
+                      className={`flex-1 py-2 rounded-lg text-sm font-medium capitalize transition-colors ${invIssueBorrower === t ? 'text-white' : 'text-slate-600 dark:text-slate-300'}`}
+                      style={invIssueBorrower === t ? { background: primary } : {}}>
+                      {t}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {invIssueItem && (!returnable || invIssueBorrower === 'student') && (
+                <div className="flex gap-2">
+                  <input value={invIssueCode}
+                    onChange={e => { setInvIssueCode(e.target.value.toUpperCase()); setInvIssueStudent(null); setInvIssueStudErr(''); }}
+                    onKeyDown={e => e.key === 'Enter' && lookupInvStudent()}
+                    placeholder="Enter Student ID…"
+                    className="flex-1 border border-slate-200 dark:border-slate-600 rounded-xl px-4 py-2.5 text-sm font-mono font-medium bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
+                  <button onClick={lookupInvStudent} disabled={invIssueStudLoad || !invIssueCode.trim()}
+                    className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50" style={{ background: primary }}>
+                    {invIssueStudLoad ? '…' : 'Find'}
+                  </button>
+                </div>
+              )}
+              {invIssueItem && returnable && invIssueBorrower === 'teacher' && (
+                <div className="flex gap-2">
+                  <input value={invIssueTCode}
+                    onChange={e => { setInvIssueTCode(e.target.value.toUpperCase()); setInvIssueTeacher(null); setInvIssueTErr(''); }}
+                    onKeyDown={e => e.key === 'Enter' && lookupInvTeacher()}
+                    placeholder="Enter Teacher ID…"
+                    className="flex-1 border border-slate-200 dark:border-slate-600 rounded-xl px-4 py-2.5 text-sm font-mono font-medium bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
+                  <button onClick={lookupInvTeacher} disabled={invIssueTLoad || !invIssueTCode.trim()}
+                    className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50" style={{ background: primary }}>
+                    {invIssueTLoad ? '…' : 'Find'}
+                  </button>
+                </div>
+              )}
+              {invIssueStudErr && (!returnable || invIssueBorrower === 'student') && <p className="text-sm text-red-600 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3">{invIssueStudErr}</p>}
+              {invIssueTErr && returnable && invIssueBorrower === 'teacher' && <p className="text-sm text-red-600 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3">{invIssueTErr}</p>}
+
+              {invIssueItem && recipient && (
                 <div className="space-y-4">
                   <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 flex items-center gap-3">
                     <div className="w-12 h-12 rounded-xl bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-lg font-bold text-slate-500 overflow-hidden shrink-0">
-                      {invIssueStudent.picture_url ? <img src={invIssueStudent.picture_url} alt="" className="w-full h-full object-cover" /> : invIssueStudent.name[0]}
+                      {'picture_url' in recipient && recipient.picture_url ? <img src={recipient.picture_url} alt="" className="w-full h-full object-cover" /> : recipient.name[0]}
                     </div>
                     <div>
-                      <p className="font-bold text-slate-800 dark:text-white">{invIssueStudent.name}</p>
-                      <p className="text-xs text-slate-400">{invIssueStudent.student_code} · {invIssueStudent.class_name}</p>
+                      <p className="font-bold text-slate-800 dark:text-white">{recipient.name}</p>
+                      <p className="text-xs text-slate-400">
+                        {'student_code' in recipient ? `${recipient.student_code} · ${recipient.class_name}` : `${recipient.teacher_code}${recipient.department ? ` · ${recipient.department}` : ''}`}
+                      </p>
                     </div>
                   </div>
                   <div className="space-y-3">
-                    <div>
-                      <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-medium block mb-1.5">Select Item</label>
-                      <select className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none"
-                        value={invIssueItem} onChange={e => { setInvIssueItem(e.target.value); setInvIssueQty('1'); }}>
-                        <option value="">— Select item —</option>
-                        {invItems.filter(i => i.quantity_available > 0 && i.condition !== 'Written Off').map(i => (
-                          <option key={i.id} value={i.id}>{i.name} ({i.quantity_available} avail.)</option>
-                        ))}
-                      </select>
-                    </div>
-                    {invIssueItem && (
-                      <>
-                        <div>
-                          <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-medium block mb-1.5">Quantity</label>
-                          <input type="number" min="1"
-                            max={invItems.find(i => i.id === invIssueItem)?.quantity_available ?? 1}
-                            value={invIssueQty} onChange={e => setInvIssueQty(e.target.value)}
-                            className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none" />
-                        </div>
-                        <div>
-                          <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-medium block mb-1.5">Notes (optional)</label>
-                          <input value={invIssueNotes} onChange={e => setInvIssueNotes(e.target.value)}
-                            className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none" />
-                        </div>
-                      </>
+                    {returnable && (
+                      <div>
+                        <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-medium block mb-1.5">Due Date (optional)</label>
+                        <input type="date" value={invIssueDueDate} onChange={e => setInvIssueDueDate(e.target.value)}
+                          className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none" />
+                      </div>
                     )}
+                    <div>
+                      <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-medium block mb-1.5">Quantity</label>
+                      <input type="number" min="1"
+                        max={issueItemObj?.quantity_available ?? 1}
+                        value={invIssueQty} onChange={e => setInvIssueQty(e.target.value)}
+                        className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none" />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-medium block mb-1.5">Notes (optional)</label>
+                      <input value={invIssueNotes} onChange={e => setInvIssueNotes(e.target.value)}
+                        className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none" />
+                    </div>
                     {invIssueErr && <p className="text-sm text-red-500">{invIssueErr}</p>}
                     <button onClick={submitInvIssue} disabled={!invIssueItem || invIssuing}
                       className="w-full py-3 rounded-xl text-sm font-semibold text-white disabled:opacity-50" style={{ background: primary }}>
@@ -1338,7 +1410,8 @@ export default function StaffPortalPage() {
                 </div>
               )}
             </div>
-          )}
+            );
+          })()}
 
           {/* Sign List */}
           {invTab === 'sign-list' && (
@@ -1471,7 +1544,7 @@ export default function StaffPortalPage() {
                   <select className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none"
                     value={invReturnItem} onChange={e => { setInvReturnItem(e.target.value); setInvReturnQty('1'); setInvReturnErr(''); }}>
                     <option value="">— Select item —</option>
-                    {invItems.filter(i => i.quantity_available < i.quantity_total).map(i => {
+                    {invItems.filter(i => !i.is_returnable && i.quantity_available < i.quantity_total).map(i => {
                       const out = i.quantity_total - i.quantity_available;
                       return <option key={i.id} value={i.id}>{i.name} ({out} out)</option>;
                     })}
