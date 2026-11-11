@@ -9,6 +9,8 @@ import { getStaffUser, getStaffColors } from './layout';
 import { AccountsFullTabs } from './AccountsFullTabs';
 import { InventoryFullTabs } from './InventoryFullTabs';
 import { InventoryLoans } from './InventoryLoans';
+import { BulkIssuePanel } from '@/components/inventory/BulkIssuePanel';
+import { IssueRecordsPanel } from '@/components/inventory/IssueRecordsPanel';
 import { LettersSection } from './LettersSection';
 import { StaffSidebar, type StaffSidebarGroup } from './StaffSidebar';
 
@@ -118,7 +120,7 @@ type Section     = 'clearance' | 'library' | 'inventory' | 'accounts' | 'clinic'
 type ClTab       = 'pending' | 'lookup' | 'history';
 type LibTab      = 'dashboard' | 'issue' | 'return' | 'overdue';
 type AcctTab     = 'dashboard' | 'collect' | 'reports' | 'fee-items' | 'schedules' | 'expenditure' | 'arrears' | 'maintenance';
-type InvTab      = 'items' | 'issue' | 'return' | 'loans' | 'sign-list' | 'categories' | 'manage-items' | 'log' | 'report';
+type InvTab      = 'items' | 'issue' | 'bulk-issue' | 'records' | 'return' | 'loans' | 'sign-list' | 'categories' | 'manage-items' | 'log' | 'report';
 type ClinicTab   = 'dashboard' | 'new-visit' | 'open' | 'history' | 'inventory';
 
 interface SlFilters {
@@ -200,6 +202,7 @@ export default function StaffPortalPage() {
 
   // ── Inventory state ──────────────────────────────────────────────────────────
   const [invTab,          setInvTab]          = useState<InvTab>('items');
+  const [invRecordId,     setInvRecordId]     = useState<string | null>(null);
   const [invItems,        setInvItems]        = useState<InvItem[]>([]);
   const [invLoading,      setInvLoading]      = useState(false);
 
@@ -854,7 +857,8 @@ export default function StaffPortalPage() {
     hasInv && {
       key: 'inventory', label: isStores ? 'Stores' : 'Inventory',
       items: ([
-        ['items', 'Items'], ['issue', 'Issue'], ['return', 'Return'], ['loans', 'Loans'], ['sign-list', 'Sign List'],
+        ['items', 'Items'], ['issue', 'Issue'], ['bulk-issue', 'Bulk Issue'], ['records', 'Issue Records'],
+        ['return', 'Return'], ['loans', 'Loans'], ['sign-list', 'Sign List'],
         ...(isStores ? ([
           ['categories', 'Categories'],
           ['log',        'Transaction Log'],
@@ -864,6 +868,7 @@ export default function StaffPortalPage() {
         key, label, active: section === 'inventory' && invTab === key,
         onClick: () => {
           setSection('inventory'); setInvTab(key); setInvReturnOk(false);
+          if (key === 'records') setInvRecordId(null);
           if (key === 'sign-list') { loadSlFilters(); slRefreshCount(); }
         },
       })),
@@ -1275,7 +1280,14 @@ export default function StaffPortalPage() {
 
           {invTab === 'loans' && <InventoryLoans api={api} primary={primary} onItemsChanged={loadInvItems} />}
 
-          {!(isStores && invTab === 'items') && !['categories', 'log', 'report', 'loans'].includes(invTab) && invLoading && <div className="flex justify-center py-10"><div className="w-7 h-7 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: primary, borderTopColor: 'transparent' }} /></div>}
+          {invTab === 'bulk-issue' && (
+            <BulkIssuePanel apiClient={api} primary={primary}
+              onIssued={id => { loadInvItems(); setInvRecordId(id); setInvTab('records'); }} />
+          )}
+
+          {invTab === 'records' && <IssueRecordsPanel apiClient={api} primary={primary} initialBatchId={invRecordId} />}
+
+          {!(isStores && invTab === 'items') && !['categories', 'log', 'report', 'loans', 'bulk-issue', 'records'].includes(invTab) && invLoading && <div className="flex justify-center py-10"><div className="w-7 h-7 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: primary, borderTopColor: 'transparent' }} /></div>}
 
           {/* Items list (plain inventory role — read-only browse; stores gets full CRUD above instead) */}
           {invTab === 'items' && !isStores && !invLoading && (
