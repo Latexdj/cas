@@ -3,7 +3,11 @@ const { Pool } = require('pg');
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false },
-  max: 20,
+  // Must stay below the Supabase session-mode pooler's client limit (~15).
+  // Above it the pooler refuses connections outright (Postgres XX000) and
+  // requests fail at random under load; below it, extra queries just queue
+  // here for a moment.
+  max: Number(process.env.PG_POOL_MAX) || 10,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 10000,
 });
