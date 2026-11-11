@@ -14,6 +14,7 @@ import { IssueRecordsPanel } from '@/components/inventory/IssueRecordsPanel';
 import { LettersSection } from './LettersSection';
 import { StaffSidebar, type StaffSidebarGroup } from './StaffSidebar';
 import { StaffDashboard, type DashTarget } from './StaffDashboard';
+import { SchoolReports } from './SchoolReports';
 
 // ─── Clearance types ──────────────────────────────────────────────────────────
 interface Office { id: string; name: string; office_type: string; sort_order: number; }
@@ -117,7 +118,7 @@ interface ClinicInvItem {
   reorder_level: number; is_low_stock: boolean; batch_number: string | null; expiry_date: string | null;
 }
 
-type Section     = 'home' | 'clearance' | 'library' | 'inventory' | 'accounts' | 'clinic' | 'letters' | 'scan';
+type Section     = 'home' | 'clearance' | 'library' | 'inventory' | 'accounts' | 'clinic' | 'letters' | 'reports' | 'scan';
 type ClTab       = 'pending' | 'lookup' | 'history';
 type LibTab      = 'dashboard' | 'issue' | 'return' | 'overdue';
 type AcctTab     = 'dashboard' | 'collect' | 'reports' | 'fee-items' | 'schedules' | 'expenditure' | 'arrears' | 'maintenance';
@@ -148,6 +149,7 @@ export default function StaffPortalPage() {
   const isStores     = staffRoles.includes('stores');
   const isAccountant = staffRoles.includes('accountant');
   const hasLetters   = isAccountant;
+  const hasReports   = isAccountant || isStores;
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -922,6 +924,10 @@ export default function StaffPortalPage() {
     hasLetters && {
       key: 'letters', label: 'Letters', items: [],
       onClick: () => setSection('letters'),
+    },
+    hasReports && {
+      key: 'reports', label: 'Reports', items: [],
+      onClick: () => setSection('reports'),
     },
     {
       key: 'scan', label: 'Scan ID', items: [],
@@ -2086,6 +2092,8 @@ export default function StaffPortalPage() {
       {hasLetters && section === 'letters' && (
         <LettersSection api={api} primary={primary} />
       )}
+
+      {hasReports && section === 'reports' && <SchoolReports api={api} primary={primary} />}
 
       {/* ── Scan ID Section ───────────────────────────────────────────────── */}
       {section === 'scan' && (
