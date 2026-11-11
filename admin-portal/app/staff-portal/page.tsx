@@ -13,6 +13,7 @@ import { BulkIssuePanel } from '@/components/inventory/BulkIssuePanel';
 import { IssueRecordsPanel } from '@/components/inventory/IssueRecordsPanel';
 import { LettersSection } from './LettersSection';
 import { StaffSidebar, type StaffSidebarGroup } from './StaffSidebar';
+import { StaffDashboard, type DashTarget } from './StaffDashboard';
 
 // ─── Clearance types ──────────────────────────────────────────────────────────
 interface Office { id: string; name: string; office_type: string; sort_order: number; }
@@ -116,7 +117,7 @@ interface ClinicInvItem {
   reorder_level: number; is_low_stock: boolean; batch_number: string | null; expiry_date: string | null;
 }
 
-type Section     = 'clearance' | 'library' | 'inventory' | 'accounts' | 'clinic' | 'letters' | 'scan';
+type Section     = 'home' | 'clearance' | 'library' | 'inventory' | 'accounts' | 'clinic' | 'letters' | 'scan';
 type ClTab       = 'pending' | 'lookup' | 'history';
 type LibTab      = 'dashboard' | 'issue' | 'return' | 'overdue';
 type AcctTab     = 'dashboard' | 'collect' | 'reports' | 'fee-items' | 'schedules' | 'expenditure' | 'arrears' | 'maintenance';
@@ -150,7 +151,7 @@ export default function StaffPortalPage() {
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  const defaultSection: Section = hasCl ? 'clearance' : hasLib ? 'library' : hasInv ? 'inventory' : hasAcc ? 'accounts' : hasClinic ? 'clinic' : 'letters';
+  const defaultSection: Section = 'home';
   const [section, setSection] = useState<Section>(defaultSection);
 
   // ── Clearance state ─────────────────────────────────────────────────────────
@@ -830,7 +831,21 @@ export default function StaffPortalPage() {
   // One group per role the staff actually has; each group's items are that
   // role's tabs (identical labels/keys/side-effects to the tab-bars they
   // replace). Letters has no sub-tabs — a single directly-clickable row.
+  function goTo(t: DashTarget) {
+    setSection(t.section);
+    if (t.section === 'clearance') setClTab(t.tab);
+    if (t.section === 'library')   setLibTab(t.tab);
+    if (t.section === 'inventory') { setInvTab(t.tab); setInvReturnOk(false); if (t.tab === 'records') setInvRecordId(null); }
+    if (t.section === 'accounts')  setAcctTab(t.tab);
+    if (t.section === 'clinic')    setClinicTab(t.tab);
+    window.scrollTo({ top: 0 });
+  }
+
   const sidebarGroups: StaffSidebarGroup[] = ([
+    {
+      key: 'home', label: 'Home', items: [],
+      onClick: () => setSection('home'),
+    },
     hasCl && {
       key: 'clearance', label: 'Clearance',
       items: ([
@@ -946,6 +961,11 @@ export default function StaffPortalPage() {
             </p>
           </div>
         </div>
+
+        {section === 'home' && (
+          <StaffDashboard api={api} primary={primary} onNavigate={goTo}
+            roles={{ hasCl, hasLib, hasInv, isStores, hasAcc, isAccountant, hasClinic, hasLetters }} />
+        )}
 
         {/* ── Clearance Section ─────────────────────────────────────────────── */}
       {hasCl && section === 'clearance' && (
@@ -1333,9 +1353,9 @@ export default function StaffPortalPage() {
                     setInvIssueStudent(null); setInvIssueCode(''); setInvIssueStudErr('');
                     setInvIssueTeacher(null); setInvIssueTCode(''); setInvIssueTErr(''); setInvIssueDueDate('');
                   }}>
-                  <option value="">— Select item —</option>
+                  <option value="">Select item</option>
                   {invItems.filter(i => i.quantity_available > 0 && i.condition !== 'Written Off').map(i => (
-                    <option key={i.id} value={i.id}>{i.name} ({i.quantity_available} avail.){i.is_returnable ? ' · returnable' : ''}</option>
+                    <option key={i.id} value={i.id}>{i.name} ({i.quantity_available} avail.){i.is_returnable ? ', returnable' : ''}</option>
                   ))}
                 </select>
               </div>
@@ -1390,7 +1410,7 @@ export default function StaffPortalPage() {
                     <div>
                       <p className="font-bold text-slate-800 dark:text-white">{recipient.name}</p>
                       <p className="text-xs text-slate-400">
-                        {'student_code' in recipient ? `${recipient.student_code} · ${recipient.class_name}` : `${recipient.teacher_code}${recipient.department ? ` · ${recipient.department}` : ''}`}
+                        {'student_code' in recipient ? `${recipient.student_code}, ${recipient.class_name}` : `${recipient.teacher_code}${recipient.department ? `, ${recipient.department}` : ''}`}
                       </p>
                     </div>
                   </div>
