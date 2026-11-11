@@ -957,7 +957,7 @@ export default function StaffPortalPage() {
           <span className="text-sm font-semibold text-slate-600 dark:text-slate-300">Menu</span>
         </div>
 
-        <div className="flex items-start justify-between gap-3">
+        {section === 'home' && (
           <div>
             <h1 className="text-xl font-bold text-slate-800 dark:text-white">
               {user?.name ?? 'Staff'}&apos;s Desk
@@ -966,7 +966,7 @@ export default function StaffPortalPage() {
               {staffRoles.map(r => r.charAt(0).toUpperCase() + r.slice(1)).join(' & ')} Portal
             </p>
           </div>
-        </div>
+        )}
 
         {section === 'home' && (
           <StaffDashboard api={api} primary={primary} onNavigate={goTo}
