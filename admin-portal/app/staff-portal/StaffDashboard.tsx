@@ -4,7 +4,7 @@ import type { AxiosInstance } from 'axios';
 
 export type DashTarget =
   | { section: 'clearance'; tab: 'pending' | 'lookup' | 'history' }
-  | { section: 'library'; tab: 'dashboard' | 'issue' | 'return' | 'overdue' }
+  | { section: 'library'; tab: 'issue' | 'return' | 'overdue' }
   | { section: 'inventory'; tab: 'items' | 'bulk-issue' | 'records' | 'loans' }
   | { section: 'accounts'; tab: 'dashboard' | 'collect' | 'arrears' | 'expenditure' }
   | { section: 'clinic'; tab: 'new-visit' | 'open' | 'history' }

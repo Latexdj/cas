@@ -31,46 +31,50 @@ async function reviewersFor(schoolId, track) {
   return { reviewers: await activeRoleHolders(schoolId, 'principal'), isFallback: true };
 }
 
-// Staff whose role is itself a non-academic unit (the nurse runs the clinic)
-// draft that unit's budget on the Administration track without an admin
+// Staff whose role is itself a budget unit (the nurse runs the clinic, the
+// librarian the library) draft that unit's budget on its track without an admin
 // having to set the unit up first. An existing unit with a matching name and
 // no head is claimed; otherwise one is created. A unit someone else already
 // heads is left alone, so a second nurse doesn't take over the first's.
 const STAFF_ROLE_UNITS = [
-  { role: 'clinic', name: 'Clinic', match: ['clinic', 'nurse', 'sick bay', 'infirmary', 'health'] },
+  { role: 'clinic',  name: 'Clinic',  track: 'administration', match: ['clinic', 'nurse', 'sick bay', 'infirmary', 'health'] },
+  { role: 'library', name: 'Library', track: 'academic',       match: ['library', 'librar'] },
 ];
 
-async function ensureStaffUnit(schoolId, staffId, staffRoles) {
+async function ensureStaffUnits(schoolId, staffId, staffRoles) {
+  const ids = [];
   for (const spec of STAFF_ROLE_UNITS) {
     if (!staffRoles.includes(spec.role)) continue;
     const { rows: existing } = await pool.query(
       `SELECT id, head_teacher_id, head_school_staff_id FROM budget_units
-       WHERE school_id = $1 AND is_active AND track = 'administration'
+       WHERE school_id = $1 AND is_active AND track = $3
          AND LOWER(name) LIKE ANY($2::text[])
-       ORDER BY (head_teacher_id IS NULL AND head_school_staff_id IS NULL) DESC, created_at
+       ORDER BY (head_school_staff_id IS NOT DISTINCT FROM $4::uuid) DESC,
+                (head_teacher_id IS NULL AND head_school_staff_id IS NULL) DESC, created_at
        LIMIT 1`,
-      [schoolId, spec.match.map(m => `%${m}%`)]
+      [schoolId, spec.match.map(m => `%${m}%`), spec.track, staffId]
     );
     const unit = existing[0];
     if (unit) {
+      if (unit.head_school_staff_id === staffId) { ids.push(unit.id); continue; }
       if (unit.head_teacher_id || unit.head_school_staff_id) continue;
       const { rows: claimed } = await pool.query(
         `UPDATE budget_units SET head_school_staff_id = $1
          WHERE id = $2 AND head_teacher_id IS NULL AND head_school_staff_id IS NULL RETURNING id`,
         [staffId, unit.id]
       );
-      if (claimed[0]) return claimed[0].id;
+      if (claimed[0]) ids.push(claimed[0].id);
       continue;
     }
     const { rows: created } = await pool.query(
       `INSERT INTO budget_units (school_id, name, track, head_school_staff_id)
-       VALUES ($1, $2, 'administration', $3)
+       VALUES ($1, $2, $4, $3)
        ON CONFLICT DO NOTHING RETURNING id`,
-      [schoolId, spec.name, staffId]
+      [schoolId, spec.name, staffId, spec.track]
     );
-    if (created[0]) return created[0].id;
+    if (created[0]) ids.push(created[0].id);
   }
-  return null;
+  return ids;
 }
 
 async function resolveBudgetActor(req) {
@@ -93,10 +97,8 @@ async function resolveBudgetActor(req) {
     ]);
     actor.name = me[0]?.name ?? '';
     actor.unitIds = units.map(r => r.id);
-    if (!actor.unitIds.length) {
-      const unitId = await ensureStaffUnit(schoolId, u.id, req.staffRoles || []);
-      if (unitId) actor.unitIds = [unitId];
-    }
+    const roleUnitIds = await ensureStaffUnits(schoolId, u.id, req.staffRoles || []);
+    actor.unitIds = [...new Set([...actor.unitIds, ...roleUnitIds])];
     return actor;
   }
 

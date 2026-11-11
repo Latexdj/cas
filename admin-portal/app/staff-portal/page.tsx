@@ -72,7 +72,6 @@ function fmtGHS(n: number | string) {
 }
 
 // ─── Library types ────────────────────────────────────────────────────────────
-interface DashStats { total_books: number; available_copies: number; active_loans: number; overdue_loans: number; returned_today: number; }
 interface Book { id: string; title: string; author: string | null; subject: string | null; available_copies: number; total_copies: number; }
 interface Copy { id: string; copy_number: string; condition: string; is_available: boolean; }
 interface StudentInfo {
@@ -121,7 +120,7 @@ interface ClinicInvItem {
 
 type Section     = 'home' | 'clearance' | 'library' | 'inventory' | 'accounts' | 'clinic' | 'letters' | 'reports' | 'budgets' | 'scan';
 type ClTab       = 'pending' | 'lookup' | 'history';
-type LibTab      = 'dashboard' | 'issue' | 'return' | 'overdue';
+type LibTab      = 'issue' | 'return' | 'overdue';
 type AcctTab     = 'dashboard' | 'collect' | 'reports' | 'fee-items' | 'schedules' | 'expenditure' | 'arrears' | 'maintenance';
 type InvTab      = 'items' | 'issue' | 'bulk-issue' | 'records' | 'return' | 'loans' | 'sign-list' | 'categories' | 'manage-items' | 'log' | 'report';
 type ClinicTab   = 'new-visit' | 'open' | 'history' | 'inventory';
@@ -186,9 +185,7 @@ export default function StaffPortalPage() {
   const [acError,  setAcError]  = useState('');
 
   // ── Library state ────────────────────────────────────────────────────────────
-  const [libTab,      setLibTab]      = useState<LibTab>('dashboard');
-  const [stats,       setStats]       = useState<DashStats | null>(null);
-  const [statsLoading, setStatsLoading] = useState(false);
+  const [libTab,      setLibTab]      = useState<LibTab>('issue');
 
   const [issueCode,    setIssueCode]    = useState('');
   const [issueStudent, setIssueStudent] = useState<StudentInfo | null>(null);
@@ -341,7 +338,6 @@ export default function StaffPortalPage() {
   }, []);
 
   useEffect(() => {
-    if (section === 'library' && libTab === 'dashboard') loadDashboard();
     if (section === 'library' && libTab === 'issue') { loadBooks(); setIssueStudent(null); setIssueCode(''); }
     if (section === 'library' && libTab === 'return') { setReturnStudent(null); setReturnCode(''); }
     if (section === 'library' && libTab === 'overdue') loadOverdue();
@@ -496,12 +492,6 @@ export default function StaffPortalPage() {
   }
 
   // ── Library helpers ───────────────────────────────────────────────────────────
-  function loadDashboard() {
-    setStatsLoading(true);
-    api.get<DashStats>('/api/library/dashboard')
-      .then(r => setStats(r.data)).catch(() => {}).finally(() => setStatsLoading(false));
-  }
-
   function loadBooks() {
     setBooksLoading(true);
     api.get<Book[]>('/api/library/books', { params: { available_only: 'true' } })
@@ -542,7 +532,7 @@ export default function StaffPortalPage() {
         student_id: issueStudent.student.id, copy_id: selectedCopy, notes: issueNote || null,
       });
       setIssueStudent(null); setIssueCode(''); setSelectedBook(''); setSelectedCopy(''); setIssueNote('');
-      loadBooks(); loadDashboard();
+      loadBooks();
       alert('Book issued successfully!');
     } catch (e: any) { alert(e.response?.data?.error ?? 'Failed to issue'); }
     finally { setIssuing(false); }
@@ -565,7 +555,6 @@ export default function StaffPortalPage() {
       setReturnResult(r.data);
       const updated = await api.get<StudentInfo>(`/api/library/student/${returnCode.trim()}`);
       setReturnStudent(updated.data);
-      loadDashboard();
     } catch (e: any) { alert(e.response?.data?.error ?? 'Failed to return'); }
     finally { setReturning(null); }
   }
@@ -872,7 +861,6 @@ export default function StaffPortalPage() {
     hasLib && {
       key: 'library', label: 'Library',
       items: ([
-        ['dashboard', 'Dashboard'],
         ['issue',     'Issue Book'],
         ['return',    'Return Book'],
         ['overdue',   `Overdue${overdue.length > 0 ? ` (${overdue.length})` : ''}`],
@@ -1119,28 +1107,6 @@ export default function StaffPortalPage() {
       {/* ── Library Section ───────────────────────────────────────────────── */}
       {hasLib && section === 'library' && (
         <div className="space-y-4">
-          {libTab === 'dashboard' && (
-            <div className="space-y-4">
-              {statsLoading ? <p className="text-sm text-slate-500">Loading…</p> : stats ? (
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {[
-                    { label: 'Total Books',    value: stats.total_books,      color: primary },
-                    { label: 'Available',      value: stats.available_copies, color: '#16A34A' },
-                    { label: 'Active Loans',   value: stats.active_loans,     color: primary },
-                    { label: 'Overdue',        value: stats.overdue_loans,    color: '#DC2626' },
-                    { label: 'Returned Today', value: stats.returned_today,   color: '#0891B2' },
-                  ].map(({ label, value, color }) => (
-                    <div key={label} className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-100 dark:border-slate-700 shadow-sm relative overflow-hidden">
-                      <div className="absolute top-0 left-0 w-1 h-full rounded-l-xl" style={{ backgroundColor: color }} />
-                      <p className="text-xs font-semibold text-slate-400 font-medium">{label}</p>
-                      <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1">{value}</p>
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-          )}
-
           {libTab === 'issue' && (
             <div className="space-y-4">
               <div className="flex gap-2">
