@@ -781,6 +781,69 @@ router.get(
   }
 );
 
+// ── Manual check by student ID (no card needed) ─────────────────────────────
+// The Scan ID page's typed box: staff who don't want to scan look a student up
+// by name or student ID instead. School staff only (never students/parents),
+// and only their own school's students. Registered before /:token so these
+// paths aren't read as card tokens.
+function schoolStaffOnly(req, res, next) {
+  const role = req.user?.role;
+  if (!role || role === 'student' || role === 'parent') return res.status(403).json({ error: 'Staff access only' });
+  if (!req.schoolId) return res.status(400).json({ error: 'School context required' });
+  next();
+}
+
+router.get('/students/search', authenticate, schoolStaffOnly, async (req, res, next) => {
+  try {
+    const q = String(req.query.q || '').trim();
+    if (q.length < 2) return res.json([]);
+    const { rows } = await pool.query(
+      `SELECT student_code, name, class_name FROM students
+       WHERE school_id = $1 AND status = 'Active' AND (name ILIKE $2 OR student_code ILIKE $2)
+       ORDER BY (UPPER(student_code) = UPPER($3)) DESC, name LIMIT 15`,
+      [req.schoolId, `%${q}%`, q]
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+router.get('/student/:code', authenticate, schoolStaffOnly, async (req, res, next) => {
+  try {
+    const code = String(req.params.code || '').trim();
+    const { rows } = await pool.query(
+      `SELECT s.id, s.name, s.class_name, s.jhs_index_number, s.student_code, s.picture_url, s.status,
+              sch.name AS school_name,
+              (SELECT c.status FROM student_id_cards c WHERE c.student_id = s.id
+                ORDER BY c.issue_number DESC NULLS LAST LIMIT 1) AS card_status
+       FROM students s JOIN schools sch ON sch.id = s.school_id
+       WHERE s.school_id = $1 AND UPPER(s.student_code) = UPPER($2)`,
+      [req.schoolId, code]
+    );
+    const st = rows[0];
+    await logScan({ token_queried: `student:${code}`, response_status: st ? 'manual_lookup' : 'unknown', scanned_by: req.user?.id, ip: req.ip });
+    if (!st) return res.status(404).json({ valid: false, message: 'No student with that ID in this school.' });
+    if (st.status !== 'Active') {
+      return res.json({ valid: false, status: 'inactive', school: st.school_name,
+        message: `${st.name} (${st.student_code}) is not an active student (${st.status}).` });
+    }
+    const exeatActive = await hasActiveExeat(st.id);
+    res.json({
+      valid: true,
+      status: 'active',
+      school: st.school_name,
+      exeat_approved: exeatActive,
+      message: exeatActive
+        ? 'Exeat currently approved. The student has permission to be off campus.'
+        : 'No active exeat. The student does not currently have off-campus permission.',
+      student: {
+        name: st.name, class_name: st.class_name, index_number: st.jhs_index_number,
+        student_code: st.student_code, photo_url: st.picture_url,
+      },
+      card_status: st.card_status ?? null,
+    });
+  } catch (err) { next(err); }
+});
+
 // ── GET /api/verify/:token ────────────────────────────────────────────────────
 // PUBLIC — no auth required. Tiered response based on whether caller is logged in.
 // Logs every request to id_card_scans including invalid tokens.

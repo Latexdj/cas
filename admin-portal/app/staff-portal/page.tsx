@@ -2072,7 +2072,7 @@ export default function StaffPortalPage() {
           <div>
             <h2 className="text-lg font-bold text-slate-800 dark:text-white">Scan ID Card</h2>
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-              Scan a student's QR ID card, or enter the code manually, to check exeat status.
+              Scan a student's QR ID card, or check by student ID, to check exeat status.
             </p>
           </div>
           <IdCardScanner apiClient={api} />

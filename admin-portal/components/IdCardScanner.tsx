@@ -2,10 +2,12 @@
 import { useEffect, useRef, useState } from 'react';
 import type jsQRType from 'jsqr';
 import type { AxiosInstance } from 'axios';
+import NameOrIdSearch from './NameOrIdSearch';
 
 interface VerifyResponse {
   valid: boolean;
-  status?: 'active' | 'revoked' | 'expired';
+  status?: 'active' | 'revoked' | 'expired' | 'inactive';
+  card_status?: 'active' | 'revoked' | 'expired' | null;
   school?: string;
   message?: string;
   issue_number?: number;
@@ -19,7 +21,7 @@ interface VerifyResponse {
   };
 }
 
-type ResultState = { kind: 'valid' | 'invalid'; data: VerifyResponse } | { kind: 'error'; message: string } | null;
+type ResultState = { kind: 'valid' | 'invalid'; data: VerifyResponse; manual?: boolean } | { kind: 'error'; message: string } | null;
 
 // Shared scanner used by the admin dashboard, teacher portal, and Staff
 // Portal — each supplies its own authenticated axios instance so this
@@ -77,26 +79,40 @@ export function IdCardScanner({ apiClient }: { apiClient: AxiosInstance }) {
     } catch (err: unknown) {
       const name = (err as { name?: string })?.name ?? '';
       if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
-        setCameraError('Camera permission denied. Allow camera access in your browser settings, or enter the code manually below.');
+        setCameraError('Camera permission denied. Allow camera access in your browser settings, or check by student ID below.');
       } else if (name === 'NotFoundError') {
-        setCameraError('No camera found on this device. Enter the code manually below.');
+        setCameraError('No camera found on this device. Check by student ID below.');
       } else {
-        setCameraError('Could not open camera. Make sure no other app is using it, or enter the code manually below.');
+        setCameraError('Could not open camera. Make sure no other app is using it, or check by student ID below.');
       }
       setScanning(false);
     }
   }
 
-  async function verify(token: string) {
+  // The typed box takes a student ID (or a name to pick from). A pasted card
+  // code still works, so nothing that used to work stops working.
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  function checkTyped(value: string) {
+    const v = value.trim();
+    if (!v) return;
+    verify(v, !UUID_RE.test(v));
+  }
+
+  const searchStudents = (q: string) =>
+    apiClient.get<{ student_code: string; name: string; class_name: string | null }[]>('/api/verify/students/search', { params: { q } })
+      .then(r => r.data.map(x => ({ code: x.student_code, name: x.name, detail: x.class_name })));
+
+  async function verify(token: string, byStudentId = false) {
     setVerifying(true); setResult(null);
     try {
-      const { data } = await apiClient.get<VerifyResponse>(`/api/verify/${encodeURIComponent(token)}`);
-      setResult({ kind: data.valid ? 'valid' : 'invalid', data });
+      const path = byStudentId ? `/api/verify/student/${encodeURIComponent(token)}` : `/api/verify/${encodeURIComponent(token)}`;
+      const { data } = await apiClient.get<VerifyResponse>(path);
+      setResult({ kind: data.valid ? 'valid' : 'invalid', data, manual: byStudentId });
     } catch (err: unknown) {
       const status = (err as { response?: { status?: number; data?: VerifyResponse } })?.response?.status;
       const data   = (err as { response?: { data?: VerifyResponse } })?.response?.data;
       if (status === 404) {
-        setResult({ kind: 'invalid', data: data ?? { valid: false, message: 'QR code not recognised.' } });
+        setResult({ kind: 'invalid', data: data ?? { valid: false, message: byStudentId ? 'No student with that ID in this school.' : 'QR code not recognised.' } });
       } else {
         setResult({ kind: 'error', message: 'Could not reach the server. Check your connection and try again.' });
       }
@@ -148,17 +164,21 @@ export function IdCardScanner({ apiClient }: { apiClient: AxiosInstance }) {
           )}
           {cameraError && <p className="text-xs text-red-500">{cameraError}</p>}
 
-          <div className="flex gap-2 items-center pt-1">
-            <input
+          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 pt-1">Or check by student ID</p>
+          <div className="flex gap-2 items-center">
+            <NameOrIdSearch className="flex-1"
               value={manualToken}
-              onChange={e => setManualToken(e.target.value)}
-              placeholder="Or enter the code manually…"
-              className="flex-1 rounded-lg px-3 py-2 text-sm border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
+              onChange={setManualToken}
+              onPick={code => verify(code, true)}
+              onEnter={() => checkTyped(manualToken)}
+              search={searchStudents}
+              placeholder="Type a student name or ID…"
+              inputClassName="w-full rounded-lg px-3 py-2 text-sm border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]"
             />
             <button
               type="button"
               disabled={!manualToken.trim() || verifying}
-              onClick={() => verify(manualToken.trim())}
+              onClick={() => checkTyped(manualToken)}
               className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50 bg-[#145C44] hover:bg-[#0B3D2E]"
             >
               {verifying ? 'Checking…' : 'Check'}
@@ -195,16 +215,30 @@ export function IdCardScanner({ apiClient }: { apiClient: AxiosInstance }) {
                 {result.data.exeat_approved ? 'Exeat approved — permitted off campus' : 'No active exeat — should be on campus'}
               </p>
               <p className="text-xs text-slate-500 dark:text-slate-400">{result.data.message}</p>
+              {result.manual && (
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Checked by student ID. {result.data.card_status === 'active' ? 'Their ID card is active.'
+                    : result.data.card_status === 'revoked' ? 'Their ID card has been cancelled.'
+                    : result.data.card_status === 'expired' ? 'Their ID card has expired.'
+                    : 'No ID card has been issued to them.'}
+                </p>
+              )}
             </>
           ) : (
             <p className="text-sm font-semibold" style={{ color: outcomeColor }}>
               {result.data.message ?? 'QR code not recognised.'}
             </p>
           )}
-          <button type="button" onClick={scanAnother}
-            className="w-full py-2.5 rounded-xl text-sm font-semibold text-white bg-[#145C44] hover:bg-[#0B3D2E]">
-            Scan another
-          </button>
+          <div className="flex gap-2">
+            <button type="button" onClick={scanAnother}
+              className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-[#145C44] hover:bg-[#0B3D2E]">
+              Scan another
+            </button>
+            <button type="button" onClick={() => { setResult(null); setManualToken(''); }}
+              className="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300">
+              Check another ID
+            </button>
+          </div>
         </div>
       )}
     </div>
