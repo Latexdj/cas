@@ -124,7 +124,7 @@ type ClTab       = 'pending' | 'lookup' | 'history';
 type LibTab      = 'dashboard' | 'issue' | 'return' | 'overdue';
 type AcctTab     = 'dashboard' | 'collect' | 'reports' | 'fee-items' | 'schedules' | 'expenditure' | 'arrears' | 'maintenance';
 type InvTab      = 'items' | 'issue' | 'bulk-issue' | 'records' | 'return' | 'loans' | 'sign-list' | 'categories' | 'manage-items' | 'log' | 'report';
-type ClinicTab   = 'dashboard' | 'new-visit' | 'open' | 'history' | 'inventory';
+type ClinicTab   = 'new-visit' | 'open' | 'history' | 'inventory';
 
 interface SlFilters {
   classes: string[];
@@ -293,7 +293,7 @@ export default function StaffPortalPage() {
   const acctDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── Clinic state ─────────────────────────────────────────────────────────────
-  const [clinicTab,       setClinicTab]       = useState<ClinicTab>('dashboard');
+  const [clinicTab,       setClinicTab]       = useState<ClinicTab>('open');
   const [clinicDash,      setClinicDash]      = useState<ClinicDashboard | null>(null);
   const [clinicDashLoad,  setClinicDashLoad]  = useState(false);
 
@@ -351,7 +351,7 @@ export default function StaffPortalPage() {
       api.get<FeeItem[]>('/api/fees/items').then(r => setAcctItems(r.data)).catch(() => {});
     }
     if (section === 'accounts' && acctTab === 'dashboard') loadAcctDashboard();
-    if (section === 'clinic' && (clinicTab === 'dashboard' || clinicTab === 'open')) loadClinicDashboard();
+    if (section === 'clinic' && clinicTab === 'open') loadClinicDashboard();
     if (section === 'clinic' && clinicTab === 'new-visit') { setCnSelected(null); setCnQuery(''); setCnComplaint(''); setCnError(''); }
     if (section === 'clinic' && clinicTab === 'history') loadClinicHistory();
     if (section === 'clinic' && (clinicTab === 'open' || clinicTab === 'inventory')) loadClinicInvItems();
@@ -921,9 +921,8 @@ export default function StaffPortalPage() {
     hasClinic && {
       key: 'clinic', label: 'Clinic',
       items: ([
-        ['dashboard',  'Dashboard'],
-        ['new-visit',  'New Visit'],
         ['open',       `Open${clinicDash && clinicDash.open_visits.length > 0 ? ` (${clinicDash.open_visits.length})` : ''}`],
+        ['new-visit',  'New Visit'],
         ['history',    'History'],
         ['inventory',  'Inventory'],
       ] as const).map(([key, label]) => ({
@@ -1819,27 +1818,6 @@ export default function StaffPortalPage() {
       {/* ── Clinic Section ────────────────────────────────────────────────── */}
       {hasClinic && section === 'clinic' && (
         <div className="space-y-4">
-          {clinicTab === 'dashboard' && (
-            <div className="space-y-4">
-              {clinicDashLoad ? <p className="text-sm text-slate-500">Loading…</p> : clinicDash ? (
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  {[
-                    { label: "Today's Visits",     value: clinicDash.today_visits, color: primary },
-                    { label: 'Currently in Clinic', value: clinicDash.open_visits.length, color: '#C8780A' },
-                    { label: 'Minor Today',        value: clinicDash.severity_breakdown.find(b => b.severity === 'minor')?.count ?? 0, color: '#2D7A4F' },
-                    { label: 'Serious Today',       value: clinicDash.severity_breakdown.find(b => b.severity === 'serious')?.count ?? 0, color: '#B83232' },
-                  ].map(({ label, value, color }) => (
-                    <div key={label} className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-100 dark:border-slate-700 shadow-sm relative overflow-hidden">
-                      <div className="absolute top-0 left-0 w-1 h-full rounded-l-xl" style={{ backgroundColor: color }} />
-                      <p className="text-xs font-semibold text-slate-400 font-medium">{label}</p>
-                      <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1">{value}</p>
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-          )}
-
           {clinicTab === 'new-visit' && (
             <div className="space-y-4">
               <div className="flex gap-2">

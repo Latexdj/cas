@@ -7,7 +7,7 @@ export type DashTarget =
   | { section: 'library'; tab: 'dashboard' | 'issue' | 'return' | 'overdue' }
   | { section: 'inventory'; tab: 'items' | 'bulk-issue' | 'records' | 'loans' }
   | { section: 'accounts'; tab: 'dashboard' | 'collect' | 'arrears' | 'expenditure' }
-  | { section: 'clinic'; tab: 'dashboard' | 'new-visit' | 'open' }
+  | { section: 'clinic'; tab: 'new-visit' | 'open' | 'history' }
   | { section: 'letters' }
   | { section: 'budgets' };
 
@@ -344,8 +344,8 @@ function ClinicBlock({ api, go, primary }: { api: AxiosInstance; go: Go; primary
         <div className="space-y-3">
           <Tiles>
             <Tile label="In the clinic now" value={data.open_visits.length} tone="warning" onClick={() => go({ section: 'clinic', tab: 'open' })} />
-            <Tile label="Visits today" value={data.today_visits} onClick={() => go({ section: 'clinic', tab: 'dashboard' })} />
-            <Tile label="Serious cases today" value={serious} tone="danger" onClick={() => go({ section: 'clinic', tab: 'dashboard' })} />
+            <Tile label="Visits today" value={data.today_visits} onClick={() => go({ section: 'clinic', tab: 'history' })} />
+            <Tile label="Serious cases today" value={serious} tone="danger" onClick={() => go({ section: 'clinic', tab: 'history' })} />
           </Tiles>
           <Attention title="Still in the clinic"
             empty="No open visits. Everyone seen today has been discharged."
