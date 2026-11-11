@@ -410,8 +410,8 @@ export default function InventoryItemsPage() {
                 <label className="flex items-center gap-2 cursor-pointer select-none">
                   <input type="checkbox" checked={form.is_returnable}
                     onChange={e => setForm(f => ({ ...f, is_returnable: e.target.checked }))}
-                    className="w-4 h-4 accent-blue-600 rounded" />
-                  <span className="text-sm text-slate-700 dark:text-slate-300">Returnable <span className="text-slate-400">(must be returned — test books, tablets, drawing boards)</span></span>
+                    className="w-4 h-4 accent-[#145C44] rounded" />
+                  <span className="text-sm text-slate-700 dark:text-slate-300">Returnable <span className="text-slate-400">(must come back, such as test books, tablets or drawing boards)</span></span>
                 </label>
                 {/* Ownership */}
                 <div>
@@ -480,7 +480,7 @@ export default function InventoryItemsPage() {
               <div className="space-y-3">
                 {issueItem.is_returnable && (
                   <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-lg px-3 py-2">
-                    This item is returnable — it must be issued to a named student or teacher so the loan can be tracked.
+                    This item is returnable, so it must go to a named student or teacher for the loan to be tracked.
                   </p>
                 )}
                 <div>
@@ -546,7 +546,7 @@ export default function InventoryItemsPage() {
                         </div>
                         <div>
                           <p className="text-sm font-semibold text-slate-800 dark:text-white">{issueTeacher.name}</p>
-                          <p className="text-xs text-slate-500">{issueTeacher.teacher_code}{issueTeacher.department ? ` · ${issueTeacher.department}` : ''}</p>
+                          <p className="text-xs text-slate-500">{issueTeacher.teacher_code}{issueTeacher.department ? `, ${issueTeacher.department}` : ''}</p>
                         </div>
                       </div>
                     )}

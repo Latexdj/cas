@@ -128,14 +128,14 @@ function ManageItemsTab({ api, primary, onItemsChanged }: { api: AxiosInstance; 
         }
       }
       setEditingId(null); setEditingOriginal(null); load(); onItemsChanged();
-    } catch (e: any) { setError(e?.response?.data?.error ?? 'Failed to save.'); }
+    } catch (e: any) { setError(e?.response?.data?.error ?? 'Could not save. Check your connection and try again.'); }
     finally { setSaving(false); }
   }
 
   async function remove(id: string) {
     if (!confirm('Delete this item? This cannot be undone.')) return;
     try { await api.delete(`/api/inventory/items/${id}`); load(); onItemsChanged(); }
-    catch (e: any) { alert(e?.response?.data?.error ?? 'Failed to delete.'); }
+    catch (e: any) { alert(e?.response?.data?.error ?? 'Could not delete. Check your connection and try again.'); }
   }
 
   return (
@@ -177,7 +177,7 @@ function ManageItemsTab({ api, primary, onItemsChanged }: { api: AxiosInstance; 
               onChange={e => setForm(f => ({ ...f, is_returnable: e.target.checked }))}
               className="w-4 h-4 mt-0.5 accent-[#145C44] rounded shrink-0" />
             <span className="text-sm text-slate-700 dark:text-slate-300">
-              Returnable <span className="text-slate-400">— must come back (test books, tablets, drawing boards). Leave unticked for consumables like pens or A4 sheets.</span>
+              Returnable <span className="text-slate-400">(must come back, such as test books, tablets or drawing boards). Leave unticked for consumables like pens or A4 sheets.</span>
             </span>
           </label>
 
@@ -257,7 +257,7 @@ function ManageItemsTab({ api, primary, onItemsChanged }: { api: AxiosInstance; 
 
       <div className={cardCls}>
         {loading ? <p className="p-5 text-center text-slate-400 text-sm">Loading…</p> : items.length === 0 ? (
-          <p className="p-5 text-center text-slate-400 text-sm">No items yet.</p>
+          <p className="p-5 text-center text-slate-400 text-sm">No items in stock yet. Use Add Item to record the first one.</p>
         ) : (
           <div className="divide-y divide-slate-100 dark:divide-slate-700">
             {items.map(i => (
@@ -266,12 +266,12 @@ function ManageItemsTab({ api, primary, onItemsChanged }: { api: AxiosInstance; 
                   <p className="text-sm font-semibold text-slate-800 dark:text-white truncate">{i.name}</p>
                   <p className="text-xs text-slate-400">
                     {i.category_name ?? (ITEM_TYPES.find(t => t.value === i.item_type)?.label ?? i.item_type)}
-                    {' · '}{i.ownership_type === 'departmental' ? (departments.find(d => d.id === i.department_id)?.name ?? 'Departmental') : 'General'}
-                    {i.asset_tag ? ` · ${i.asset_tag}` : ''}
+                    {', '}{i.ownership_type === 'departmental' ? (departments.find(d => d.id === i.department_id)?.name ?? 'Departmental') : 'General'}
+                    {i.asset_tag ? `, ${i.asset_tag}` : ''}
                   </p>
                   <div className="flex gap-1 mt-1">
                     {i.is_returnable && (
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">Returnable</span>
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300">Returnable</span>
                     )}
                     {i.condition !== 'Good' && (
                       <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${i.condition === 'Damaged' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>{i.condition}</span>
@@ -279,7 +279,7 @@ function ManageItemsTab({ api, primary, onItemsChanged }: { api: AxiosInstance; 
                   </div>
                 </div>
                 <p className="text-sm font-bold text-slate-900 dark:text-white shrink-0">{i.quantity_available}/{i.quantity_total}</p>
-                <button onClick={() => openEdit(i)} className="text-xs text-blue-600 dark:text-blue-400 hover:underline shrink-0">Edit</button>
+                <button onClick={() => openEdit(i)} className="text-xs text-[#145C44] dark:text-[#2ab289] hover:underline shrink-0">Edit</button>
                 <button onClick={() => remove(i.id)} className="text-xs text-red-600 dark:text-red-400 hover:underline shrink-0">Delete</button>
               </div>
             ))}
@@ -315,14 +315,14 @@ function CategoriesTab({ api, primary }: { api: AxiosInstance; primary: string }
       if (editingId === 'new') await api.post('/api/inventory/categories', form);
       else await api.put(`/api/inventory/categories/${editingId}`, form);
       setEditingId(null); load();
-    } catch (e: any) { setError(e?.response?.data?.error ?? 'Failed to save.'); }
+    } catch (e: any) { setError(e?.response?.data?.error ?? 'Could not save. Check your connection and try again.'); }
     finally { setSaving(false); }
   }
 
   async function remove(id: string) {
     if (!confirm('Delete this category?')) return;
     try { await api.delete(`/api/inventory/categories/${id}`); load(); }
-    catch (e: any) { alert(e?.response?.data?.error ?? 'Failed to delete.'); }
+    catch (e: any) { alert(e?.response?.data?.error ?? 'Could not delete. Check your connection and try again.'); }
   }
 
   return (
@@ -343,7 +343,7 @@ function CategoriesTab({ api, primary }: { api: AxiosInstance; primary: string }
 
       <div className={cardCls}>
         {loading ? <p className="p-5 text-center text-slate-400 text-sm">Loading…</p> : categories.length === 0 ? (
-          <p className="p-5 text-center text-slate-400 text-sm">No categories yet.</p>
+          <p className="p-5 text-center text-slate-400 text-sm">No categories yet. Add one to group similar items, such as Stationery or Lab Equipment.</p>
         ) : (
           <div className="divide-y divide-slate-100 dark:divide-slate-700">
             {categories.map(c => (
@@ -353,7 +353,7 @@ function CategoriesTab({ api, primary }: { api: AxiosInstance; primary: string }
                   {c.description && <p className="text-xs text-slate-400">{c.description}</p>}
                 </div>
                 <span className="text-xs text-slate-400 shrink-0">{c.item_count} item(s)</span>
-                <button onClick={() => openEdit(c)} className="text-xs text-blue-600 dark:text-blue-400 hover:underline shrink-0">Edit</button>
+                <button onClick={() => openEdit(c)} className="text-xs text-[#145C44] dark:text-[#2ab289] hover:underline shrink-0">Edit</button>
                 <button onClick={() => remove(c.id)} className="text-xs text-red-600 dark:text-red-400 hover:underline shrink-0">Delete</button>
               </div>
             ))}
@@ -377,7 +377,7 @@ function TransactionLogTab({ api }: { api: AxiosInstance }) {
   return (
     <div className={cardCls}>
       {loading ? <p className="p-5 text-center text-slate-400 text-sm">Loading…</p> : rows.length === 0 ? (
-        <p className="p-5 text-center text-slate-400 text-sm">No transactions yet.</p>
+        <p className="p-5 text-center text-slate-400 text-sm">No stock movements yet. Issues, returns and new items are logged here.</p>
       ) : (
         <div className="divide-y divide-slate-100 dark:divide-slate-700">
           {rows.map(t => (
@@ -385,8 +385,8 @@ function TransactionLogTab({ api }: { api: AxiosInstance }) {
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-slate-800 dark:text-white truncate">{t.item_name}</p>
                 <p className="text-xs text-slate-400">
-                  {t.type} · qty {t.quantity}{t.issued_to_name ? ` · to ${t.issued_to_name}` : ''}
-                  {t.performed_by_name ? ` · by ${t.performed_by_name}` : ''}
+                  {t.type}, qty {t.quantity}{t.issued_to_name ? `, to ${t.issued_to_name}` : ''}
+                  {t.performed_by_name ? `, by ${t.performed_by_name}` : ''}
                 </p>
               </div>
               <span className="text-xs text-slate-400 shrink-0">{new Date(t.created_at).toLocaleDateString()}</span>
@@ -434,7 +434,7 @@ function ReportTab({ api }: { api: AxiosInstance }) {
                 <p className="text-sm font-semibold text-slate-800 dark:text-white">
                   {s.ownership_type === 'departmental' ? (s.department_name ?? 'Departmental') : 'General'}
                 </p>
-                <p className="text-xs text-slate-400">{s.item_count} item(s) · {s.units_issued} issued · {s.damaged_count} damaged · {s.written_off_count} written off</p>
+                <p className="text-xs text-slate-400">{s.item_count} item(s), {s.units_issued} issued, {s.damaged_count} damaged, {s.written_off_count} written off</p>
               </div>
               <span className="text-sm font-bold text-slate-800 dark:text-white shrink-0">{s.available_units}/{s.total_units}</span>
             </div>

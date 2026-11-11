@@ -86,7 +86,7 @@ function BatchList({ apiClient, onOpen }: { apiClient: AxiosInstance; onOpen: (i
           <p className="p-5 text-sm text-center text-slate-400">Loading…</p>
         ) : shown.length === 0 ? (
           <p className="p-5 text-sm text-center text-slate-400">
-            {rows.length === 0 ? 'No bulk issues recorded yet.' : 'Nothing matches.'}
+            {rows.length === 0 ? 'No bulk issues yet. Each bulk issue you make is recorded here with its signed sheet.' : 'No records match your search or filter.'}
           </p>
         ) : (
           <div className="divide-y divide-slate-100 dark:divide-slate-700">
@@ -96,7 +96,7 @@ function BatchList({ apiClient, onOpen }: { apiClient: AxiosInstance; onOpen: (i
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-slate-800 dark:text-white truncate">{b.title}</p>
                   <p className="text-xs text-slate-400 mt-0.5">
-                    {fmtDate(b.issued_at)} · {b.recipient_count} {b.recipient_type === 'student' ? 'student(s)' : 'teacher(s)'} × {b.qty_per_person} = {b.total_quantity} {b.item_name}
+                    {fmtDate(b.issued_at)}, {b.recipient_count} {b.recipient_type === 'student' ? 'student(s)' : 'teacher(s)'} × {b.qty_per_person} = {b.total_quantity} {b.item_name}
                   </p>
                 </div>
                 {b.signed_list_url ? (
@@ -164,7 +164,7 @@ function BatchDetailView({
       notes: batch.notes ?? '', recipientType: isStudents ? 'students' : 'teachers',
       filterLabel: batch.filter_label ?? '', recipients: list.map(toSl), school: batch.school,
     }));
-    if (!ok) setSheetError('Pop-ups are blocked — allow pop-ups for this site and try again.');
+    if (!ok) setSheetError('Pop-ups are blocked. Allow pop-ups for this site and try again.');
   }
 
   async function onFilePicked(file: File | undefined) {
@@ -236,11 +236,11 @@ function BatchDetailView({
         </p>
         <p className="text-xs text-slate-400">
           Issued {fmtDateTime(batch.issued_at)}{batch.created_by_name ? ` by ${batch.created_by_name}` : ''}
-          {batch.filter_label ? ` · ${batch.filter_label}` : ''}
+          {batch.filter_label ? `, to ${batch.filter_label}` : ''}
         </p>
         {batch.is_returnable && (
           <p className="text-xs text-amber-700 dark:text-amber-400">
-            Returnable — tracked under Loans{batch.due_date ? `, due back ${fmtDate(batch.due_date)}` : ''}.
+            Returnable, tracked under Loans{batch.due_date ? `, due back ${fmtDate(batch.due_date)}` : ''}.
           </p>
         )}
         {batch.notes && <p className="text-xs text-slate-500 dark:text-slate-400">{batch.notes}</p>}
@@ -331,13 +331,13 @@ function BatchDetailView({
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-slate-800 dark:text-white truncate">{r.name}</p>
                 <p className="text-xs text-slate-400">
-                  {isStudents ? `${r.student_code ?? ''} · ${r.class_name ?? ''}` : `${r.teacher_code ?? ''}${r.department ? ` · ${r.department}` : ''}`}
+                  {isStudents ? `${r.student_code ?? ''}, ${r.class_name ?? ''}` : `${r.teacher_code ?? ''}${r.department ? `, ${r.department}` : ''}`}
                 </p>
               </div>
               {r.added_later && (
-                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 shrink-0"
+                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300 shrink-0"
                   title={`Collected ${fmtDateTime(r.created_at)}`}>
-                  Late · {fmtDate(r.created_at)}
+                  Late, {fmtDate(r.created_at)}
                 </span>
               )}
               <span className="text-xs text-slate-500 shrink-0">× {r.quantity}</span>
@@ -384,7 +384,7 @@ function LateCollectors({
     try {
       await apiClient.post(`/api/inventory/batches/${batch.id}/recipients`, { recipient_ids: [...selected] }, { timeout: 60000 });
       onAdded();
-    } catch (e) { setError(errMsg(e, 'Failed to add.')); }
+    } catch (e) { setError(errMsg(e, 'Could not add these people. Check your connection and try again.')); }
     finally { setSaving(false); }
   }
 
@@ -412,7 +412,7 @@ function LateCollectors({
                 <span className="flex-1 min-w-0">
                   <span className="block text-sm text-slate-800 dark:text-white truncate">{r.name}</span>
                   <span className="block text-xs text-slate-400">
-                    {batch.recipient_type === 'student' ? `${r.student_code ?? ''} · ${r.class_name ?? ''}` : `${r.teacher_code ?? ''}`}
+                    {batch.recipient_type === 'student' ? `${r.student_code ?? ''}, ${r.class_name ?? ''}` : `${r.teacher_code ?? ''}`}
                   </span>
                 </span>
               </label>

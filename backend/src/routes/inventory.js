@@ -343,7 +343,7 @@ router.delete('/items/:id', async (req, res, next) => {
       [req.params.id]
     );
     if (activeLoans[0].cnt > 0) {
-      return res.status(400).json({ error: `Cannot delete — ${activeLoans[0].cnt} active loan(s) reference this item. Return them first.` });
+      return res.status(400).json({ error: `Cannot delete: ${activeLoans[0].cnt} active loan(s) use this item. Record their return first.` });
     }
 
     try {
@@ -353,7 +353,7 @@ router.delete('/items/:id', async (req, res, next) => {
       // returned (closed) loan history still blocks deletion, by design,
       // same as a library book that's ever circulated.
       if (delErr.code === '23503') {
-        return res.status(400).json({ error: 'Cannot delete — this item has loan or bulk-issue history and cannot be removed. Write it off instead.' });
+        return res.status(400).json({ error: 'This item has loan or bulk-issue history, so it cannot be deleted. Write it off instead.' });
       }
       throw delErr;
     }
@@ -890,7 +890,7 @@ router.post('/batches', async (req, res, next) => {
           due_date, notes, filters, filter_label } = req.body;
   const client = await pool.connect();
   try {
-    if (!title?.trim()) throw httpErr(400, 'A title is required (e.g. "Exercise Books — Form 1A, Term 1")');
+    if (!title?.trim()) throw httpErr(400, 'Enter a title, for example "Exercise Books for Form 1A, Term 1"');
     if (!['student', 'teacher'].includes(recipient_type)) throw httpErr(400, 'recipient_type must be "student" or "teacher"');
     if (typeof item_id !== 'string' || !UUID_RE.test(item_id)) throw httpErr(400, 'Select an item');
     const qty = parseInt(qty_per_person);
@@ -910,7 +910,7 @@ router.post('/batches', async (req, res, next) => {
     const recipients = await resolveRecipients(client, req.schoolId, recipient_type, recipient_ids);
     const total = recipients.length * qty;
     if (item.quantity_available < total) {
-      throw httpErr(400, `Not enough stock — ${recipients.length} × ${qty} = ${total} needed, only ${item.quantity_available} available`);
+      throw httpErr(400, `Not enough stock: ${recipients.length} × ${qty} = ${total} needed, only ${item.quantity_available} available`);
     }
 
     const [byTeacher, byStaff] = performedBy(req);
@@ -1014,7 +1014,7 @@ router.post('/batches/:id/recipients', async (req, res, next) => {
     const recipients = await resolveRecipients(client, req.schoolId, batch.recipient_type, fresh);
     const total = recipients.length * batch.qty_per_person;
     if (item.quantity_available < total) {
-      throw httpErr(400, `Not enough stock — ${total} needed, only ${item.quantity_available} available`);
+      throw httpErr(400, `Not enough stock: ${total} needed, only ${item.quantity_available} available`);
     }
 
     await recordBatchIssues(client, req, { item, batch, recipients });

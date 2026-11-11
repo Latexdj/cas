@@ -43,7 +43,7 @@ function details(b: ExportBatch): [string, string][] {
       ? `Attached${b.signed_list_uploaded_at ? ` (uploaded ${fmt(b.signed_list_uploaded_at)})` : ''}`
       : 'Not uploaded'],
   ];
-  if (b.is_returnable) rows.push(['Returnable', b.due_date ? `Yes — due back ${fmt(b.due_date)}` : 'Yes']);
+  if (b.is_returnable) rows.push(['Returnable', b.due_date ? `Yes, due back ${fmt(b.due_date)}` : 'Yes']);
   return rows;
 }
 
@@ -95,7 +95,7 @@ export async function exportIssueRecordPdf(b: ExportBatch) {
       const pageH = doc.internal.pageSize.getHeight();
       doc.setFontSize(8);
       doc.setTextColor(120);
-      doc.text(`Page ${doc.getNumberOfPages()} · Generated ${fmt(new Date().toISOString())}`, 14, pageH - 8);
+      doc.text(`Page ${doc.getNumberOfPages()}, generated ${fmt(new Date().toISOString())}`, 14, pageH - 8);
       doc.setTextColor(0);
     },
   });

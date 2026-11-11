@@ -215,7 +215,7 @@ export default function HodInventoryPage() {
       loadItems();
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      setLoanRetError(msg ?? 'Failed to process return');
+      setLoanRetError(msg ?? 'Could not record the return. Check your connection and try again.');
     } finally { setLoanRetSaving(false); }
   }
 
@@ -417,7 +417,7 @@ export default function HodInventoryPage() {
                 <>
                   {returnableSelected && (
                     <p className="text-xs text-[#92400E] bg-[#FEF9C3] rounded-xl px-3 py-2">
-                      This item is returnable — issue it to a named student or teacher so the loan can be tracked.
+                      This item is returnable, so issue it to a named student or teacher for the loan to be tracked.
                     </p>
                   )}
                   <div>
@@ -489,7 +489,7 @@ export default function HodInventoryPage() {
                   <div className="mt-2 bg-[#E8F4EE] border border-[#B8D9C8] rounded-xl px-3 py-2">
                     <p className="text-sm font-semibold text-[#145C44]">{issueTeacher.name}</p>
                     <p className="text-xs text-[#8C7E6E]">
-                      {issueTeacher.teacher_code}{issueTeacher.department ? ` · ${issueTeacher.department}` : ''}
+                      {issueTeacher.teacher_code}{issueTeacher.department ? `, ${issueTeacher.department}` : ''}
                     </p>
                   </div>
                 )}
@@ -660,10 +660,10 @@ export default function HodInventoryPage() {
                           <div>
                             <p className="text-sm font-bold text-[#2C2218]">{l.item_name}{l.asset_tag ? ` (${l.asset_tag})` : ''}</p>
                             <p className="text-xs text-[#8C7E6E]">
-                              Qty {l.quantity} · Issued {new Date(l.issued_at).toLocaleDateString()}
+                              Qty {l.quantity}, issued {new Date(l.issued_at).toLocaleDateString()}
                               {l.due_date && (
                                 <span className={l.is_overdue ? 'text-[#B83232] font-semibold' : ''}>
-                                  {' · Due ' + new Date(l.due_date).toLocaleDateString()}{l.is_overdue ? ' (overdue)' : ''}
+                                  {', due ' + new Date(l.due_date).toLocaleDateString()}{l.is_overdue ? ' (overdue)' : ''}
                                 </span>
                               )}
                             </p>

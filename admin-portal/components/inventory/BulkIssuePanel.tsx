@@ -75,12 +75,12 @@ export function BulkIssuePanel({
       if (gender) parts.push(gender);
       parts.push('Teachers');
     }
-    return parts.join(' · ');
+    return parts.join(', ');
   }, [recipType, className, programId, yearBatch, gender, resStatus, deptId, filters]);
 
   // Suggest a title until the user edits it themselves.
   useEffect(() => {
-    if (!titleTouched) setTitle(item ? `${item.name} — ${filterLabel}` : '');
+    if (!titleTouched) setTitle(item ? `${item.name} for ${filterLabel}` : '');
   }, [item, filterLabel, titleTouched]);
 
   // Changing who the list is for invalidates a loaded list.
@@ -151,7 +151,7 @@ export function BulkIssuePanel({
       recipientType: recipType === 'student' ? 'students' : 'teachers',
       filterLabel, recipients: chosen, school,
     }));
-    if (!ok) setError('Pop-ups are blocked — allow pop-ups for this site and try again.');
+    if (!ok) setError('Pop-ups are blocked. Allow pop-ups for this site and try again.');
   }
 
   async function issue() {
@@ -159,7 +159,7 @@ export function BulkIssuePanel({
     if (!chosen.length) { setError('Select at least one person.'); return; }
     if (qtyNum < 1) { setError('Quantity per person must be at least 1.'); return; }
     if (!title.trim()) { setError('Enter a title for this issue record.'); return; }
-    if (overStock) { setError(`Not enough stock — ${total} needed, only ${item.quantity_available} available.`); return; }
+    if (overStock) { setError(`Not enough stock: ${total} needed, only ${item.quantity_available} available.`); return; }
     if (!confirm(`Issue ${qtyNum} × ${item.name} to ${chosen.length} ${recipType === 'student' ? 'student(s)' : 'teacher(s)'} (${total} in total)?`)) return;
 
     setIssuing(true); setError('');
@@ -173,7 +173,7 @@ export function BulkIssuePanel({
       }, { timeout: 60000 });
       onIssued(r.data.id);
     } catch (e: any) {
-      setError(e?.response?.data?.error ?? 'Failed to issue.');
+      setError(e?.response?.data?.error ?? 'Could not issue the item. Check your connection and try again.');
     } finally { setIssuing(false); }
   }
 
@@ -184,17 +184,17 @@ export function BulkIssuePanel({
         <div>
           <label className={labelCls}>Item</label>
           <select className={inputCls} value={itemId} onChange={e => setItemId(e.target.value)}>
-            <option value="">— Select item —</option>
+            <option value="">Select item</option>
             {issuable.map(i => (
               <option key={i.id} value={i.id}>
-                {i.name} ({i.quantity_available} available){i.is_returnable ? ' · returnable' : ''}
+                {i.name} ({i.quantity_available} available){i.is_returnable ? ', returnable' : ''}
               </option>
             ))}
           </select>
         </div>
         {item?.is_returnable && (
           <p className="text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-lg px-3 py-2">
-            This item is returnable — each person gets a tracked loan and will show under Loans until they return it.
+            This item is returnable. Each person gets a tracked loan and stays under Loans until they return it.
           </p>
         )}
         <div className="grid grid-cols-2 gap-3">
@@ -277,7 +277,7 @@ export function BulkIssuePanel({
               <button type="button" onClick={() => setAllVisible(false)} className="text-xs font-semibold px-2 py-1 text-slate-600 dark:text-slate-300 hover:underline shrink-0">None</button>
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              {selected.size} of {recipients.length} selected — untick anyone absent. You can add them to this record later when they collect.
+              {selected.size} of {recipients.length} selected. Untick anyone who is absent; you can add them to this record later when they collect.
             </p>
             <div className="max-h-80 overflow-y-auto border border-slate-200 dark:border-slate-700 rounded-lg divide-y divide-slate-100 dark:divide-slate-700">
               {visible.map(r => (
@@ -288,13 +288,13 @@ export function BulkIssuePanel({
                     <span className="block text-sm text-slate-800 dark:text-white truncate">{r.name}</span>
                     <span className="block text-xs text-slate-400">
                       {recipType === 'student'
-                        ? `${r.student_code ?? ''} · ${r.class_name ?? ''}`
-                        : `${r.teacher_code ?? ''}${r.dept_name || r.department ? ` · ${r.dept_name ?? r.department}` : ''}`}
+                        ? `${r.student_code ?? ''}, ${r.class_name ?? ''}`
+                        : `${r.teacher_code ?? ''}${r.dept_name || r.department ? `, ${r.dept_name ?? r.department}` : ''}`}
                     </span>
                   </span>
                 </label>
               ))}
-              {visible.length === 0 && <p className="px-3 py-4 text-sm text-slate-400 text-center">No matches.</p>}
+              {visible.length === 0 && <p className="px-3 py-4 text-sm text-slate-400 text-center">Nobody on this list matches your search.</p>}
             </div>
           </div>
         )}
@@ -306,7 +306,7 @@ export function BulkIssuePanel({
           <label className={labelCls}>Title</label>
           <input className={inputCls} value={title}
             onChange={e => { setTitle(e.target.value); setTitleTouched(true); }}
-            placeholder="e.g. Exercise Books — Form 1A, Term 1" />
+            placeholder="e.g. Exercise Books for Form 1A, Term 1" />
         </div>
         <div>
           <label className={labelCls}>Notes (optional)</label>
@@ -319,7 +319,7 @@ export function BulkIssuePanel({
             <span className="font-semibold">{total}</span> {item.name}
             <span className="block text-xs mt-0.5">
               {overStock
-                ? `Only ${item.quantity_available} in stock — reduce the list or the quantity.`
+                ? `Only ${item.quantity_available} in stock. Reduce the list or the quantity.`
                 : `${item.quantity_available} in stock → ${item.quantity_available - total} left after issuing.`}
             </span>
           </div>

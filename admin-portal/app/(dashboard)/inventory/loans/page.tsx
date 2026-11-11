@@ -13,8 +13,8 @@ interface Loan {
 }
 
 const BORROWER_COLORS: Record<string, string> = {
-  student: 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-  teacher: 'bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
+  student: 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300',
+  teacher: 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300',
 };
 
 function LoansPageInner() {
@@ -60,7 +60,7 @@ function LoansPageInner() {
       setReturningId('');
       setLoans(prev => prev.filter(l => l.id !== loanId));
     } catch (err: unknown) {
-      setRetError((err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to process return');
+      setRetError((err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Could not record the return. Check your connection and try again.');
     } finally { setRetSaving(false); }
   }
 
@@ -72,7 +72,7 @@ function LoansPageInner() {
       <div>
         <h1 className="text-xl font-bold text-slate-900 dark:text-white">Outstanding Loans</h1>
         <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-          Returnable items currently with a student or teacher{itemIdFilter ? ' — filtered to one item' : ''}
+          Returnable items currently with a student or teacher{itemIdFilter ? ', filtered to one item' : ''}
         </p>
       </div>
 
@@ -89,7 +89,7 @@ function LoansPageInner() {
           Overdue only
         </label>
         {itemIdFilter && (
-          <a href="/inventory/loans" className="text-xs text-blue-600 dark:text-blue-400 hover:underline">Clear item filter</a>
+          <a href="/inventory/loans" className="text-xs text-[#145C44] dark:text-[#2ab289] hover:underline">Clear item filter</a>
         )}
       </div>
 
@@ -97,7 +97,7 @@ function LoansPageInner() {
         {loading ? (
           <p className="p-5 text-sm text-slate-500">Loading…</p>
         ) : loans.length === 0 ? (
-          <p className="p-5 text-sm text-slate-500">No outstanding loans.</p>
+          <p className="p-5 text-sm text-slate-500">No returnable items are out on loan. Items issued from returnable stock show here until they come back.</p>
         ) : (
           <table className="w-full text-sm">
             <thead>

@@ -60,7 +60,7 @@ export function InventoryLoans({
       setReturningId(null);
       onItemsChanged();
     } catch (e: any) {
-      setErrById(prev => ({ ...prev, [loanId]: e?.response?.data?.error ?? 'Failed to process return.' }));
+      setErrById(prev => ({ ...prev, [loanId]: e?.response?.data?.error ?? 'Could not record the return. Check your connection and try again.' }));
     } finally { setSubmittingId(null); }
   }
 
@@ -80,7 +80,7 @@ export function InventoryLoans({
         {loading ? (
           <p className="p-5 text-center text-slate-400 text-sm">Loading…</p>
         ) : loans.length === 0 ? (
-          <p className="p-5 text-center text-slate-400 text-sm">No outstanding loans.</p>
+          <p className="p-5 text-center text-slate-400 text-sm">No returnable items are out on loan. Items issued from returnable stock show here until they come back.</p>
         ) : (
           <div className="divide-y divide-slate-100 dark:divide-slate-700">
             {loans.map(l => (
@@ -88,16 +88,16 @@ export function InventoryLoans({
                 <div className="flex items-start gap-3">
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-slate-800 dark:text-white truncate">
-                      {l.item_name}{l.asset_tag ? ` · ${l.asset_tag}` : ''}
+                      {l.item_name}{l.asset_tag ? ` (${l.asset_tag})` : ''}
                     </p>
                     <p className="text-xs text-slate-400">
-                      <span className={`inline-block px-1.5 py-0.5 rounded-md text-[10px] font-bold mr-1 ${l.borrower_type === 'teacher' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' : 'bg-[#E8F4EE] dark:bg-green-900/30 text-[#145C44] dark:text-[#2ab289]'}`}>
+                      <span className={`inline-block px-1.5 py-0.5 rounded-md text-[10px] font-bold mr-1 bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300`}>
                         {l.borrower_type === 'teacher' ? 'Teacher' : 'Student'}
                       </span>
-                      {l.borrower_name} · qty {l.quantity} · issued {fmtDate(l.issued_at)}
+                      {l.borrower_name}, qty {l.quantity}, issued {fmtDate(l.issued_at)}
                     </p>
                     <p className={`text-xs mt-0.5 ${l.is_overdue ? 'text-red-600 dark:text-red-400 font-semibold' : 'text-slate-400'}`}>
-                      {l.due_date ? `${l.is_overdue ? 'Overdue — was ' : 'Due '}${fmtDate(l.due_date)}` : 'No due date'}
+                      {l.due_date ? `${l.is_overdue ? 'Overdue since ' : 'Due '}${fmtDate(l.due_date)}` : 'No due date'}
                     </p>
                     {l.notes && <p className="text-xs text-slate-400 mt-0.5">{l.notes}</p>}
                   </div>
