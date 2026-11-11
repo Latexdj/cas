@@ -1,6 +1,6 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator, FlatList, Linking,
+  ActivityIndicator, AppState, FlatList, Linking,
   Platform, StyleSheet, Text, TouchableOpacity, View,
 } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -98,6 +98,37 @@ async function findLmBase(): Promise<string | null> {
   return null;
 }
 
+// ── Hidden-files check ────────────────────────────────────────────────────────
+// On Android 11+ an app without "All files access" can still list folders in
+// shared storage, but Android hides every file that isn't a photo, video or
+// audio file. The LM folder then shows its subject folders with nothing in
+// them. Walk the tree (bounded) and stop at the first document: if folders
+// exist but no document is visible anywhere, documents are being hidden.
+const MEDIA_KINDS: FileKind[] = ['video', 'image', 'audio'];
+
+async function documentsHidden(base: string): Promise<'none' | 'all' | 'documents'> {
+  if (Platform.OS !== 'android' || Number(Platform.Version) < 30 || base === APP_LM_BASE) return 'none';
+  const queue = [`file://${base}`];
+  let dirs = 0, files = 0, seen = 0;
+  while (queue.length && dirs < 250 && seen < 1500) {
+    const dir = queue.shift()!;
+    let names: string[] = [];
+    try { names = await FileSystem.readDirectoryAsync(dir); } catch { continue; }
+    dirs++;
+    for (const name of names) {
+      if (name.startsWith('.')) continue;
+      seen++;
+      let isDir = false;
+      try { isDir = (await FileSystem.getInfoAsync(`${dir}/${name}`)).isDirectory ?? false; } catch { isDir = false; }
+      if (isDir) { queue.push(`${dir}/${name}`); continue; }
+      files++;
+      if (!MEDIA_KINDS.includes(fileKind(name))) return 'none'; // a document is visible: access is fine
+    }
+  }
+  if (dirs <= 1) return 'none';            // a single empty LM folder is just empty
+  return files === 0 ? 'all' : 'documents'; // folders but no documents visible
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 interface Props {
   /** Shown in the header — pass the tab/screen title so it can be hidden when drilling in */
@@ -112,6 +143,9 @@ export default function FileBrowser({ showBackAsClose }: Props) {
   const [items,   setItems]   = useState<FsItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState<'permission' | 'not-found' | 'other' | null>(null);
+  // Only photos/videos are visible: documents are hidden until All files access is on.
+  const [docsHidden, setDocsHidden] = useState(false);
+  const needsAttention = useRef(false);
 
   const currentUri = lmBase
     ? (stack.length ? `${lmUri(lmBase)}/${stack.join('/')}` : lmUri(lmBase))
@@ -159,19 +193,38 @@ export default function FileBrowser({ showBackAsClose }: Props) {
     } finally { setLoading(false); }
   }, []);
 
-  // ── Resolve LM base then load root ─────────────────────────────────────────
-  useEffect(() => {
-    (async () => {
-      const base = await findLmBase();
-      if (base) {
-        setLmBase(base);
-        await loadDir(lmUri(base));
-      } else {
-        setError('permission');
-        setLoading(false);
-      }
-    })();
+  // ── Resolve LM base, check nothing is hidden, then load root ───────────────
+  const initialise = useCallback(async () => {
+    setLoading(true); setError(null); setDocsHidden(false);
+    const base = await findLmBase();
+    if (!base) { setError('permission'); setLoading(false); return; }
+    const hidden = await documentsHidden(base);
+    if (hidden === 'all') { setError('permission'); setLoading(false); return; }
+    setDocsHidden(hidden === 'documents');
+    setLmBase(base);
+    setStack([]);
+    await loadDir(lmUri(base));
   }, [loadDir]);
+
+  useEffect(() => { initialise(); }, [initialise]);
+
+  // Coming back from Settings after allowing access: check again automatically.
+  useEffect(() => {
+    needsAttention.current = error === 'permission' || docsHidden;
+  }, [error, docsHidden]);
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', state => {
+      if (state === 'active' && needsAttention.current) initialise();
+    });
+    return () => sub.remove();
+  }, [initialise]);
+
+  function openAllFilesAccess() {
+    IntentLauncher.startActivityAsync(
+      'android.settings.MANAGE_APP_ALL_FILES_ACCESS_PERMISSION',
+      { data: 'package:com.cas.student' }
+    ).catch(() => Linking.openSettings());
+  }
 
   useEffect(() => {
     if (lmBase && !loading && !error) loadDir(currentUri);
@@ -218,18 +271,7 @@ export default function FileBrowser({ showBackAsClose }: Props) {
       Linking.openSettings();
     }
 
-    async function retry() {
-      setLoading(true); setError(null);
-      const base = await findLmBase();
-      if (base) {
-        setLmBase(base);
-        setStack([]);
-        await loadDir(lmUri(base));
-      } else {
-        setError('permission');
-        setLoading(false);
-      }
-    }
+    const retry = initialise;
 
     return (
       <View style={[s.permRoot, { backgroundColor: C.bg }]}>
@@ -246,12 +288,7 @@ export default function FileBrowser({ showBackAsClose }: Props) {
             </Text>
             <TouchableOpacity
               style={[s.permBtn, { backgroundColor: C.primary }]}
-              onPress={() =>
-                IntentLauncher.startActivityAsync(
-                  'android.settings.MANAGE_APP_ALL_FILES_ACCESS_PERMISSION',
-                  { data: 'package:com.cas.student' }
-                ).catch(() => Linking.openSettings())
-              }
+              onPress={openAllFilesAccess}
             >
               <Text style={s.permBtnText}>Grant Permission</Text>
             </TouchableOpacity>
@@ -334,6 +371,17 @@ export default function FileBrowser({ showBackAsClose }: Props) {
         </View>
       )}
 
+      {docsHidden && (
+        <View style={[s.banner, { backgroundColor: '#FEF3DC', borderColor: '#C8780A' }]}>
+          <Text style={s.bannerText}>
+            Some materials are hidden. Android only lets this app see videos and pictures until you allow access to all files, so PDFs and documents won&apos;t show.
+          </Text>
+          <TouchableOpacity style={[s.bannerBtn, { backgroundColor: C.primary }]} onPress={openAllFilesAccess}>
+            <Text style={s.permBtnText}>Allow access</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {items.length === 0 ? (
         <View style={s.center}>
           <Ionicons name="folder-open-outline" size={44} color={C.muted as string} />
@@ -407,4 +455,8 @@ const s = StyleSheet.create({
   rowBody:     { flex: 1 },
   rowName:     { fontSize: 14, fontWeight: '700', lineHeight: 20 },
   rowMeta:     { fontSize: 12, marginTop: 2 },
+
+  banner:      { margin: 12, marginBottom: 0, padding: 12, borderRadius: 12, borderLeftWidth: 4, gap: 10 },
+  bannerText:  { fontSize: 13, lineHeight: 19, color: '#2A2620' },
+  bannerBtn:   { alignSelf: 'flex-start', paddingHorizontal: 16, paddingVertical: 9, borderRadius: 10 },
 });
