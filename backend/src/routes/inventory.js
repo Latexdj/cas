@@ -523,6 +523,22 @@ router.get('/transactions', async (req, res, next) => {
 // Exact-code lookup (not search) — the caller already knows who they're
 // looking for (issuing to them, or finding their outstanding loans to
 // return one), same convention library.js's own student-code lookup uses.
+// Name-or-ID search for the issue boxes. Registered before /students/:code
+// so "search" isn't read as a student code.
+router.get('/students/search', async (req, res, next) => {
+  try {
+    const q = String(req.query.q || '').trim();
+    if (q.length < 2) return res.json([]);
+    const { rows } = await pool.query(
+      `SELECT id, name, student_code, class_name FROM students
+       WHERE school_id = $1 AND status = 'Active' AND (name ILIKE $2 OR student_code ILIKE $2)
+       ORDER BY (UPPER(student_code) = UPPER($3)) DESC, name LIMIT 15`,
+      [req.schoolId, `%${q}%`, q]
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
 router.get('/students/:code', async (req, res, next) => {
   try {
     const { rows } = await pool.query(

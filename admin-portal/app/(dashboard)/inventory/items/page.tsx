@@ -1,4 +1,5 @@
 ﻿'use client';
+import NameOrIdSearch from '@/components/NameOrIdSearch';
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
@@ -189,21 +190,28 @@ export default function InventoryItemsPage() {
     setIssueQty('1'); setIssueNotes(''); setIssueError('');
   }
 
-  async function lookupIssueStudent() {
-    if (!issueStudentCode.trim()) return;
+  const searchStudents = (q: string) =>
+    api.get<{ student_code: string; name: string; class_name: string | null }[]>('/api/inventory/students/search', { params: { q } })
+      .then(r => r.data.map(x => ({ code: x.student_code, name: x.name, detail: x.class_name })));
+  const searchTeachers = (q: string) =>
+    api.get<{ teacher_code: string; name: string; department: string | null }[]>('/api/inventory/teachers/search', { params: { q } })
+      .then(r => r.data.map(x => ({ code: x.teacher_code, name: x.name, detail: x.department })));
+
+  async function lookupIssueStudent(code: string = issueStudentCode) {
+    if (!code.trim()) return;
     setIssueStudentLoading(true); setIssueStudentErr(''); setIssueStudent(null);
     try {
-      const r = await api.get<Student>(`/api/inventory/students/${issueStudentCode.trim()}`);
+      const r = await api.get<Student>(`/api/inventory/students/${code.trim()}`);
       setIssueStudent(r.data);
     } catch { setIssueStudentErr('Student not found'); }
     finally { setIssueStudentLoading(false); }
   }
 
-  async function lookupIssueTeacher() {
-    if (!issueTeacherCode.trim()) return;
+  async function lookupIssueTeacher(code: string = issueTeacherCode) {
+    if (!code.trim()) return;
     setIssueTeacherLoading(true); setIssueTeacherErr(''); setIssueTeacher(null);
     try {
-      const r = await api.get<TeacherLookup>(`/api/inventory/teachers/${issueTeacherCode.trim()}`);
+      const r = await api.get<TeacherLookup>(`/api/inventory/teachers/${code.trim()}`);
       setIssueTeacher(r.data);
     } catch { setIssueTeacherErr('Teacher not found'); }
     finally { setIssueTeacherLoading(false); }
@@ -503,12 +511,14 @@ export default function InventoryItemsPage() {
 
                 {issueToType === 'student' ? (
                   <div>
-                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 font-medium">Student ID</label>
+                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 font-medium">Student</label>
                     <div className="flex gap-2 mt-1">
-                      <input value={issueStudentCode} onChange={e => { setIssueStudentCode(e.target.value.toUpperCase()); setIssueStudent(null); setIssueStudentErr(''); }}
-                        onKeyDown={e => e.key === 'Enter' && lookupIssueStudent()}
-                        placeholder="Enter student code…" className={`${inputCls} mt-0 flex-1 font-mono`} />
-                      <button onClick={lookupIssueStudent} disabled={issueStudentLoading || !issueStudentCode.trim()}
+                      <NameOrIdSearch className="flex-1" inputClassName={`${inputCls} mt-0 w-full`}
+                        value={issueStudentCode} onChange={v => { setIssueStudentCode(v); setIssueStudent(null); setIssueStudentErr(''); }}
+                        onPick={c => lookupIssueStudent(c)} onEnter={() => lookupIssueStudent()}
+                        search={searchStudents}
+                        placeholder="Type a student name or ID…" />
+                      <button onClick={() => lookupIssueStudent()} disabled={issueStudentLoading || !issueStudentCode.trim()}
                         className="px-3 py-2 rounded-lg text-sm font-semibold bg-slate-700 dark:bg-slate-600 text-white disabled:opacity-50">
                         {issueStudentLoading ? '…' : 'Find'}
                       </button>
@@ -528,12 +538,14 @@ export default function InventoryItemsPage() {
                   </div>
                 ) : issueToType === 'teacher' ? (
                   <div>
-                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 font-medium">Teacher ID</label>
+                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 font-medium">Teacher</label>
                     <div className="flex gap-2 mt-1">
-                      <input value={issueTeacherCode} onChange={e => { setIssueTeacherCode(e.target.value.toUpperCase()); setIssueTeacher(null); setIssueTeacherErr(''); }}
-                        onKeyDown={e => e.key === 'Enter' && lookupIssueTeacher()}
-                        placeholder="Enter teacher code…" className={`${inputCls} mt-0 flex-1 font-mono`} />
-                      <button onClick={lookupIssueTeacher} disabled={issueTeacherLoading || !issueTeacherCode.trim()}
+                      <NameOrIdSearch className="flex-1" inputClassName={`${inputCls} mt-0 w-full`}
+                        value={issueTeacherCode} onChange={v => { setIssueTeacherCode(v); setIssueTeacher(null); setIssueTeacherErr(''); }}
+                        onPick={c => lookupIssueTeacher(c)} onEnter={() => lookupIssueTeacher()}
+                        search={searchTeachers}
+                        placeholder="Type a teacher name or ID…" />
+                      <button onClick={() => lookupIssueTeacher()} disabled={issueTeacherLoading || !issueTeacherCode.trim()}
                         className="px-3 py-2 rounded-lg text-sm font-semibold bg-slate-700 dark:bg-slate-600 text-white disabled:opacity-50">
                         {issueTeacherLoading ? '…' : 'Find'}
                       </button>

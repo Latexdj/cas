@@ -1,4 +1,5 @@
 ﻿'use client';
+import NameOrIdSearch from '@/components/NameOrIdSearch';
 import { useEffect, useState, useCallback } from 'react';
 import { teacherApi } from '@/lib/teacher-api';
 
@@ -84,11 +85,15 @@ function IssueBook() {
   const [issueMsg,     setIssueMsg]     = useState('');
   const [issueErr,     setIssueErr]     = useState('');
 
-  async function lookupStudent() {
-    if (!studentCode.trim()) return;
+  const searchStudents = (q: string) =>
+    teacherApi.get<{ student_code: string; name: string; class_name: string | null }[]>('/api/library/students/search', { params: { q } })
+      .then(r => r.data.map(x => ({ code: x.student_code, name: x.name, detail: x.class_name })));
+
+  async function lookupStudent(code: string = studentCode) {
+    if (!code.trim()) return;
     setLookingUp(true); setLookupErr(''); setStudent(null);
     try {
-      const { data } = await teacherApi.get<StudentLookup>(`/api/library/student/${studentCode.trim()}`);
+      const { data } = await teacherApi.get<StudentLookup>(`/api/library/student/${code.trim()}`);
       setStudent(data);
     } catch (err) { setLookupErr(apiErr(err)); }
     finally { setLookingUp(false); }
@@ -143,11 +148,11 @@ function IssueBook() {
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 space-y-3">
         <p className="text-xs font-bold uppercase tracking-wider text-gray-400">1. Student</p>
         <div className="flex gap-2">
-          <input className="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#145C44]"
-            placeholder="Student ID / code" value={studentCode}
-            onChange={e => setStudentCode(e.target.value.toUpperCase())}
-            onKeyDown={e => e.key === 'Enter' && lookupStudent()} />
-          <button onClick={lookupStudent} disabled={lookingUp}
+          <NameOrIdSearch className="flex-1" inputClassName="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#145C44]"
+            value={studentCode} onChange={setStudentCode}
+            onPick={c => lookupStudent(c)} onEnter={() => lookupStudent()}
+            search={searchStudents} placeholder="Type a student name or ID…" />
+          <button onClick={() => lookupStudent()} disabled={lookingUp}
             className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
             style={{ background: '#145C44' }}>
             {lookingUp ? '…' : 'Find'}

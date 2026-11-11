@@ -264,6 +264,21 @@ router.delete('/books/:id/copies/:copyId', async (req, res, next) => {
 
 // ── Student Lookup ────────────────────────────────────────────────────────────
 
+// Name-or-ID search for the issue/return boxes.
+router.get('/students/search', async (req, res, next) => {
+  try {
+    const q = String(req.query.q || '').trim();
+    if (q.length < 2) return res.json([]);
+    const { rows } = await pool.query(
+      `SELECT id, name, student_code, class_name FROM students
+       WHERE school_id = $1 AND status = 'Active' AND (name ILIKE $2 OR student_code ILIKE $2)
+       ORDER BY (UPPER(student_code) = UPPER($3)) DESC, name LIMIT 15`,
+      [req.schoolId, `%${q}%`, q]
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
 router.get('/student/:code', async (req, res, next) => {
   try {
     const { rows: sRows } = await pool.query(

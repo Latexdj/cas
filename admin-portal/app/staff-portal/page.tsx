@@ -1,5 +1,6 @@
 ﻿'use client';
 
+import NameOrIdSearch from '@/components/NameOrIdSearch';
 import { useEffect, useRef, useState } from 'react';
 import { buildSignListHtml, type SlRecipient, type SlSchool } from '@/lib/sign-list-print';
 import { FeeReportsPanel } from '@/components/fees/FeeReportsPanel';
@@ -491,6 +492,14 @@ export default function StaffPortalPage() {
     } finally { setAcSaving(false); }
   }
 
+  // ── Name-or-ID search for the issue boxes ───────────────────────────────────
+  type SHit = { student_code: string; name: string; class_name: string | null };
+  type THit = { teacher_code: string; name: string; department: string | null };
+  const searchStudentsAt = (path: string) => (q: string) =>
+    api.get<SHit[]>(path, { params: { q } }).then(r => r.data.map(x => ({ code: x.student_code, name: x.name, detail: x.class_name })));
+  const searchInvTeachers = (q: string) =>
+    api.get<THit[]>('/api/inventory/teachers/search', { params: { q } }).then(r => r.data.map(x => ({ code: x.teacher_code, name: x.name, detail: x.department })));
+
   // ── Library helpers ───────────────────────────────────────────────────────────
   function loadBooks() {
     setBooksLoading(true);
@@ -504,11 +513,11 @@ export default function StaffPortalPage() {
       .then(r => setOverdue(r.data)).catch(() => {}).finally(() => setOverdueLoading(false));
   }
 
-  async function lookupIssue() {
-    if (!issueCode.trim()) return;
+  async function lookupIssue(code: string = issueCode) {
+    if (!code.trim()) return;
     setIssueLoading(true); setIssueError(''); setIssueStudent(null);
     try {
-      const r = await api.get<StudentInfo>(`/api/library/student/${issueCode.trim()}`);
+      const r = await api.get<StudentInfo>(`/api/library/student/${code.trim()}`);
       setIssueStudent(r.data);
     } catch { setIssueError('Student not found.'); }
     finally { setIssueLoading(false); }
@@ -538,11 +547,11 @@ export default function StaffPortalPage() {
     finally { setIssuing(false); }
   }
 
-  async function lookupReturn() {
-    if (!returnCode.trim()) return;
+  async function lookupReturn(code: string = returnCode) {
+    if (!code.trim()) return;
     setReturnLoading(true); setReturnError(''); setReturnStudent(null); setReturnResult(null);
     try {
-      const r = await api.get<StudentInfo>(`/api/library/student/${returnCode.trim()}`);
+      const r = await api.get<StudentInfo>(`/api/library/student/${code.trim()}`);
       setReturnStudent(r.data);
     } catch { setReturnError('Student not found.'); }
     finally { setReturnLoading(false); }
@@ -566,21 +575,21 @@ export default function StaffPortalPage() {
       .then(r => setInvItems(r.data)).catch(() => {}).finally(() => setInvLoading(false));
   }
 
-  async function lookupInvStudent() {
-    if (!invIssueCode.trim()) return;
+  async function lookupInvStudent(code: string = invIssueCode) {
+    if (!code.trim()) return;
     setInvIssueStudLoad(true); setInvIssueStudErr(''); setInvIssueStudent(null);
     try {
-      const r = await api.get<InvStudent>(`/api/inventory/students/${invIssueCode.trim()}`);
+      const r = await api.get<InvStudent>(`/api/inventory/students/${code.trim()}`);
       setInvIssueStudent(r.data);
     } catch { setInvIssueStudErr('Student not found.'); }
     finally { setInvIssueStudLoad(false); }
   }
 
-  async function lookupInvTeacher() {
-    if (!invIssueTCode.trim()) return;
+  async function lookupInvTeacher(code: string = invIssueTCode) {
+    if (!code.trim()) return;
     setInvIssueTLoad(true); setInvIssueTErr(''); setInvIssueTeacher(null);
     try {
-      const r = await api.get<InvTeacher>(`/api/inventory/teachers/${invIssueTCode.trim()}`);
+      const r = await api.get<InvTeacher>(`/api/inventory/teachers/${code.trim()}`);
       setInvIssueTeacher(r.data);
     } catch { setInvIssueTErr('Teacher not found.'); }
     finally { setInvIssueTLoad(false); }
@@ -1110,12 +1119,12 @@ export default function StaffPortalPage() {
           {libTab === 'issue' && (
             <div className="space-y-4">
               <div className="flex gap-2">
-                <input value={issueCode}
-                  onChange={e => { setIssueCode(e.target.value.toUpperCase()); setIssueError(''); setIssueStudent(null); }}
-                  onKeyDown={e => e.key === 'Enter' && lookupIssue()}
-                  placeholder="Enter Student ID…"
-                  className="flex-1 border border-slate-200 dark:border-slate-600 rounded-xl px-4 py-2.5 text-sm font-mono font-medium bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
-                <button onClick={lookupIssue} disabled={issueLoading || !issueCode.trim()}
+                <NameOrIdSearch className="flex-1" inputClassName="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-4 py-2.5 text-sm font-medium bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]"
+                  value={issueCode} onChange={v => { setIssueCode(v); setIssueError(''); setIssueStudent(null); }}
+                  onPick={c => lookupIssue(c)} onEnter={() => lookupIssue()}
+                  search={searchStudentsAt('/api/library/students/search')}
+                  placeholder="Type a student name or ID…" />
+                <button onClick={() => lookupIssue()} disabled={issueLoading || !issueCode.trim()}
                   className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50" style={{ background: primary }}>
                   {issueLoading ? '…' : 'Find'}
                 </button>
@@ -1192,12 +1201,12 @@ export default function StaffPortalPage() {
                 </div>
               )}
               <div className="flex gap-2">
-                <input value={returnCode}
-                  onChange={e => { setReturnCode(e.target.value.toUpperCase()); setReturnError(''); setReturnStudent(null); setReturnResult(null); }}
-                  onKeyDown={e => e.key === 'Enter' && lookupReturn()}
-                  placeholder="Enter Student ID…"
-                  className="flex-1 border border-slate-200 dark:border-slate-600 rounded-xl px-4 py-2.5 text-sm font-mono font-medium bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
-                <button onClick={lookupReturn} disabled={returnLoading || !returnCode.trim()}
+                <NameOrIdSearch className="flex-1" inputClassName="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-4 py-2.5 text-sm font-medium bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]"
+                  value={returnCode} onChange={v => { setReturnCode(v); setReturnError(''); setReturnStudent(null); setReturnResult(null); }}
+                  onPick={c => lookupReturn(c)} onEnter={() => lookupReturn()}
+                  search={searchStudentsAt('/api/library/students/search')}
+                  placeholder="Type a student name or ID…" />
+                <button onClick={() => lookupReturn()} disabled={returnLoading || !returnCode.trim()}
                   className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50" style={{ background: primary }}>
                   {returnLoading ? '…' : 'Find'}
                 </button>
@@ -1359,12 +1368,12 @@ export default function StaffPortalPage() {
 
               {invIssueItem && (!returnable || invIssueBorrower === 'student') && (
                 <div className="flex gap-2">
-                  <input value={invIssueCode}
-                    onChange={e => { setInvIssueCode(e.target.value.toUpperCase()); setInvIssueStudent(null); setInvIssueStudErr(''); }}
-                    onKeyDown={e => e.key === 'Enter' && lookupInvStudent()}
-                    placeholder="Enter Student ID…"
-                    className="flex-1 border border-slate-200 dark:border-slate-600 rounded-xl px-4 py-2.5 text-sm font-mono font-medium bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
-                  <button onClick={lookupInvStudent} disabled={invIssueStudLoad || !invIssueCode.trim()}
+                  <NameOrIdSearch className="flex-1" inputClassName="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-4 py-2.5 text-sm font-medium bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]"
+                  value={invIssueCode} onChange={v => { setInvIssueCode(v); setInvIssueStudent(null); setInvIssueStudErr(''); }}
+                  onPick={c => lookupInvStudent(c)} onEnter={() => lookupInvStudent()}
+                  search={searchStudentsAt('/api/inventory/students/search')}
+                  placeholder="Type a student name or ID…" />
+                  <button onClick={() => lookupInvStudent()} disabled={invIssueStudLoad || !invIssueCode.trim()}
                     className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50" style={{ background: primary }}>
                     {invIssueStudLoad ? '…' : 'Find'}
                   </button>
@@ -1372,12 +1381,12 @@ export default function StaffPortalPage() {
               )}
               {invIssueItem && returnable && invIssueBorrower === 'teacher' && (
                 <div className="flex gap-2">
-                  <input value={invIssueTCode}
-                    onChange={e => { setInvIssueTCode(e.target.value.toUpperCase()); setInvIssueTeacher(null); setInvIssueTErr(''); }}
-                    onKeyDown={e => e.key === 'Enter' && lookupInvTeacher()}
-                    placeholder="Enter Teacher ID…"
-                    className="flex-1 border border-slate-200 dark:border-slate-600 rounded-xl px-4 py-2.5 text-sm font-mono font-medium bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
-                  <button onClick={lookupInvTeacher} disabled={invIssueTLoad || !invIssueTCode.trim()}
+                  <NameOrIdSearch className="flex-1" inputClassName="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-4 py-2.5 text-sm font-medium bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]"
+                  value={invIssueTCode} onChange={v => { setInvIssueTCode(v); setInvIssueTeacher(null); setInvIssueTErr(''); }}
+                  onPick={c => lookupInvTeacher(c)} onEnter={() => lookupInvTeacher()}
+                  search={searchInvTeachers}
+                  placeholder="Type a teacher name or ID…" />
+                  <button onClick={() => lookupInvTeacher()} disabled={invIssueTLoad || !invIssueTCode.trim()}
                     className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50" style={{ background: primary }}>
                     {invIssueTLoad ? '…' : 'Find'}
                   </button>

@@ -1,5 +1,6 @@
 ﻿'use client';
 
+import NameOrIdSearch from '@/components/NameOrIdSearch';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getTeacherColors } from '@/lib/teacher-auth';
@@ -133,12 +134,19 @@ export default function HodInventoryPage() {
     finally { setInvLoading(false); }
   }
 
-  async function lookupStudent() {
-    if (!issueStudentCode.trim()) return;
+  const searchStudents = (q: string) =>
+    teacherApi.get<{ student_code: string; name: string; class_name: string | null }[]>('/api/inventory/students/search', { params: { q } })
+      .then(r => r.data.map(x => ({ code: x.student_code, name: x.name, detail: x.class_name })));
+  const searchTeachers = (q: string) =>
+    teacherApi.get<{ teacher_code: string; name: string; department: string | null }[]>('/api/inventory/teachers/search', { params: { q } })
+      .then(r => r.data.map(x => ({ code: x.teacher_code, name: x.name, detail: x.department })));
+
+  async function lookupStudent(code: string = issueStudentCode) {
+    if (!code.trim()) return;
     setIssueStudentLoading(true); setIssueStudentError(''); setIssueStudent(null);
     try {
       const { data } = await teacherApi.get<InvStudent>(
-        `/api/inventory/students/${issueStudentCode.trim().toUpperCase()}`
+        `/api/inventory/students/${code.trim().toUpperCase()}`
       );
       setIssueStudent(data);
       setIssueName(data.name);
@@ -146,12 +154,12 @@ export default function HodInventoryPage() {
     finally { setIssueStudentLoading(false); }
   }
 
-  async function lookupIssueTeacher() {
-    if (!issueTeacherCode.trim()) return;
+  async function lookupIssueTeacher(code: string = issueTeacherCode) {
+    if (!code.trim()) return;
     setIssueTeacherLoading(true); setIssueTeacherError(''); setIssueTeacher(null);
     try {
       const { data } = await teacherApi.get<InvTeacher>(
-        `/api/inventory/teachers/${issueTeacherCode.trim().toUpperCase()}`
+        `/api/inventory/teachers/${code.trim().toUpperCase()}`
       );
       setIssueTeacher(data);
       setIssueName(data.name);
@@ -191,13 +199,13 @@ export default function HodInventoryPage() {
     } finally { setIssuing(false); }
   }
 
-  async function lookupLoanBorrower() {
-    if (!loanCode.trim()) return;
+  async function lookupLoanBorrower(code: string = loanCode) {
+    if (!code.trim()) return;
     setLoanLookupLoading(true); setLoanLookupError(''); setLoanBorrower(null);
     try {
       const path = loanLookupType === 'student' ? 'students' : 'teachers';
       const { data } = await teacherApi.get<InvStudent | InvTeacher>(
-        `/api/inventory/${path}/${loanCode.trim().toUpperCase()}`
+        `/api/inventory/${path}/${code.trim().toUpperCase()}`
       );
       setLoanBorrower(data);
     } catch { setLoanLookupError(loanLookupType === 'student' ? 'Student not found' : 'Teacher not found'); }
@@ -448,12 +456,12 @@ export default function HodInventoryPage() {
               <div>
                 <label className="text-[11px] font-bold font-medium text-[#8C7E6E] block mb-1">Student Code</label>
                 <div className="flex gap-2">
-                  <input value={issueStudentCode}
-                    onChange={e => setIssueStudentCode(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && lookupStudent()}
-                    placeholder="e.g. STU001"
-                    className="flex-1 rounded-xl border border-[#E2D9CC] px-3 py-2 text-sm focus:outline-none" />
-                  <button onClick={lookupStudent} disabled={issueStudentLoading}
+                  <NameOrIdSearch className="flex-1" inputClassName="w-full rounded-xl border border-[#E2D9CC] px-3 py-2 text-sm focus:outline-none"
+                  value={issueStudentCode} onChange={v => { setIssueStudentCode(v);  }}
+                  onPick={c => lookupStudent(c)} onEnter={() => lookupStudent()}
+                  search={searchStudents}
+                  placeholder="Type a student name or ID…" />
+                  <button onClick={() => lookupStudent()} disabled={issueStudentLoading}
                     className="px-4 py-2 rounded-xl text-sm font-semibold text-white"
                     style={{ background: primary, opacity: issueStudentLoading ? 0.6 : 1 }}>
                     {issueStudentLoading ? '…' : 'Find'}
@@ -473,12 +481,12 @@ export default function HodInventoryPage() {
               <div>
                 <label className="text-[11px] font-bold font-medium text-[#8C7E6E] block mb-1">Teacher Code</label>
                 <div className="flex gap-2">
-                  <input value={issueTeacherCode}
-                    onChange={e => setIssueTeacherCode(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && lookupIssueTeacher()}
-                    placeholder="e.g. T001"
-                    className="flex-1 rounded-xl border border-[#E2D9CC] px-3 py-2 text-sm focus:outline-none" />
-                  <button onClick={lookupIssueTeacher} disabled={issueTeacherLoading}
+                  <NameOrIdSearch className="flex-1" inputClassName="w-full rounded-xl border border-[#E2D9CC] px-3 py-2 text-sm focus:outline-none"
+                  value={issueTeacherCode} onChange={v => { setIssueTeacherCode(v);  }}
+                  onPick={c => lookupIssueTeacher(c)} onEnter={() => lookupIssueTeacher()}
+                  search={searchTeachers}
+                  placeholder="Type a teacher name or ID…" />
+                  <button onClick={() => lookupIssueTeacher()} disabled={issueTeacherLoading}
                     className="px-4 py-2 rounded-xl text-sm font-semibold text-white"
                     style={{ background: primary, opacity: issueTeacherLoading ? 0.6 : 1 }}>
                     {issueTeacherLoading ? '…' : 'Find'}
@@ -628,12 +636,12 @@ export default function HodInventoryPage() {
                 ))}
               </div>
               <div className="flex gap-2">
-                <input value={loanCode}
-                  onChange={e => setLoanCode(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && lookupLoanBorrower()}
-                  placeholder={loanLookupType === 'student' ? 'e.g. STU001' : 'e.g. T001'}
-                  className="flex-1 rounded-xl border border-[#E2D9CC] px-3 py-2 text-sm focus:outline-none" />
-                <button onClick={lookupLoanBorrower} disabled={loanLookupLoading}
+                <NameOrIdSearch className="flex-1" inputClassName="w-full rounded-xl border border-[#E2D9CC] px-3 py-2 text-sm focus:outline-none"
+                  value={loanCode} onChange={v => { setLoanCode(v);  }}
+                  onPick={c => lookupLoanBorrower(c)} onEnter={() => lookupLoanBorrower()}
+                  search={loanLookupType === 'student' ? searchStudents : searchTeachers}
+                  placeholder={loanLookupType === 'student' ? 'Type a student name or ID…' : 'Type a teacher name or ID…'} />
+                <button onClick={() => lookupLoanBorrower()} disabled={loanLookupLoading}
                   className="px-4 py-2 rounded-xl text-sm font-semibold text-white"
                   style={{ background: primary, opacity: loanLookupLoading ? 0.6 : 1 }}>
                   {loanLookupLoading ? '…' : 'Find'}
