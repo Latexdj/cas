@@ -3,6 +3,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { useTableControls } from '@/hooks/useTableControls';
 import { Pagination, Th } from '@/components/ui/Pagination';
 import { api } from '@/lib/api';
+import IssueExeatModal from './IssueExeatModal';
 
 interface ExeatSettings { max_internal: number; max_external: number; semester_start_date: string | null; }
 
@@ -124,6 +125,11 @@ export default function AdminExeatPage() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [quotaSettings, setQuotaSettings] = useState<ExeatSettings | null>(null);
+  const [showIssue, setShowIssue] = useState(false);
+  const [acting, setActing] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<{ id: string; msg: string } | null>(null);
+  const [rejectFor, setRejectFor] = useState<string | null>(null);
+  const [rejectNote, setRejectNote] = useState('');
 
   useEffect(() => {
     api.get<ExeatSettings>('/api/exeat/settings')
@@ -146,6 +152,19 @@ export default function AdminExeatPage() {
   }
 
   useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Approve or reject a pending request, or mark a student back.
+  async function act(id: string, action: 'approve' | 'reject' | 'return', body: Record<string, unknown> = {}) {
+    setActing(id); setActionError(null);
+    try {
+      const r = await api.post<Exeat>(`/api/exeat/${id}/${action}`, body);
+      setExeats(prev => prev.map(x => x.id === id ? { ...x, ...r.data } : x));
+      if (action === 'reject') { setRejectFor(null); setRejectNote(''); }
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { error?: string } } };
+      setActionError({ id, msg: err.response?.data?.error ?? 'Could not update the exeat. Check your connection and try again.' });
+    } finally { setActing(null); }
+  }
 
   const houses = useMemo(() => [...new Set(exeats.map(e => e.house).filter(Boolean))].sort(), [exeats]);
 
@@ -173,6 +192,9 @@ export default function AdminExeatPage() {
 
   return (
     <div className="space-y-6">
+      {showIssue && (
+        <IssueExeatModal onClose={() => setShowIssue(false)} onIssued={() => { setShowIssue(false); load(); }} />
+      )}
       {showSettings && (
         <SettingsModal
           onClose={() => setShowSettings(false)}
@@ -189,6 +211,11 @@ export default function AdminExeatPage() {
         ) : (
           <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">Exeat quotas not configured — students can request without limits.</p>
         )}
+        <div className="flex items-center gap-2 shrink-0">
+        <button onClick={() => setShowIssue(true)}
+          className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-[#145C44] hover:bg-[#0B3D2E] text-white transition-colors">
+          Issue exeat
+        </button>
         <button onClick={() => setShowSettings(true)}
           className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 shrink-0">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
@@ -197,6 +224,7 @@ export default function AdminExeatPage() {
           </svg>
           Quota Settings
         </button>
+        </div>
       </div>
 
       {/* Summary cards */}
@@ -319,6 +347,40 @@ export default function AdminExeatPage() {
                               <div><span className="text-slate-400">SMS Sent: </span><span className={e.sms_sent ? 'text-[#145C44]' : 'text-slate-500'}>{e.sms_sent ? 'Yes' : 'No'}</span></div>
                               {e.notes && <div className="col-span-2"><span className="text-slate-400">Notes: </span><span className="text-slate-700 dark:text-slate-300">{e.notes}</span></div>}
                             </div>
+                            {(e.status === 'pending' || e.status === 'active' || e.status === 'overdue') && (
+                              <div className="flex flex-wrap items-center gap-2 mt-3">
+                                {e.status === 'pending' && rejectFor !== e.id && (
+                                  <>
+                                    <button onClick={() => act(e.id, 'approve')} disabled={acting === e.id}
+                                      className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#145C44] hover:bg-[#0B3D2E] text-white disabled:opacity-50">
+                                      {acting === e.id ? 'Saving…' : 'Approve'}
+                                    </button>
+                                    <button onClick={() => { setRejectFor(e.id); setRejectNote(''); }}
+                                      className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-[#B83232] text-[#B83232]">
+                                      Reject
+                                    </button>
+                                  </>
+                                )}
+                                {e.status === 'pending' && rejectFor === e.id && (
+                                  <>
+                                    <input value={rejectNote} onChange={ev => setRejectNote(ev.target.value)} placeholder="Reason (optional)"
+                                      className="border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-1.5 text-xs bg-white dark:bg-slate-700 text-slate-900 dark:text-white" />
+                                    <button onClick={() => act(e.id, 'reject', { notes: rejectNote.trim() || undefined })} disabled={acting === e.id}
+                                      className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#B83232] text-white disabled:opacity-50">
+                                      Confirm reject
+                                    </button>
+                                    <button onClick={() => setRejectFor(null)} className="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-500">Cancel</button>
+                                  </>
+                                )}
+                                {(e.status === 'active' || e.status === 'overdue') && (
+                                  <button onClick={() => act(e.id, 'return')} disabled={acting === e.id}
+                                    className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#145C44] hover:bg-[#0B3D2E] text-white disabled:opacity-50">
+                                    {acting === e.id ? 'Saving…' : 'Mark returned now'}
+                                  </button>
+                                )}
+                                {actionError?.id === e.id && <span className="text-xs text-[#B83232]">{actionError.msg}</span>}
+                              </div>
+                            )}
                           </td>
                         </tr>
                       )}

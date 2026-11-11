@@ -48,6 +48,18 @@ async function resolveAccess(teacherId, schoolId) {
   return { role: null, houses: [] };
 }
 
+// Admins issue and manage exeats for any student. A restricted admin who
+// wasn't granted the exeat module reaches here as a teacher (see
+// middleware/moduleAccess.js), so they get only their housemaster rights.
+// houses: null means every house.
+async function accessFor(req) {
+  if (req.user?.role === 'admin') return { role: 'admin', houses: null };
+  return resolveAccess(req.user.id, req.schoolId);
+}
+function inHouses(access, house) {
+  return access.houses === null || access.houses.map(h => h.toLowerCase()).includes(house?.toLowerCase());
+}
+
 async function autoMarkOverdue(schoolId) {
   await pool.query(
     `UPDATE exeats SET status = 'overdue'
@@ -273,13 +285,14 @@ router.get('/on-exeat-ids', async (req, res, next) => {
 // ── GET /api/exeat/my-house  (housemaster / senior HM) ───────────────────────
 router.get('/my-house', async (req, res, next) => {
   try {
-    const access = await resolveAccess(req.user.id, req.schoolId);
+    const access = await accessFor(req);
     if (!access.role) return res.status(403).json({ error: 'Housemaster access only' });
     await autoMarkOverdue(req.schoolId);
 
     const { status, type } = req.query;
-    const houseParams = access.houses;
-    const houseClause = `LOWER(s.house) = ANY(ARRAY[${houseParams.map((_, i) => `LOWER($${i + 2})`).join(',')}])`;
+    const houseParams = access.houses ?? [];
+    const houseClause = access.houses === null ? 'TRUE'
+      : `LOWER(s.house) = ANY(ARRAY[${houseParams.map((_, i) => `LOWER($${i + 2})`).join(',')}])`;
     const params = [req.schoolId, ...houseParams];
     const extra  = [];
     if (status) { params.push(status); extra.push(`e.status = $${params.length}`); }
@@ -299,8 +312,22 @@ router.get('/my-house', async (req, res, next) => {
 // ── GET /api/exeat/house-students  (student picker for create modal) ──────────
 router.get('/house-students', async (req, res, next) => {
   try {
-    const access = await resolveAccess(req.user.id, req.schoolId);
+    const access = await accessFor(req);
     if (!access.role) return res.status(403).json({ error: 'Housemaster access only' });
+    if (access.houses === null) {
+      // Admin: search the whole school by name or student ID.
+      const q = String(req.query.q ?? '').trim();
+      if (q.length < 2) return res.json([]);
+      const { rows } = await pool.query(
+        `SELECT id, student_code, name, class_name, house, guardian_mobile
+         FROM students
+         WHERE school_id = $1 AND LOWER(status) = 'active'
+           AND (name ILIKE $2 OR student_code ILIKE $2)
+         ORDER BY name LIMIT 30`,
+        [req.schoolId, `%${q}%`]
+      );
+      return res.json(rows);
+    }
     const houseParams = access.houses;
     const { rows } = await pool.query(
       `SELECT id, student_code, name, class_name, house, guardian_mobile
@@ -318,7 +345,7 @@ router.get('/house-students', async (req, res, next) => {
 // ── POST /api/exeat  (create) ─────────────────────────────────────────────────
 router.post('/', async (req, res, next) => {
   try {
-    const access = await resolveAccess(req.user.id, req.schoolId);
+    const access = await accessFor(req);
     if (!access.role) return res.status(403).json({ error: 'Housemaster access only' });
 
     const {
@@ -333,18 +360,19 @@ router.post('/', async (req, res, next) => {
     if (!['internal', 'external'].includes(exeat_type)) {
       return res.status(400).json({ error: 'exeat_type must be internal or external' });
     }
-    if (exeat_type === 'external' && access.role !== 'senior_housemaster') {
+    if (exeat_type === 'external' && access.role === 'housemaster') {
       return res.status(403).json({ error: 'Only the senior housemaster can grant external exeat' });
     }
     if (exeat_type === 'internal' && access.role === 'senior_housemaster') {
       return res.status(403).json({ error: 'Internal exeat is granted by the housemaster, not the senior housemaster' });
     }
 
-    const houseParams = access.houses;
+    const houseParams = access.houses ?? [];
+    const houseFilter = access.houses === null ? ''
+      : `AND LOWER(house) = ANY(ARRAY[${houseParams.map((_, i) => `LOWER($${i + 3})`).join(',')}])`;
     const { rows: sRows } = await pool.query(
       `SELECT id, name, guardian_mobile FROM students
-       WHERE id = $1 AND school_id = $2
-         AND LOWER(house) = ANY(ARRAY[${houseParams.map((_, i) => `LOWER($${i + 3})`).join(',')}])`,
+       WHERE id = $1 AND school_id = $2 ${houseFilter}`,
       [student_id, req.schoolId, ...houseParams]
     );
     if (!sRows.length) return res.status(404).json({ error: 'Student not found in your house(s)' });
@@ -390,7 +418,7 @@ router.post('/', async (req, res, next) => {
 // ── POST /api/exeat/:id/approve ───────────────────────────────────────────────
 router.post('/:id/approve', async (req, res, next) => {
   try {
-    const access = await resolveAccess(req.user.id, req.schoolId);
+    const access = await accessFor(req);
     if (!access.role) return res.status(403).json({ error: 'Housemaster access only' });
 
     const { rows: eRows } = await pool.query(
@@ -401,10 +429,10 @@ router.post('/:id/approve', async (req, res, next) => {
     if (!eRows.length) return res.status(404).json({ error: 'Pending exeat not found' });
 
     const exeat = eRows[0];
-    if (!access.houses.map(h => h.toLowerCase()).includes(exeat.house?.toLowerCase())) {
+    if (!inHouses(access, exeat.house)) {
       return res.status(403).json({ error: 'Student is not in your house' });
     }
-    if (exeat.exeat_type === 'external' && access.role !== 'senior_housemaster') {
+    if (exeat.exeat_type === 'external' && access.role === 'housemaster') {
       return res.status(403).json({ error: 'Only the senior housemaster can approve external exeat' });
     }
     if (exeat.exeat_type === 'internal' && access.role === 'senior_housemaster') {
@@ -434,7 +462,7 @@ router.post('/:id/approve', async (req, res, next) => {
 // ── POST /api/exeat/:id/return ────────────────────────────────────────────────
 router.post('/:id/return', async (req, res, next) => {
   try {
-    const access = await resolveAccess(req.user.id, req.schoolId);
+    const access = await accessFor(req);
     if (!access.role) return res.status(403).json({ error: 'Housemaster access only' });
 
     const { actual_return_date, actual_return_time } = req.body;
@@ -447,7 +475,7 @@ router.post('/:id/return', async (req, res, next) => {
       [req.params.id, req.schoolId]
     );
     if (!eRows.length) return res.status(404).json({ error: 'Active exeat not found' });
-    if (!access.houses.map(h => h.toLowerCase()).includes(eRows[0].house?.toLowerCase())) {
+    if (!inHouses(access, eRows[0].house)) {
       return res.status(403).json({ error: 'Student is not in your house' });
     }
 
@@ -513,7 +541,7 @@ router.get('/summary', adminOnly, async (req, res, next) => {
 // ── POST /api/exeat/:id/reject ────────────────────────────────────────────────
 router.post('/:id/reject', async (req, res, next) => {
   try {
-    const access = await resolveAccess(req.user.id, req.schoolId);
+    const access = await accessFor(req);
     if (!access.role) return res.status(403).json({ error: 'Housemaster access only' });
 
     const { rows: eRows } = await pool.query(
@@ -522,7 +550,7 @@ router.post('/:id/reject', async (req, res, next) => {
       [req.params.id, req.schoolId]
     );
     if (!eRows.length) return res.status(404).json({ error: 'Pending exeat not found' });
-    if (!access.houses.map(h => h.toLowerCase()).includes(eRows[0].house?.toLowerCase())) {
+    if (!inHouses(access, eRows[0].house)) {
       return res.status(403).json({ error: 'Student is not in your house' });
     }
 
