@@ -3,7 +3,7 @@ import { useEffect, useState, useCallback } from 'react';
 import type { AxiosInstance } from 'axios';
 import Link from 'next/link';
 import type { DepartmentBudget, BudgetDepartment, AcademicYear, BudgetMe, BudgetTrack } from '@/types/api';
-import { statusStyle, TRACK_LABEL, fmtMoney, fmtDate, describeApiError, inputCls, labelCls, cardCls, btnPrimary } from './shared';
+import { statusStyle, TRACK_LABEL, fmtMoney, fmtDate, describeApiError, inputCls, selectCls, labelCls, cardCls, btnPrimary } from './shared';
 
 const OTHER_OPTION = '__other__';
 
@@ -109,13 +109,13 @@ export default function BudgetWorkspace({ apiClient, basePath, onOpen, title = '
         </div>
         <div className="flex gap-2 items-center flex-wrap">
           {tracksShown.size > 1 && (
-            <select className={`${inputCls} w-40`} value={filterTrack} onChange={e => setFilterTrack(e.target.value as '' | BudgetTrack)}>
+            <select className={`${selectCls} w-40`} value={filterTrack} onChange={e => setFilterTrack(e.target.value as '' | BudgetTrack)}>
               <option value="">Both tracks</option>
               <option value="academic">Academics</option>
               <option value="administration">Administration</option>
             </select>
           )}
-          <select className={`${inputCls} w-44`} value={filterYear} onChange={e => setFilterYear(e.target.value)}>
+          <select className={`${selectCls} w-48`} value={filterYear} onChange={e => setFilterYear(e.target.value)}>
             <option value="">All years</option>
             {recentYears.map(y => <option key={y.id} value={y.id}>{y.name}{y.is_current ? ' (current)' : ''}</option>)}
           </select>

@@ -125,7 +125,7 @@ const sections: Section[] = [
       },
       {
         href: '/principal/department-budgets',
-        label: 'Department Budgets',
+        label: 'Budgets',
         module: 'department_budgets',
         icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 14l3-3 3 3 4-4M3 6h18M3 6v12a2 2 0 002 2h14a2 2 0 002-2V6" />,
       },

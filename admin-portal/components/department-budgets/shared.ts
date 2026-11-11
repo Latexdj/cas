@@ -73,6 +73,10 @@ export function safeFileName(s: string) {
 
 export const inputCls = 'w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#145C44]'
   + ' border-slate-200 bg-white text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-white';
+// For compact dropdowns that sit in a row (filters, year pickers): no w-full,
+// so a width class passed alongside it actually applies.
+export const selectCls = 'rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#145C44]'
+  + ' border-slate-200 bg-white text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-white';
 export const labelCls = 'block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1';
 export const cardCls = 'bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700';
 export const btnGhost = 'px-3 py-1.5 rounded-lg text-xs font-semibold border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50';

@@ -45,8 +45,8 @@ function lineAmount(q: string, p: string) {
 // The single school budget for the year: each track's approved budget plus
 // the Accountant's school-wide lines (utilities, maintenance, ...). The
 // Accountant edits and finalises it; everyone else sees it read-only.
-export default function SchoolBudgetView({ apiClient, onOpenBudget }: {
-  apiClient: AxiosInstance; onOpenBudget?: (id: string) => void;
+export default function SchoolBudgetView({ apiClient, onOpenBudget, yearId }: {
+  apiClient: AxiosInstance; onOpenBudget?: (id: string) => void; yearId?: string;
 }) {
   const [data, setData] = useState<SchoolBudget | null>(null);
   const [error, setError] = useState('');
@@ -61,10 +61,10 @@ export default function SchoolBudgetView({ apiClient, onOpenBudget }: {
 
   const load = useCallback(() => {
     setError('');
-    apiClient.get<SchoolBudget>('/api/department-budgets/school-budget')
+    apiClient.get<SchoolBudget>('/api/department-budgets/school-budget', { params: { year: yearId || undefined } })
       .then(r => setData(r.data))
       .catch(e => setError(describeApiError(e, 'Could not load the school budget. Check your connection and try again.')));
-  }, [apiClient]);
+  }, [apiClient, yearId]);
   useEffect(() => { load(); }, [load]);
 
   function startEdit(line: SchoolLine) {

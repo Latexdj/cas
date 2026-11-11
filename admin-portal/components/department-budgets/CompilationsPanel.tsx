@@ -37,8 +37,8 @@ function reviewerLine(names: string[], fallback: boolean) {
 // The compiled Academics and Administration budgets: who is compiling, where
 // each stands with the Head, and (when one is opened) its departments,
 // subtotals and the submit / approve / return actions.
-export default function CompilationsPanel({ apiClient, onOpenBudget, initialTrack = null }: {
-  apiClient: AxiosInstance; onOpenBudget?: (id: string) => void; initialTrack?: BudgetTrack | null;
+export default function CompilationsPanel({ apiClient, onOpenBudget, initialTrack = null, yearId }: {
+  apiClient: AxiosInstance; onOpenBudget?: (id: string) => void; initialTrack?: BudgetTrack | null; yearId?: string;
 }) {
   const [summary, setSummary] = useState<{ year: { id: string; name: string }; tracks: TrackSummary[] } | null>(null);
   const [error, setError] = useState('');
@@ -46,15 +46,15 @@ export default function CompilationsPanel({ apiClient, onOpenBudget, initialTrac
 
   const loadSummary = useCallback(() => {
     setError('');
-    apiClient.get('/api/department-budgets/compilations')
+    apiClient.get('/api/department-budgets/compilations', { params: { year: yearId || undefined } })
       .then(r => setSummary(r.data))
       .catch(e => setError(describeApiError(e, 'Could not load the compiled budgets. Check your connection and try again.')));
-  }, [apiClient]);
+  }, [apiClient, yearId]);
   useEffect(() => { loadSummary(); }, [loadSummary]);
   useEffect(() => { setOpenTrack(initialTrack); }, [initialTrack]);
 
   if (openTrack) {
-    return <CompilationView apiClient={apiClient} track={openTrack} onOpenBudget={onOpenBudget}
+    return <CompilationView apiClient={apiClient} track={openTrack} yearId={yearId} onOpenBudget={onOpenBudget}
       onBack={() => { setOpenTrack(null); loadSummary(); }} />;
   }
 
@@ -104,8 +104,8 @@ export default function CompilationsPanel({ apiClient, onOpenBudget, initialTrac
   );
 }
 
-function CompilationView({ apiClient, track, onBack, onOpenBudget }: {
-  apiClient: AxiosInstance; track: BudgetTrack; onBack: () => void; onOpenBudget?: (id: string) => void;
+function CompilationView({ apiClient, track, onBack, onOpenBudget, yearId }: {
+  apiClient: AxiosInstance; track: BudgetTrack; onBack: () => void; onOpenBudget?: (id: string) => void; yearId?: string;
 }) {
   const [data, setData] = useState<CompilationDetail | null>(null);
   const [error, setError] = useState('');
@@ -118,10 +118,10 @@ function CompilationView({ apiClient, track, onBack, onOpenBudget }: {
 
   const load = useCallback(() => {
     setError('');
-    apiClient.get<CompilationDetail>(`/api/department-budgets/compilations/${track}`)
+    apiClient.get<CompilationDetail>(`/api/department-budgets/compilations/${track}`, { params: { year: yearId || undefined } })
       .then(r => setData(r.data))
       .catch(e => setError(describeApiError(e, 'Could not load this compiled budget. Check your connection and try again.')));
-  }, [apiClient, track]);
+  }, [apiClient, track, yearId]);
   useEffect(() => { load(); }, [load]);
 
   async function run() {
