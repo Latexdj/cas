@@ -4,6 +4,7 @@ const pool   = require('../config/db');
 const { authenticate, requireActiveSubscription } = require('../middleware/auth');
 const { checkModuleAccess } = require('../middleware/moduleAccess');
 const crypto = require('crypto');
+const { getHeadedDepartments } = require('../services/hod.service');
 const { uploadFile, deleteFile } = require('../services/storage.service');
 
 router.use(authenticate, requireActiveSubscription, checkModuleAccess('inventory'));
@@ -28,10 +29,7 @@ async function inventoryAccess(req, res, next) {
       );
       if (resp.length) { req.inventoryScope = 'all'; return next(); }
 
-      const { rows: dept } = await pool.query(
-        `SELECT id FROM departments WHERE school_id=$1 AND head_teacher_id=$2 ORDER BY name`,
-        [req.schoolId, req.user.id]
-      );
+      const dept = await getHeadedDepartments(req.schoolId, req.user.id);
       if (dept.length) {
         const requestedId = req.query.dept_id || req.body?.dept_id;
         const selected = requestedId ? (dept.find(r => r.id === requestedId) ?? dept[0]) : dept[0];

@@ -1,5 +1,6 @@
 'use strict';
 const pool = require('../config/db');
+const { getHeadedDepartments } = require('./hod.service');
 
 // Budget approval chain:
 //   department / unit budget  → track reviewer (accepts into the compiled budget)
@@ -60,9 +61,9 @@ async function resolveBudgetActor(req) {
   actor.viewAll = actor.isAdmin || actor.isPrincipal || actor.managementRole === 'vice_principal';
   actor.canApproveCompilations = actor.isAdmin || actor.isPrincipal;
 
-  const [{ rows: me }, { rows: depts }, { rows: units }] = await Promise.all([
+  const [{ rows: me }, depts, { rows: units }] = await Promise.all([
     pool.query(`SELECT name FROM teachers WHERE id = $1`, [u.id]),
-    pool.query(`SELECT id FROM departments WHERE school_id = $1 AND head_teacher_id = $2`, [schoolId, u.id]),
+    getHeadedDepartments(schoolId, u.id),
     pool.query(`SELECT id FROM budget_units WHERE school_id = $1 AND head_teacher_id = $2 AND is_active`, [schoolId, u.id]),
   ]);
   actor.name = me[0]?.name ?? u.name ?? '';

@@ -1,6 +1,7 @@
 'use strict';
 const router = require('express').Router();
 const pool   = require('../config/db');
+const { getHeadedDepartments } = require('../services/hod.service');
 const { authenticate, requireActiveSubscription } = require('../middleware/auth');
 const { checkModuleAccess } = require('../middleware/moduleAccess');
 const { uploadFile } = require('../services/storage.service');
@@ -19,11 +20,7 @@ function isManagementUser(user) {
 }
 
 async function getMyDepartments(schoolId, teacherId) {
-  const { rows } = await pool.query(
-    `SELECT id, name FROM departments WHERE school_id = $1 AND head_teacher_id = $2`,
-    [schoolId, teacherId]
-  );
-  return rows;
+  return getHeadedDepartments(schoolId, teacherId);
 }
 
 async function canObserve(schoolId, user, targetTeacherId) {

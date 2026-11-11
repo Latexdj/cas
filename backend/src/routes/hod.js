@@ -2,6 +2,7 @@
 const pool   = require('../config/db');
 const { authenticate, requireActiveSubscription } = require('../middleware/auth');
 const { getClassRoster } = require('../services/classHistory.service');
+const { getHeadedDepartments, hasHodResponsibility } = require('../services/hod.service');
 
 router.use(authenticate, requireActiveSubscription);
 
@@ -16,15 +17,10 @@ router.use(authenticate, requireActiveSubscription);
 //   (b) clearance office with office_type = 'hod'  [fallback for legacy assignments]
 async function hodOnly(req, res, next) {
   try {
-    const [{ rows: deptRows }, { rows: officeRows }] = await Promise.all([
-      // Primary: Departments page assignment â€” load ALL departments (teacher may head more than one)
-      pool.query(
-        `SELECT d.id, d.name AS dept_name
-         FROM departments d
-         WHERE d.school_id = $1 AND d.head_teacher_id = $2
-         ORDER BY d.name`,
-        [req.schoolId, req.user.id]
-      ),
+    const [headed, { rows: officeRows }, viaResponsibility] = await Promise.all([
+      // Primary: departments the teacher heads, whether set on the Departments
+      // page or through an 'hod' responsibility (services/hod.service.js).
+      getHeadedDepartments(req.schoolId, req.user.id),
       // Fallback: legacy clearance-office HOD assignment
       pool.query(
         `SELECT co.linked_programme_id, p.name AS programme_name
@@ -36,9 +32,11 @@ async function hodOnly(req, res, next) {
          LIMIT 1`,
         [req.schoolId, req.user.id]
       ),
+      hasHodResponsibility(req.schoolId, req.user.id),
     ]);
+    const deptRows = headed.map(d => ({ id: d.id, dept_name: d.name }));
 
-    if (!deptRows.length && !officeRows.length)
+    if (!deptRows.length && !officeRows.length && !viaResponsibility)
       return res.status(403).json({ error: 'HOD access only' });
 
     if (deptRows.length) {
@@ -55,6 +53,20 @@ async function hodOnly(req, res, next) {
       req.hodDeptId     = selected.id;
       req.programmeId   = null;
       req.programmeName = selected.dept_name;
+      req.isSubjectHod  = true;
+    } else if (!officeRows.length) {
+      // 'hod' responsibility whose department name doesn't match a
+      // Departments row: a subject HOD for the department on their record,
+      // the same way result submissions treats them.
+      const { rows: tRows } = await pool.query(
+        `SELECT department FROM teachers WHERE id = $1 AND school_id = $2 LIMIT 1`,
+        [req.user.id, req.schoolId]
+      );
+      req.hodDepts      = [];
+      req.hodDept       = tRows[0]?.department ?? null;
+      req.hodDeptId     = null;
+      req.programmeId   = null;
+      req.programmeName = req.hodDept;
       req.isSubjectHod  = true;
     } else {
       // clearance-office path
