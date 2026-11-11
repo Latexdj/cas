@@ -7,7 +7,7 @@ const { getEnabledModules, LICENSABLE_MODULE_KEYS } = require('../services/modul
 
 router.use(authenticate, adminOnly);
 
-const VALID_ROLES = ['principal', 'vice_principal'];
+const VALID_ROLES = ['principal', 'vice_principal', 'assistant_head_academic', 'assistant_head_admin'];
 
 // Same module-access control as admin creation on the Teachers page — only an
 // unrestricted admin may promote/edit/revoke a management user, since doing
@@ -47,7 +47,7 @@ router.post('/', requireUnrestrictedAdmin, async (req, res, next) => {
     if (!teacher_id || !role)
       return res.status(400).json({ error: 'teacher_id and role are required' });
     if (!VALID_ROLES.includes(role))
-      return res.status(400).json({ error: 'Role must be principal or vice_principal' });
+      return res.status(400).json({ error: 'Role must be principal, vice_principal, assistant_head_academic or assistant_head_admin' });
 
     const { rows: existing } = await pool.query(
       `SELECT id, management_role FROM teachers WHERE id = $1 AND school_id = $2`,
@@ -78,7 +78,7 @@ router.put('/:id', requireUnrestrictedAdmin, async (req, res, next) => {
   try {
     const { role } = req.body;
     if (!role || !VALID_ROLES.includes(role))
-      return res.status(400).json({ error: 'Role must be principal or vice_principal' });
+      return res.status(400).json({ error: 'Role must be principal, vice_principal, assistant_head_academic or assistant_head_admin' });
 
     const { rows } = await pool.query(
       `UPDATE teachers SET management_role = $1, updated_at = now()

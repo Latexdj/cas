@@ -26,6 +26,8 @@ const VALID_DISTRIBUTION_TYPES = ['all', 'department', 'responsibility', 'specif
 function roleLabel(role) {
   if (role === 'principal') return 'Principal';
   if (role === 'vice_principal') return 'Vice Principal';
+  if (role === 'assistant_head_academic') return 'Assistant Head (Academic)';
+  if (role === 'assistant_head_admin') return 'Assistant Head (Administration)';
   return role.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
 

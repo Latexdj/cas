@@ -1700,6 +1700,122 @@ function buildBudgetReportHTML(budget, items, school) {
   </body></html>`;
 }
 
+// A compiled budget (one track) or the final school budget: one section per
+// track, one block per department/unit with a subtotal, then the approval
+// trail and signature lines.
+//   book = { title, subtitle, statusLine, sections: [{ label, total, budgets: [{ name, total, items }] }],
+//            schoolItems?, schoolItemsTotal?, grandTotal, trail: [{ label, name, date }], signatures: [string] }
+function buildBudgetBookHTML(book, school) {
+  const generatedOn = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  const money = n => n == null ? '-' : Number(n).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const fmtDate = d => d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
+
+  const itemRows = items => items.map((i, idx) => `
+    <tr>
+      <td style="text-align:center;">${idx + 1}</td>
+      <td>${esc(i.category)}${i.description ? `<div style="font-size:8pt;color:#7A7266;">${esc(i.description)}</div>` : ''}</td>
+      <td style="text-align:center;">${Number(i.quantity)}</td>
+      <td style="text-align:right;">${money(i.unit_price)}</td>
+      <td style="text-align:right;">${money(i.amount)}</td>
+    </tr>`).join('');
+
+  const table = (items, totalLabel, total) => `
+    <table class="budget">
+      <thead><tr>
+        <th style="width:34px;text-align:center;">NO.</th><th>ITEM / ACTIVITY DESCRIPTION</th>
+        <th style="width:70px;text-align:center;">QTY</th>
+        <th style="width:105px;text-align:right;">UNIT PRICE (GH₵)</th>
+        <th style="width:115px;text-align:right;">AMOUNT (GH₵)</th>
+      </tr></thead>
+      <tbody>${itemRows(items)}</tbody>
+      <tfoot><tr><td colspan="4" style="text-align:right;">${esc(totalLabel)}</td><td style="text-align:right;">${money(total)}</td></tr></tfoot>
+    </table>`;
+
+  const summaryRows = [
+    ...book.sections.map(s => `<tr><td>${esc(s.label)}</td><td style="text-align:right;">${money(s.total)}</td></tr>`),
+    ...(book.schoolItems?.length ? [`<tr><td>School-wide lines</td><td style="text-align:right;">${money(book.schoolItemsTotal)}</td></tr>`] : []),
+  ].join('');
+
+  const sections = book.sections.map(s => `
+    <h3 class="section">${esc(s.label)}</h3>
+    ${s.budgets.length === 0 ? '<p class="muted">No budgets were included in this section.</p>' : s.budgets.map(b => `
+      <h4 class="owner">${esc(b.name)}</h4>
+      ${table(b.items, `Subtotal, ${b.name}`, b.total)}`).join('')}
+    <p class="section-total">Total, ${esc(s.label)}: GH₵ ${money(s.total)}</p>`).join('');
+
+  const schoolLines = book.schoolItems?.length ? `
+    <h3 class="section">School-wide lines</h3>
+    ${table(book.schoolItems, 'Subtotal, school-wide lines', book.schoolItemsTotal)}` : '';
+
+  const trail = book.trail?.length ? `
+    <h3 class="section">Approval record</h3>
+    <table class="trail">${book.trail.map(t => `<tr><td>${esc(t.label)}</td><td>${esc(t.name || '-')}</td><td>${fmtDate(t.date)}</td></tr>`).join('')}</table>` : '';
+
+  const signatures = book.signatures?.length ? `
+    <div class="sigs">${book.signatures.map(s => `<div class="sig"><div class="line"></div><div>${esc(s)}</div><div class="muted">Signature and date</div></div>`).join('')}</div>` : '';
+
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="color-scheme" content="light"><style>
+    * { box-sizing: border-box; }
+    html, body { background: #FFFFFF; }
+    body { font-family: Arial, Helvetica, sans-serif; font-size: 10pt; color: #2A2620; line-height: 1.5; margin: 0; }
+    .meta-bar { display: flex; justify-content: space-between; font-size: 8pt; color: #7A7266; margin-bottom: 14px; }
+    .title-block { text-align: center; margin-bottom: 14px; }
+    .title-block h2 { font-size: 13pt; color: #0B3D2E; margin: 0 0 4px; }
+    .title-block .sub { font-size: 9.5pt; color: #4A3F32; }
+    .muted { color: #7A7266; font-size: 8.5pt; }
+    table.summary { width: 60%; margin: 0 auto 16px; border-collapse: collapse; font-size: 9.5pt; }
+    table.summary td { border-bottom: 1px solid #DDD6C8; padding: 5px 8px; }
+    table.summary tr.grand td { font-weight: bold; border-top: 2px solid #0B3D2E; border-bottom: none; }
+    h3.section { font-size: 11.5pt; color: #0B3D2E; margin: 20px 0 6px; border-bottom: 2px solid #0B3D2E; padding-bottom: 3px; page-break-after: avoid; }
+    h4.owner { font-size: 10pt; margin: 12px 0 4px; page-break-after: avoid; }
+    table.budget { width: 100%; border-collapse: collapse; font-size: 8.5pt; page-break-inside: auto; }
+    table.budget tr { page-break-inside: avoid; }
+    table.budget th, table.budget td { border: 1px solid #DDD6C8; padding: 5px 7px; vertical-align: top; }
+    table.budget th { background: #F4EFE3; color: #0B3D2E; text-align: left; }
+    table.budget tfoot td { font-weight: bold; background: #F4EFE3; }
+    .section-total { text-align: right; font-weight: bold; margin: 6px 0 0; }
+    table.trail { border-collapse: collapse; font-size: 9pt; }
+    table.trail td { padding: 3px 14px 3px 0; }
+    .sigs { display: flex; gap: 40px; margin-top: 36px; page-break-inside: avoid; }
+    .sig { flex: 1; font-size: 9.5pt; }
+    .sig .line { border-bottom: 1px solid #2A2620; height: 34px; margin-bottom: 4px; }
+  </style></head><body>
+    ${renderLetterhead(school)}
+    <div class="meta-bar"><span>${esc(book.statusLine || '')}</span><span>Generated ${generatedOn}</span></div>
+    <div class="title-block"><h2>${esc(book.title)}</h2><div class="sub">${esc(book.subtitle || '')}</div></div>
+    <table class="summary">${summaryRows}<tr class="grand"><td>Grand total</td><td style="text-align:right;">GH₵ ${money(book.grandTotal)}</td></tr></table>
+    ${sections}
+    ${schoolLines}
+    ${trail}
+    ${signatures}
+  </body></html>`;
+}
+
+async function generateBudgetBookPDFBuffer(book, school) {
+  const html = buildBudgetBookHTML(book, school);
+  const executablePath = await resolveChromePath();
+  const browser = await puppeteer.launch({
+    args:            chromeLaunchArgs(),
+    defaultViewport: chromium.defaultViewport,
+    executablePath,
+    headless:        true,
+  });
+  try {
+    const page = await browser.newPage();
+    await page.setContent(html, { waitUntil: 'load', timeout: 30000 });
+    return Buffer.from(await page.pdf({
+      format: 'A4', landscape: false, printBackground: true,
+      margin: { top: '16mm', right: '16mm', bottom: '16mm', left: '16mm' },
+      displayHeaderFooter: true,
+      headerTemplate: '<div></div>',
+      footerTemplate: `<div style="width:100%;font-size:7pt;color:#7A7266;display:flex;justify-content:space-between;padding:0 16mm;font-family:Arial,Helvetica,sans-serif;">
+        <span>CAS Services</span><span class="pageNumber"></span>/<span class="totalPages"></span></div>`,
+    }));
+  } finally {
+    await browser.close();
+  }
+}
+
 async function generateBudgetReportPDFBuffer(budget, items, school) {
   const html = buildBudgetReportHTML(budget, items, school);
   const executablePath = await resolveChromePath();
@@ -1737,4 +1853,5 @@ module.exports = {
   buildObservationReportHTML, generateObservationReportPDFBuffer,
   buildBlankObservationFormHTML, generateBlankObservationFormPDFBuffer,
   buildBudgetReportHTML, generateBudgetReportPDFBuffer,
+  buildBudgetBookHTML, generateBudgetBookPDFBuffer,
 };

@@ -4082,6 +4082,147 @@ async function runMigrations() {
     await pool.query(`ALTER TABLE budget_item_formulas ADD COLUMN IF NOT EXISTS sheets_per_unit INT CHECK (sheets_per_unit IS NULL OR sheets_per_unit > 0)`);
     } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] department budgets module:', e.message); }
 
+    // ── Budget approval chain ────────────────────────────────────────────────
+    // Department/unit budget → track reviewer (Assistant Head Academic or
+    // Administration) compiles → Head approves → Accountant finalises one
+    // school budget per academic year.
+    try {
+    // Non-academic units (housemasters, nurse, stores, sports...) live here,
+    // not in departments: departments drive HOD rights, result approval and
+    // lesson observation, none of which these units should get.
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS budget_units (
+        id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id            UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        name                 TEXT NOT NULL,
+        track                TEXT NOT NULL CHECK (track IN ('academic','administration')),
+        head_teacher_id      UUID REFERENCES teachers(id) ON DELETE SET NULL,
+        head_school_staff_id UUID REFERENCES school_staff(id) ON DELETE SET NULL,
+        is_active            BOOLEAN NOT NULL DEFAULT true,
+        created_at           TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at           TIMESTAMPTZ NOT NULL DEFAULT now(),
+        CONSTRAINT budget_units_one_head CHECK (NOT (head_teacher_id IS NOT NULL AND head_school_staff_id IS NOT NULL))
+      )
+    `);
+    await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_budget_units_school_name ON budget_units(school_id, LOWER(name))`);
+
+    await pool.query(`ALTER TABLE department_budgets ADD COLUMN IF NOT EXISTS budget_unit_id UUID REFERENCES budget_units(id) ON DELETE RESTRICT`);
+    await pool.query(`ALTER TABLE department_budgets ADD COLUMN IF NOT EXISTS track TEXT`);
+    await pool.query(`ALTER TABLE department_budgets ADD COLUMN IF NOT EXISTS submitted_by_staff_id UUID REFERENCES school_staff(id) ON DELETE SET NULL`);
+    await pool.query(`ALTER TABLE department_budgets ADD COLUMN IF NOT EXISTS reviewed_by_staff_id UUID REFERENCES school_staff(id) ON DELETE SET NULL`);
+    await pool.query(`ALTER TABLE department_budgets DROP CONSTRAINT IF EXISTS dept_budgets_one_of_dept_or_custom`);
+    await pool.query(`
+      ALTER TABLE department_budgets ADD CONSTRAINT dept_budgets_one_of_dept_or_custom
+      CHECK (num_nonnulls(department_id, budget_unit_id, custom_department_name) = 1)
+    `);
+    await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_dept_budgets_unit_year
+      ON department_budgets(budget_unit_id, academic_year_id) WHERE budget_unit_id IS NOT NULL
+    `);
+    await pool.query(`ALTER TABLE department_budgets DROP CONSTRAINT IF EXISTS department_budgets_status_check`);
+    await pool.query(`
+      ALTER TABLE department_budgets ADD CONSTRAINT department_budgets_status_check
+      CHECK (status IN ('Draft','Submitted','Accepted','Approved','Changes Requested','Rejected'))
+    `);
+    // Backfill: a reviewer "accepts" a budget into the compiled budget now;
+    // the Head approves compilations, not individual budgets.
+    await pool.query(`UPDATE department_budgets SET status = 'Accepted' WHERE status = 'Approved'`);
+    await pool.query(`UPDATE department_budgets SET track = 'academic' WHERE track IS NULL AND department_id IS NOT NULL`);
+    await pool.query(`
+      UPDATE department_budgets SET track = CASE
+        WHEN LOWER(TRIM(custom_department_name)) IN ('academics','academic','exam office','examinations','exams office') THEN 'academic'
+        ELSE 'administration' END
+      WHERE track IS NULL AND custom_department_name IS NOT NULL
+    `);
+    await pool.query(`UPDATE department_budgets SET track = 'academic' WHERE track IS NULL`);
+    await pool.query(`ALTER TABLE department_budgets ALTER COLUMN track SET NOT NULL`);
+    await pool.query(`ALTER TABLE department_budgets DROP CONSTRAINT IF EXISTS department_budgets_track_check`);
+    await pool.query(`ALTER TABLE department_budgets ADD CONSTRAINT department_budgets_track_check CHECK (track IN ('academic','administration'))`);
+
+    // Line history: what the owner asked for vs what each later stage changed.
+    await pool.query(`ALTER TABLE department_budget_items ADD COLUMN IF NOT EXISTS requested_quantity NUMERIC(12,2)`);
+    await pool.query(`ALTER TABLE department_budget_items ADD COLUMN IF NOT EXISTS requested_unit_price NUMERIC(12,2)`);
+    await pool.query(`ALTER TABLE department_budget_items ADD COLUMN IF NOT EXISTS requested_description TEXT`);
+    await pool.query(`ALTER TABLE department_budget_items ADD COLUMN IF NOT EXISTS added_stage TEXT NOT NULL DEFAULT 'owner'`);
+    await pool.query(`ALTER TABLE department_budget_items ADD COLUMN IF NOT EXISTS removed_at TIMESTAMPTZ`);
+    await pool.query(`ALTER TABLE department_budget_items ADD COLUMN IF NOT EXISTS removed_stage TEXT`);
+    await pool.query(`ALTER TABLE department_budget_items ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now()`);
+    await pool.query(`
+      UPDATE department_budget_items i
+      SET requested_quantity = i.quantity, requested_unit_price = i.unit_price, requested_description = i.description
+      FROM department_budgets b
+      WHERE b.id = i.budget_id AND b.status <> 'Draft' AND i.requested_quantity IS NULL
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS budget_compilations (
+        id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id         UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        academic_year_id  UUID NOT NULL REFERENCES academic_years(id) ON DELETE CASCADE,
+        track             TEXT NOT NULL CHECK (track IN ('academic','administration')),
+        status            TEXT NOT NULL DEFAULT 'Compiling' CHECK (status IN ('Compiling','Submitted','Approved','Returned')),
+        compiled_by       UUID REFERENCES teachers(id) ON DELETE SET NULL,
+        submitted_at      TIMESTAMPTZ,
+        compiler_note     TEXT,
+        head_reviewed_by  UUID REFERENCES teachers(id) ON DELETE SET NULL,
+        head_reviewed_at  TIMESTAMPTZ,
+        head_note         TEXT,
+        created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (school_id, academic_year_id, track)
+      )
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS school_budgets (
+        id                     UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id              UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        academic_year_id       UUID NOT NULL REFERENCES academic_years(id) ON DELETE CASCADE,
+        status                 TEXT NOT NULL DEFAULT 'Compiling' CHECK (status IN ('Compiling','Final')),
+        finalised_by           UUID REFERENCES teachers(id) ON DELETE SET NULL,
+        finalised_by_staff_id  UUID REFERENCES school_staff(id) ON DELETE SET NULL,
+        finalised_at           TIMESTAMPTZ,
+        notes                  TEXT,
+        snapshot               JSONB,
+        created_at             TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at             TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (school_id, academic_year_id)
+      )
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS school_budget_items (
+        id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_budget_id     UUID NOT NULL REFERENCES school_budgets(id) ON DELETE CASCADE,
+        category             TEXT NOT NULL,
+        description          TEXT,
+        quantity             NUMERIC(12,2) NOT NULL DEFAULT 1,
+        unit_price           NUMERIC(12,2) CHECK (unit_price IS NULL OR unit_price >= 0),
+        amount               NUMERIC(14,2),
+        sort_order           INT NOT NULL DEFAULT 0,
+        created_by           UUID REFERENCES teachers(id) ON DELETE SET NULL,
+        created_by_staff_id  UUID REFERENCES school_staff(id) ON DELETE SET NULL,
+        created_at           TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_school_budget_items_budget ON school_budget_items(school_budget_id)`);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS budget_events (
+        id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id        UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        entity_type      TEXT NOT NULL CHECK (entity_type IN ('budget','compilation','school')),
+        entity_id        UUID NOT NULL,
+        action           TEXT NOT NULL,
+        note             TEXT,
+        actor_teacher_id UUID REFERENCES teachers(id) ON DELETE SET NULL,
+        actor_staff_id   UUID REFERENCES school_staff(id) ON DELETE SET NULL,
+        actor_label      TEXT,
+        created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_budget_events_entity ON budget_events(entity_type, entity_id, created_at)`);
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] budget approval chain:', e.message); }
+
     if (_migFailures > 0) {
       console.error(`[MIGRATION SUMMARY] WARNING: ${_migFailures} step(s) failed — search logs for [MIGRATION FAILED]`);
     } else {

@@ -3,75 +3,71 @@ const router = require('express').Router();
 const pool   = require('../config/db');
 const { authenticate, requireActiveSubscription } = require('../middleware/auth');
 const { checkModuleAccess } = require('../middleware/moduleAccess');
-const { notifyTeacherBudgetReviewed } = require('../services/notification.service');
+const { createNotification, sendTeacherEmail } = require('../services/notification.service');
 const { generateBudgetReportPDFBuffer } = require('../services/pdf.service');
+const perms = require('../services/budget-permissions');
+const {
+  BUDGET_SELECT, loadBudget, loadItems, loadEvents, loadCompilation, loadSchoolBudget, logBudgetEvent, getCurrentAcademicYear,
+} = require('../services/budget-data');
 
 router.use(authenticate, requireActiveSubscription, checkModuleAccess('department_budgets'));
 
-// ── Permission helpers ──────────────────────────────────────────────────────
-// Management may create/view/approve any department's budget. A HOD may only
-// draft, edit and submit the budget for the department(s) they head — never
-// approve their own (approval is always a management action).
+// Resolve the caller once per request (who they head, which track they
+// review, whether they're the Accountant). See services/budget-permissions.js.
+router.use(async (req, res, next) => {
+  try { req.budgetActor = await perms.resolveBudgetActor(req); next(); }
+  catch (err) { next(err); }
+});
 
-function isManagementUser(user) {
-  return user?.role === 'admin' || user?.role === 'super_admin' || user?.type === 'management';
+function httpErr(status, message) {
+  const e = new Error(message); e.status = status; e.expose = true; return e;
+}
+function sendErr(res, next, err) {
+  if (err.expose) return res.status(err.status).json({ error: err.message });
+  return next(err);
 }
 
-async function getMyDepartments(schoolId, teacherId) {
+async function notifyTeachers(schoolId, teachers, title, message) {
+  await Promise.all(teachers.filter(Boolean).map(t => Promise.all([
+    createNotification(schoolId, t.id, title, message),
+    t.email ? sendTeacherEmail(t.email, title, message) : null,
+  ]))).catch(err => console.error('[DepartmentBudgets] notify failed:', err.message));
+}
+
+// The teacher who should hear about this budget's outcome: whoever submitted
+// it, else the department/unit's current teacher head. Staff heads have no
+// notification inbox; they see it on their Home dashboard instead.
+async function budgetOwnerTeacher(budget) {
+  const ids = [budget.submitted_by];
   const { rows } = await pool.query(
-    `SELECT id, name FROM departments WHERE school_id = $1 AND head_teacher_id = $2`,
-    [schoolId, teacherId]
+    `SELECT COALESCE(
+       (SELECT head_teacher_id FROM departments WHERE id = $1),
+       (SELECT head_teacher_id FROM budget_units WHERE id = $2)) AS head`,
+    [budget.department_id, budget.budget_unit_id]
   );
-  return rows;
+  ids.push(rows[0]?.head);
+  for (const id of ids.filter(Boolean)) {
+    const { rows: t } = await pool.query(`SELECT id, name, email FROM teachers WHERE id = $1`, [id]);
+    if (t[0]) return t[0];
+  }
+  return null;
 }
 
-async function canManageDepartment(schoolId, user, departmentId) {
-  if (isManagementUser(user)) return true;
-  const { rowCount } = await pool.query(
-    `SELECT 1 FROM departments WHERE id = $1 AND school_id = $2 AND head_teacher_id = $3`,
-    [departmentId, schoolId, user.id]
-  );
-  return rowCount > 0;
-}
+// Loads a budget plus everything its permissions depend on, and refuses if
+// the caller may not see it.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-// A "custom" budget (an office with no departments row, e.g. Exam Office,
-// Academics) has no head_teacher_id to check against, so only management can
-// create or manage one. A real department's budget keeps the HOD-or-management rule.
-async function canManageBudget(schoolId, user, budget) {
-  if (budget.department_id) return canManageDepartment(schoolId, user, budget.department_id);
-  return isManagementUser(user);
-}
-
-// Everything short of Approved stays editable — a department can keep
-// refining (and re-submitting) its budget right up until management signs
-// off; only Approved locks it.
-const EDITABLE_STATUSES = ['Draft', 'Submitted', 'Changes Requested', 'Rejected'];
-
-async function getCurrentAcademicYear(schoolId) {
-  const { rows } = await pool.query(
-    `SELECT id FROM academic_years WHERE school_id = $1 AND is_current = true ORDER BY name DESC LIMIT 1`,
-    [schoolId]
-  );
-  return rows[0]?.id ?? null;
-}
-
-const BUDGET_SELECT = `
-  SELECT b.*, COALESCE(d.name, b.custom_department_name) AS department_name,
-         (b.department_id IS NULL) AS is_custom_department,
-         ay.name AS academic_year_name,
-         sb.name AS submitted_by_name, rb.name AS reviewed_by_name,
-         (SELECT COALESCE(SUM(amount), 0) FROM department_budget_items WHERE budget_id = b.id) AS total_amount,
-         (SELECT COUNT(*)::int FROM department_budget_items WHERE budget_id = b.id) AS item_count
-  FROM department_budgets b
-  LEFT JOIN departments d ON d.id = b.department_id
-  JOIN academic_years ay ON ay.id = b.academic_year_id
-  LEFT JOIN teachers sb ON sb.id = b.submitted_by
-  LEFT JOIN teachers rb ON rb.id = b.reviewed_by
-`;
-
-async function loadBudget(schoolId, id) {
-  const { rows } = await pool.query(`${BUDGET_SELECT} WHERE b.id = $1 AND b.school_id = $2`, [id, schoolId]);
-  return rows[0] ?? null;
+async function loadBudgetContext(req, id) {
+  if (!UUID_RE.test(id)) throw httpErr(404, 'Budget not found');
+  const budget = await loadBudget(req.schoolId, id);
+  if (!budget) throw httpErr(404, 'Budget not found');
+  const [compilation, schoolBudget] = await Promise.all([
+    loadCompilation(req.schoolId, budget.academic_year_id, budget.track),
+    loadSchoolBudget(req.schoolId, budget.academic_year_id),
+  ]);
+  if (!perms.canView(req.budgetActor, budget, compilation)) throw httpErr(403, 'You do not have access to this budget');
+  const permissions = perms.budgetPermissions(req.budgetActor, budget, compilation, schoolBudget);
+  return { budget, compilation, schoolBudget, permissions };
 }
 
 // amount is always server-computed from quantity x unit_price, never taken
@@ -91,18 +87,43 @@ function validateItem(item) {
 
 // ── Reference data ──────────────────────────────────────────────────────────
 
-// GET /departments-mine — departments this user may draft/edit a budget for
+// GET /departments-mine — departments and budget units this user may draft a
+// budget for. kind tells the client which id field to send when creating.
 router.get('/departments-mine', async (req, res, next) => {
   try {
-    if (isManagementUser(req.user)) {
-      const { rows } = await pool.query(
-        `SELECT id, name FROM departments WHERE school_id = $1 ORDER BY name`,
-        [req.schoolId]
-      );
-      return res.json(rows);
-    }
-    const rows = await getMyDepartments(req.schoolId, req.user.id);
-    res.json(rows);
+    const a = req.budgetActor;
+    const [{ rows: depts }, { rows: units }] = await Promise.all([
+      pool.query(
+        `SELECT id, name, 'department' AS kind, 'academic' AS track FROM departments
+         WHERE school_id = $1 AND ($2::boolean OR id = ANY($3::uuid[])) ORDER BY name`,
+        [req.schoolId, a.isAdmin, a.hodDepartmentIds]
+      ),
+      pool.query(
+        `SELECT id, name, 'unit' AS kind, track FROM budget_units
+         WHERE school_id = $1 AND is_active AND ($2::boolean OR id = ANY($3::uuid[])) ORDER BY name`,
+        [req.schoolId, a.isAdmin, a.unitIds]
+      ),
+    ]);
+    res.json([...depts, ...units]);
+  } catch (err) { next(err); }
+});
+
+// GET /me — what this caller can do in the budgets module, so each portal
+// shows the right tabs.
+router.get('/me', async (req, res, next) => {
+  try {
+    const a = req.budgetActor;
+    res.json({
+      name: a.name,
+      is_admin: a.isAdmin,
+      management_role: a.managementRole,
+      is_accountant: a.isAccountant,
+      view_all: a.viewAll,
+      can_approve_compilations: a.canApproveCompilations,
+      reviewer_tracks: [...a.reviewerTracks],
+      heads_budget: a.isAdmin || a.hodDepartmentIds.length > 0 || a.unitIds.length > 0,
+      can_create_custom: a.isAdmin || a.reviewerTracks.size > 0,
+    });
   } catch (err) { next(err); }
 });
 
@@ -449,41 +470,50 @@ router.put('/formulas', async (req, res, next) => {
        calc_mode === 'print_job' ? pages_per_paper : null,
        double_sided ?? true,
        calc_mode === 'print_job' ? (sheets_per_unit || null) : null,
-       req.user.id]
+       req.budgetActor.teacherId]
     );
     res.json(rows[0]);
   } catch (err) { next(err); }
 });
 
+// ── Compilations, school budget, budget units, tasks ────────────────────────
+// Mounted before the /:id routes so '/compilations' etc. aren't read as ids.
+router.use(require('./budget-compilations'));
+
 // ── List ─────────────────────────────────────────────────────────────────
 
 router.get('/', async (req, res, next) => {
   try {
-    const { department_id, academic_year_id, status } = req.query;
+    const a = req.budgetActor;
+    const { department_id, academic_year_id, status, track } = req.query;
     const params = [req.schoolId];
     const conditions = ['b.school_id = $1'];
 
-    if (!isManagementUser(req.user)) {
-      const myDepts = await getMyDepartments(req.schoolId, req.user.id);
-      if (!myDepts.length) return res.json([]);
-      params.push(myDepts.map(d => d.id));
-      conditions.push(`b.department_id = ANY($${params.length}::uuid[])`);
-    } else if (department_id) {
-      params.push(department_id);
-      conditions.push(`b.department_id = $${params.length}`);
+    // What a caller sees: everything (admin, principal, vice principal), the
+    // tracks they review, and budgets they own. The Accountant sees accepted
+    // budgets once that track's compilation is approved.
+    if (!a.viewAll) {
+      const scope = [];
+      if (a.reviewerTracks.size) { params.push([...a.reviewerTracks]); scope.push(`b.track = ANY($${params.length}::text[])`); }
+      if (a.hodDepartmentIds.length) { params.push(a.hodDepartmentIds); scope.push(`b.department_id = ANY($${params.length}::uuid[])`); }
+      if (a.unitIds.length) { params.push(a.unitIds); scope.push(`b.budget_unit_id = ANY($${params.length}::uuid[])`); }
+      if (a.isAccountant) {
+        scope.push(`(b.status = 'Accepted' AND EXISTS (SELECT 1 FROM budget_compilations c
+                     WHERE c.school_id = b.school_id AND c.academic_year_id = b.academic_year_id
+                       AND c.track = b.track AND c.status = 'Approved'))`);
+      }
+      if (!scope.length) return res.json([]);
+      conditions.push(`(${scope.join(' OR ')})`);
     }
 
-    if (academic_year_id) {
-      params.push(academic_year_id);
-      conditions.push(`b.academic_year_id = $${params.length}`);
-    }
-    if (status) {
-      params.push(status);
-      conditions.push(`b.status = $${params.length}`);
-    }
+    if (department_id) { params.push(department_id); conditions.push(`b.department_id = $${params.length}`); }
+    if (academic_year_id) { params.push(academic_year_id); conditions.push(`b.academic_year_id = $${params.length}`); }
+    if (status) { params.push(status); conditions.push(`b.status = $${params.length}`); }
+    if (track) { params.push(track); conditions.push(`b.track = $${params.length}`); }
 
     const { rows } = await pool.query(
-      `${BUDGET_SELECT} WHERE ${conditions.join(' AND ')} ORDER BY ay.name DESC, COALESCE(d.name, b.custom_department_name)`,
+      `${BUDGET_SELECT} WHERE ${conditions.join(' AND ')}
+       ORDER BY ay.name DESC, b.track, COALESCE(d.name, u.name, b.custom_department_name)`,
       params
     );
     res.json(rows);
@@ -494,25 +524,38 @@ router.get('/', async (req, res, next) => {
 
 router.post('/', async (req, res, next) => {
   try {
-    const { department_id, custom_department_name, academic_year_id, items } = req.body;
+    const a = req.budgetActor;
+    const { department_id, budget_unit_id, custom_department_name, academic_year_id, items } = req.body;
     const customName = custom_department_name?.trim() || null;
-    if (!department_id && !customName) return res.status(400).json({ error: 'department_id or custom_department_name is required' });
-    if (department_id && customName) return res.status(400).json({ error: 'Provide either department_id or custom_department_name, not both' });
+    const owners = [department_id, budget_unit_id, customName].filter(Boolean);
+    if (owners.length !== 1) throw httpErr(400, 'Choose exactly one department, unit or office for this budget');
 
+    let track;
     if (department_id) {
-      const allowed = await canManageDepartment(req.schoolId, req.user, department_id);
-      if (!allowed) return res.status(403).json({ error: 'You are not the head of this department' });
-    } else if (!isManagementUser(req.user)) {
-      return res.status(403).json({ error: 'Only management can create a budget for an office outside the department list' });
+      if (!a.isAdmin && !a.hodDepartmentIds.includes(department_id)) throw httpErr(403, 'You are not the head of this department');
+      track = 'academic';
+    } else if (budget_unit_id) {
+      const { rows } = await pool.query(
+        `SELECT track FROM budget_units WHERE id = $1 AND school_id = $2 AND is_active`, [budget_unit_id, req.schoolId]
+      );
+      if (!rows.length) throw httpErr(404, 'Budget unit not found');
+      if (!a.isAdmin && !a.unitIds.includes(budget_unit_id)) throw httpErr(403, 'You are not the head of this unit');
+      track = rows[0].track;
+    } else {
+      // A custom office (e.g. Exam Office) belongs to a track's reviewer.
+      track = perms.TRACKS.includes(req.body.track) ? req.body.track : [...a.reviewerTracks][0];
+      if (!track || !(a.isAdmin || a.reviewerTracks.has(track))) {
+        throw httpErr(403, 'Only a budget reviewer or admin can create a budget for an office outside the department and unit lists');
+      }
     }
 
     const yearId = academic_year_id || await getCurrentAcademicYear(req.schoolId);
-    if (!yearId) return res.status(400).json({ error: 'No academic year available — academic_year_id is required' });
+    if (!yearId) throw httpErr(400, 'No academic year available. Choose an academic year.');
 
     const { rows } = await pool.query(
-      `INSERT INTO department_budgets (school_id, department_id, custom_department_name, academic_year_id)
-       VALUES ($1, $2, $3, $4) RETURNING id`,
-      [req.schoolId, department_id || null, customName, yearId]
+      `INSERT INTO department_budgets (school_id, department_id, budget_unit_id, custom_department_name, academic_year_id, track)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+      [req.schoolId, department_id || null, budget_unit_id || null, customName, yearId, track]
     );
     const budgetId = rows[0].id;
 
@@ -528,14 +571,13 @@ router.post('/', async (req, res, next) => {
         );
       }
     }
-
-    const budget = await loadBudget(req.schoolId, budgetId);
-    res.status(201).json(budget);
+    await logBudgetEvent(req.schoolId, 'budget', budgetId, 'created', a);
+    res.status(201).json(await loadBudget(req.schoolId, budgetId));
   } catch (err) {
     if (err.code === '23505') {
-      return res.status(409).json({ error: 'This department or office already has a budget for that academic year' });
+      return res.status(409).json({ error: 'This department, unit or office already has a budget for that academic year' });
     }
-    next(err);
+    sendErr(res, next, err);
   }
 });
 
@@ -543,168 +585,229 @@ router.post('/', async (req, res, next) => {
 
 router.get('/:id', async (req, res, next) => {
   try {
-    const budget = await loadBudget(req.schoolId, req.params.id);
-    if (!budget) return res.status(404).json({ error: 'Budget not found' });
-    const allowed = await canManageBudget(req.schoolId, req.user, budget);
-    if (!allowed) return res.status(403).json({ error: 'You do not have access to this budget' });
-
-    const { rows: items } = await pool.query(
-      `SELECT id, category, description, quantity, unit_price, amount, sort_order FROM department_budget_items
-       WHERE budget_id = $1 ORDER BY sort_order, created_at`,
-      [req.params.id]
-    );
-    res.json({ ...budget, items });
-  } catch (err) { next(err); }
+    const { budget, compilation, schoolBudget, permissions } = await loadBudgetContext(req, req.params.id);
+    const [items, events] = await Promise.all([
+      loadItems(budget.id),
+      loadEvents(req.schoolId, 'budget', budget.id),
+    ]);
+    res.json({
+      ...budget, items, events, permissions,
+      compilation_status: compilation?.status ?? null,
+      school_budget_status: schoolBudget?.status ?? null,
+    });
+  } catch (err) { sendErr(res, next, err); }
 });
 
 router.get('/:id/pdf', async (req, res, next) => {
   try {
-    const budget = await loadBudget(req.schoolId, req.params.id);
-    if (!budget) return res.status(404).json({ error: 'Budget not found' });
-    const allowed = await canManageBudget(req.schoolId, req.user, budget);
-    if (!allowed) return res.status(403).json({ error: 'You do not have access to this budget' });
-
-    const { rows: items } = await pool.query(
-      `SELECT id, category, description, quantity, unit_price, amount, sort_order FROM department_budget_items
-       WHERE budget_id = $1 ORDER BY sort_order, created_at`,
-      [req.params.id]
-    );
+    const { budget } = await loadBudgetContext(req, req.params.id);
+    const items = await loadItems(budget.id, { includeRemoved: false });
     const { rows: [school] } = await pool.query(`SELECT * FROM schools WHERE id = $1`, [req.schoolId]);
-
     const pdfBuffer = await generateBudgetReportPDFBuffer(budget, items, school);
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="budget-${budget.department_name.replace(/[^a-z0-9]+/gi, '-')}.pdf"`);
     res.send(pdfBuffer);
-  } catch (err) { next(err); }
+  } catch (err) { sendErr(res, next, err); }
 });
 
-// ── Update items (editable statuses only) ───────────────────────────────────
+// ── Save lines ───────────────────────────────────────────────────────────
+// Lines are updated by id so each keeps what the owner originally asked for
+// (requested_*). Once a budget has been submitted, a removed line is marked
+// removed rather than deleted, so the owner can see what a reviewer cut.
 
 router.put('/:id', async (req, res, next) => {
   const client = await pool.connect();
   try {
-    const budget = await loadBudget(req.schoolId, req.params.id);
-    if (!budget) return res.status(404).json({ error: 'Budget not found' });
-    const allowed = await canManageBudget(req.schoolId, req.user, budget);
-    if (!allowed) return res.status(403).json({ error: 'You do not have access to this budget' });
-    if (!EDITABLE_STATUSES.includes(budget.status)) {
-      return res.status(400).json({ error: `Cannot edit a budget with status "${budget.status}"` });
-    }
+    const a = req.budgetActor;
+    const { budget, permissions } = await loadBudgetContext(req, req.params.id);
+    const stage = permissions.editStage;
+    if (!stage) throw httpErr(403, `This budget can't be edited by you at its current stage (${budget.status})`);
 
-    const { items } = req.body;
-    if (!Array.isArray(items)) return res.status(400).json({ error: 'items must be an array' });
+    const { items, updated_at } = req.body;
+    if (!Array.isArray(items)) throw httpErr(400, 'items must be an array');
+    if (updated_at && new Date(updated_at).getTime() !== new Date(budget.updated_at).getTime()) {
+      throw httpErr(409, 'Someone else changed this budget while you were editing. Reload it and make your changes again.');
+    }
     for (const item of items) {
       const err = validateItem(item);
-      if (err) return res.status(400).json({ error: err });
+      if (err) throw httpErr(400, err);
     }
+
+    const existing = await loadItems(budget.id, { includeRemoved: true }, client);
+    const byId = new Map(existing.map(i => [i.id, i]));
+    const keep = new Set();
+    const neverSubmitted = budget.status === 'Draft' && !budget.submitted_at;
+    const changes = [];
 
     await client.query('BEGIN');
-    await client.query(`DELETE FROM department_budget_items WHERE budget_id = $1`, [req.params.id]);
-    let i = 0;
+    let order = 0;
     for (const item of items) {
-      await client.query(
-        `INSERT INTO department_budget_items (budget_id, category, description, quantity, unit_price, amount, sort_order)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [req.params.id, item.category.trim(), item.description?.trim() || null, item.quantity,
-         item.unit_price ?? null, computeAmount(item.quantity, item.unit_price), i++]
-      );
+      const current = item.id ? byId.get(item.id) : null;
+      if (current && !current.removed_at) {
+        keep.add(current.id);
+        // The Accountant adjusts quantity and price only.
+        const category = stage === 'accountant' ? current.category : item.category.trim();
+        const description = stage === 'accountant' ? current.description : (item.description?.trim() || null);
+        const unitPrice = item.unit_price === '' ? null : (item.unit_price ?? null);
+        if (Number(current.quantity) !== Number(item.quantity) || String(current.unit_price ?? '') !== String(unitPrice ?? '')) {
+          changes.push(`${category}: ${Number(current.quantity)} × ${current.unit_price ?? '-'} to ${Number(item.quantity)} × ${unitPrice ?? '-'}`);
+        }
+        await client.query(
+          `UPDATE department_budget_items
+           SET category = $1, description = $2, quantity = $3, unit_price = $4, amount = $5, sort_order = $6, updated_at = now()
+           WHERE id = $7`,
+          [category, description, item.quantity, unitPrice, computeAmount(item.quantity, unitPrice), order++, current.id]
+        );
+      } else {
+        if (stage === 'accountant') throw httpErr(400, 'Add new school-wide lines on the school budget instead of inside a department budget');
+        const unitPrice = item.unit_price === '' ? null : (item.unit_price ?? null);
+        await client.query(
+          `INSERT INTO department_budget_items (budget_id, category, description, quantity, unit_price, amount, sort_order, added_stage)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+          [budget.id, item.category.trim(), item.description?.trim() || null, item.quantity, unitPrice,
+           computeAmount(item.quantity, unitPrice), order++, stage]
+        );
+        if (stage !== 'owner') changes.push(`added ${item.category.trim()}`);
+      }
     }
-    await client.query(`UPDATE department_budgets SET updated_at = now() WHERE id = $1`, [req.params.id]);
+    for (const old of existing) {
+      if (old.removed_at || keep.has(old.id)) continue;
+      if (neverSubmitted) {
+        await client.query(`DELETE FROM department_budget_items WHERE id = $1`, [old.id]);
+      } else {
+        await client.query(
+          `UPDATE department_budget_items SET removed_at = now(), removed_stage = $1, updated_at = now() WHERE id = $2`,
+          [stage, old.id]
+        );
+        if (stage !== 'owner') changes.push(`removed ${old.category}`);
+      }
+    }
+    await client.query(`UPDATE department_budgets SET updated_at = now() WHERE id = $1`, [budget.id]);
+    if (stage !== 'owner' && changes.length) {
+      await logBudgetEvent(req.schoolId, 'budget', budget.id, `edited_by_${stage}`, a, changes.slice(0, 20).join('; '), client);
+    }
     await client.query('COMMIT');
-
-    const updated = await loadBudget(req.schoolId, req.params.id);
-    res.json(updated);
+    res.json(await loadBudget(req.schoolId, budget.id));
   } catch (err) {
-    await client.query('ROLLBACK');
-    next(err);
+    await client.query('ROLLBACK').catch(() => {});
+    sendErr(res, next, err);
   } finally {
     client.release();
   }
 });
 
-// ── Submit for approval ──────────────────────────────────────────────────
+// ── Owner: submit / withdraw ───────────────────────────────────────────────
 
 router.post('/:id/submit', async (req, res, next) => {
+  const client = await pool.connect();
   try {
-    const budget = await loadBudget(req.schoolId, req.params.id);
-    if (!budget) return res.status(404).json({ error: 'Budget not found' });
-    const allowed = await canManageBudget(req.schoolId, req.user, budget);
-    if (!allowed) return res.status(403).json({ error: 'You do not have access to this budget' });
-    if (!EDITABLE_STATUSES.includes(budget.status)) {
-      return res.status(400).json({ error: `Cannot submit a budget with status "${budget.status}"` });
-    }
-    if (!budget.item_count) return res.status(400).json({ error: 'Add at least one line item before submitting' });
+    const a = req.budgetActor;
+    const { budget, permissions } = await loadBudgetContext(req, req.params.id);
+    if (!permissions.canSubmit) throw httpErr(400, `A budget that is ${budget.status} can't be submitted by you`);
+    if (!budget.item_count) throw httpErr(400, 'Add at least one line item before submitting');
 
-    const { rows } = await pool.query(
-      `UPDATE department_budgets
-       SET status = 'Submitted', submitted_by = $1, submitted_at = now(), review_note = NULL, updated_at = now()
-       WHERE id = $2 RETURNING id`,
-      [req.user.id, req.params.id]
+    await client.query('BEGIN');
+    // What the owner submits becomes "requested"; earlier review cuts are
+    // cleared because the owner has now restated the whole request.
+    await client.query(`DELETE FROM department_budget_items WHERE budget_id = $1 AND removed_at IS NOT NULL`, [budget.id]);
+    await client.query(
+      `UPDATE department_budget_items
+       SET requested_quantity = quantity, requested_unit_price = unit_price, requested_description = description,
+           added_stage = 'owner'
+       WHERE budget_id = $1`,
+      [budget.id]
     );
-    res.json(await loadBudget(req.schoolId, rows[0].id));
-  } catch (err) { next(err); }
+    await client.query(
+      `UPDATE department_budgets
+       SET status = 'Submitted', submitted_by = $1, submitted_by_staff_id = $2, submitted_at = now(),
+           review_note = NULL, updated_at = now()
+       WHERE id = $3`,
+      [a.teacherId, a.staffId, budget.id]
+    );
+    await logBudgetEvent(req.schoolId, 'budget', budget.id, 'submitted', a, null, client);
+    await client.query('COMMIT');
+
+    const updated = await loadBudget(req.schoolId, budget.id);
+    const { reviewers } = await perms.reviewersFor(req.schoolId, budget.track);
+    notifyTeachers(req.schoolId, reviewers,
+      `${budget.department_name} budget submitted`,
+      `${budget.department_name} submitted its ${updated.academic_year_name} budget for your review.`);
+    res.json(updated);
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    sendErr(res, next, err);
+  } finally {
+    client.release();
+  }
 });
 
-// ── Management review actions ────────────────────────────────────────────
-
-async function reviewBudget(req, res, next, { nextStatus, requireNote }) {
+router.post('/:id/withdraw', async (req, res, next) => {
   try {
-    if (!isManagementUser(req.user)) return res.status(403).json({ error: 'Only management can review a budget' });
-    const budget = await loadBudget(req.schoolId, req.params.id);
-    if (!budget) return res.status(404).json({ error: 'Budget not found' });
-    if (budget.status !== 'Submitted') return res.status(400).json({ error: 'Only a submitted budget can be reviewed' });
+    const { budget, permissions } = await loadBudgetContext(req, req.params.id);
+    if (!permissions.canWithdraw) throw httpErr(400, 'Only a submitted budget can be withdrawn, by its owner');
+    await pool.query(`UPDATE department_budgets SET status = 'Draft', updated_at = now() WHERE id = $1`, [budget.id]);
+    await logBudgetEvent(req.schoolId, 'budget', budget.id, 'withdrawn', req.budgetActor);
+    res.json(await loadBudget(req.schoolId, budget.id));
+  } catch (err) { sendErr(res, next, err); }
+});
 
+// ── Reviewer: accept / request changes / reject / reopen ─────────────────────
+
+async function reviewBudget(req, res, next, { nextStatus, requireNote, action }) {
+  try {
+    const a = req.budgetActor;
+    const { budget, permissions } = await loadBudgetContext(req, req.params.id);
+    if (!permissions.canReview) {
+      throw httpErr(403, perms.isReviewer(a, budget.track)
+        ? `Only a submitted budget can be reviewed while the ${perms.TRACK_LABEL[budget.track]} budget is still being compiled`
+        : 'Only the reviewer for this budget can review it');
+    }
     const note = req.body?.note?.trim() || null;
-    if (requireNote && !note) return res.status(400).json({ error: 'A note is required' });
+    if (requireNote && !note) throw httpErr(400, 'A note is required');
 
-    const { rows } = await pool.query(
+    await pool.query(
       `UPDATE department_budgets
-       SET status = $1, reviewed_by = $2, reviewed_at = now(), review_note = $3, updated_at = now()
-       WHERE id = $4 RETURNING id`,
-      [nextStatus, req.user.id, note, req.params.id]
+       SET status = $1, reviewed_by = $2, reviewed_by_staff_id = $3, reviewed_at = now(), review_note = $4, updated_at = now()
+       WHERE id = $5`,
+      [nextStatus, a.teacherId, a.staffId, note, budget.id]
     );
-    const updated = await loadBudget(req.schoolId, rows[0].id);
+    await logBudgetEvent(req.schoolId, 'budget', budget.id, action, a, note);
+    const updated = await loadBudget(req.schoolId, budget.id);
 
-    // Notify whoever submitted it, falling back to the department's current
-    // head (e.g. if management drafted and submitted it on the HOD's behalf).
-    let recipient = null;
-    if (budget.submitted_by) {
-      const { rows: r } = await pool.query(`SELECT id, name, email FROM teachers WHERE id = $1`, [budget.submitted_by]);
-      recipient = r[0] || null;
-    }
-    if (!recipient) {
-      const { rows: r } = await pool.query(
-        `SELECT t.id, t.name, t.email FROM teachers t JOIN departments d ON d.head_teacher_id = t.id WHERE d.id = $1`,
-        [budget.department_id]
-      );
-      recipient = r[0] || null;
-    }
-    if (recipient?.email) {
-      notifyTeacherBudgetReviewed(req.schoolId, recipient, updated, budget.department_name)
-        .catch(err => console.error('[DepartmentBudgets] notify failed:', err.message));
-    }
-
+    const owner = await budgetOwnerTeacher(budget);
+    const verb = { Accepted: `accepted into the ${perms.TRACK_LABEL[budget.track]} budget`, 'Changes Requested': 'sent back for changes', Rejected: 'rejected' }[nextStatus];
+    notifyTeachers(req.schoolId, [owner],
+      `${budget.department_name} budget ${verb.split(' ')[0]}`,
+      `Your ${budget.department_name} budget for ${updated.academic_year_name} was ${verb}.${note ? ` Note: ${note}` : ''}`);
     res.json(updated);
-  } catch (err) { next(err); }
+  } catch (err) { sendErr(res, next, err); }
 }
 
-router.post('/:id/approve', (req, res, next) => reviewBudget(req, res, next, { nextStatus: 'Approved', requireNote: false }));
-router.post('/:id/request-changes', (req, res, next) => reviewBudget(req, res, next, { nextStatus: 'Changes Requested', requireNote: true }));
-router.post('/:id/reject', (req, res, next) => reviewBudget(req, res, next, { nextStatus: 'Rejected', requireNote: true }));
+router.post('/:id/accept', (req, res, next) => reviewBudget(req, res, next, { nextStatus: 'Accepted', requireNote: false, action: 'accepted' }));
+// Older clients still call /approve.
+router.post('/:id/approve', (req, res, next) => reviewBudget(req, res, next, { nextStatus: 'Accepted', requireNote: false, action: 'accepted' }));
+router.post('/:id/request-changes', (req, res, next) => reviewBudget(req, res, next, { nextStatus: 'Changes Requested', requireNote: true, action: 'changes_requested' }));
+router.post('/:id/reject', (req, res, next) => reviewBudget(req, res, next, { nextStatus: 'Rejected', requireNote: true, action: 'rejected' }));
 
-// ── Delete (Draft only — a mistaken creation) ───────────────────────────────
+router.post('/:id/reopen', async (req, res, next) => {
+  try {
+    const { budget, permissions } = await loadBudgetContext(req, req.params.id);
+    if (!permissions.canReopen) throw httpErr(400, 'Only an accepted budget can be reopened, while its compiled budget is still being compiled');
+    await pool.query(`UPDATE department_budgets SET status = 'Submitted', updated_at = now() WHERE id = $1`, [budget.id]);
+    await logBudgetEvent(req.schoolId, 'budget', budget.id, 'reopened', req.budgetActor, req.body?.note?.trim() || null);
+    res.json(await loadBudget(req.schoolId, budget.id));
+  } catch (err) { sendErr(res, next, err); }
+});
+
+// ── Delete (never-submitted drafts only) ─────────────────────────────────────
 
 router.delete('/:id', async (req, res, next) => {
   try {
-    const budget = await loadBudget(req.schoolId, req.params.id);
-    if (!budget) return res.status(404).json({ error: 'Budget not found' });
-    const allowed = await canManageBudget(req.schoolId, req.user, budget);
-    if (!allowed) return res.status(403).json({ error: 'You do not have access to this budget' });
-    if (budget.status !== 'Draft') return res.status(400).json({ error: 'Only a draft budget can be deleted' });
-
-    await pool.query(`DELETE FROM department_budgets WHERE id = $1 AND school_id = $2`, [req.params.id, req.schoolId]);
+    const { budget, permissions } = await loadBudgetContext(req, req.params.id);
+    if (!permissions.canDelete) throw httpErr(400, 'Only a draft that has never been submitted can be deleted');
+    await pool.query(`DELETE FROM department_budgets WHERE id = $1 AND school_id = $2`, [budget.id, req.schoolId]);
     res.json({ message: 'Budget deleted' });
-  } catch (err) { next(err); }
+  } catch (err) { sendErr(res, next, err); }
 });
 
 module.exports = router;
