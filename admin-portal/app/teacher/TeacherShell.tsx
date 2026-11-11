@@ -22,6 +22,7 @@ interface NavItem {
   housemasterOnly?:        boolean;
   seniorHousemasterOnly?:  boolean;
   hodOnly?:                boolean;
+  budgetOnly?:             boolean;
   module?:                 string;
   icon:                    ReactNode;
 }
@@ -34,7 +35,7 @@ const SECTIONS: Section[] = [
   { label: 'Students', hrefs: ['/teacher/student-attendance'] },
   { label: 'Academics', hrefs: ['/teacher/assessments', '/teacher/results', '/teacher/lms'] },
   { label: 'Administrative', hrefs: ['/teacher/absences/leaves', '/teacher/conduct', '/teacher/memos', '/teacher/letters', '/teacher/clinic', '/teacher/id-scan', '/teacher/observations'] },
-  { label: 'Responsibilities', hrefs: ['/teacher/form-class', '/teacher/hod', '/teacher/hod/inventory', '/teacher/hod/observations', '/teacher/house-students', '/teacher/resumption', '/teacher/roll-call', '/teacher/library', '/teacher/clearance'] },
+  { label: 'Responsibilities', hrefs: ['/teacher/form-class', '/teacher/hod', '/teacher/hod/inventory', '/teacher/hod/observations', '/teacher/budgets', '/teacher/house-students', '/teacher/resumption', '/teacher/roll-call', '/teacher/library', '/teacher/clearance'] },
   { label: 'Account', hrefs: ['/teacher/notifications', '/teacher/profile'] },
 ];
 
@@ -140,9 +141,9 @@ const NAV_ITEMS: NavItem[] = [
     ),
   },
   {
-    href:    '/teacher/hod/budgets',
-    label:   'Dept Budget',
-    hodOnly: true,
+    href:    '/teacher/budgets',
+    label:   'Budgets',
+    budgetOnly: true,
     module:  'department_budgets',
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
@@ -415,6 +416,7 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
   const [isHousemaster,         setIsHousemaster]         = useState(false);
   const [isSeniorHousemaster,   setIsSeniorHousemaster]   = useState(false);
   const [isHod,                 setIsHod]                 = useState(false);
+  const [headsBudget,           setHeadsBudget]           = useState(false);
   const [managementRole,   setManagementRole]   = useState<string | null>(null);
   const [schoolId,         setSchoolId]         = useState<string | undefined>(undefined);
   const [userId,           setUserId]           = useState<string | undefined>(undefined);
@@ -503,6 +505,10 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
     teacherApi.get('/api/hod/check')
       .then(() => setIsHod(true))
       .catch(() => {});
+    // HODs and heads of budget units (e.g. Senior Housemaster, Sports) draft budgets.
+    teacherApi.get<{ heads_budget: boolean }>('/api/department-budgets/me', silentRequestConfig())
+      .then(r => setHeadsBudget(!!r.data.heads_budget))
+      .catch(() => {});
     const interval = setInterval(fetchUnread, 60_000);
     return () => clearInterval(interval);
   }, [pathname, router, fetchUnread]);
@@ -521,6 +527,7 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
     (!item.housemasterOnly       || isHousemaster) &&
     (!item.seniorHousemasterOnly || isSeniorHousemaster) &&
     (!item.hodOnly               || isHod) &&
+    (!item.budgetOnly            || isHod || headsBudget) &&
     (!item.module                || enabledModules === null || enabledModules.includes(item.module))
   );
 
@@ -539,7 +546,7 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
       setOpenSection(prev => prev ?? loadStoredOpenSection());
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname, isFormTeacher, isClearanceStaff, isLibraryTeacher, isHousemaster, isSeniorHousemaster, isHod, enabledModules]);
+  }, [pathname, isFormTeacher, isClearanceStaff, isLibraryTeacher, isHousemaster, isSeniorHousemaster, isHod, headsBudget, enabledModules]);
 
   function toggleSectionOpen(label: string) {
     setOpenSection(prev => {

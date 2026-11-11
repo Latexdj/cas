@@ -15,6 +15,7 @@ import { LettersSection } from './LettersSection';
 import { StaffSidebar, type StaffSidebarGroup } from './StaffSidebar';
 import { StaffDashboard, type DashTarget } from './StaffDashboard';
 import { SchoolReports } from './SchoolReports';
+import BudgetsHub from '@/components/department-budgets/BudgetsHub';
 
 // ─── Clearance types ──────────────────────────────────────────────────────────
 interface Office { id: string; name: string; office_type: string; sort_order: number; }
@@ -118,7 +119,7 @@ interface ClinicInvItem {
   reorder_level: number; is_low_stock: boolean; batch_number: string | null; expiry_date: string | null;
 }
 
-type Section     = 'home' | 'clearance' | 'library' | 'inventory' | 'accounts' | 'clinic' | 'letters' | 'reports' | 'scan';
+type Section     = 'home' | 'clearance' | 'library' | 'inventory' | 'accounts' | 'clinic' | 'letters' | 'reports' | 'budgets' | 'scan';
 type ClTab       = 'pending' | 'lookup' | 'history';
 type LibTab      = 'dashboard' | 'issue' | 'return' | 'overdue';
 type AcctTab     = 'dashboard' | 'collect' | 'reports' | 'fee-items' | 'schedules' | 'expenditure' | 'arrears' | 'maintenance';
@@ -150,6 +151,15 @@ export default function StaffPortalPage() {
   const isAccountant = staffRoles.includes('accountant');
   const hasLetters   = isAccountant;
   const hasReports   = isAccountant || isStores;
+  // Budgets: the Accountant compiles the school budget; staff who head a
+  // budget unit (nurse, stores...) draft their unit's budget.
+  const [budgetAccess, setBudgetAccess] = useState<{ heads: boolean; accountant: boolean } | null>(null);
+  useEffect(() => {
+    staffApi.get<{ heads_budget: boolean; is_accountant: boolean }>('/api/department-budgets/me')
+      .then(r => setBudgetAccess({ heads: r.data.heads_budget, accountant: r.data.is_accountant }))
+      .catch(() => setBudgetAccess(null));
+  }, []);
+  const hasBudgets = !!budgetAccess && (budgetAccess.heads || budgetAccess.accountant);
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -924,6 +934,10 @@ export default function StaffPortalPage() {
     hasLetters && {
       key: 'letters', label: 'Letters', items: [],
       onClick: () => setSection('letters'),
+    },
+    hasBudgets && {
+      key: 'budgets', label: 'Budgets', items: [],
+      onClick: () => setSection('budgets'),
     },
     hasReports && {
       key: 'reports', label: 'Reports', items: [],
@@ -2094,6 +2108,10 @@ export default function StaffPortalPage() {
       )}
 
       {hasReports && section === 'reports' && <SchoolReports api={api} primary={primary} />}
+
+      {hasBudgets && section === 'budgets' && (
+        <BudgetsHub apiClient={api} primary={primary} initialTab={budgetAccess?.accountant ? 'school' : 'budgets'} />
+      )}
 
       {/* ── Scan ID Section ───────────────────────────────────────────────── */}
       {section === 'scan' && (

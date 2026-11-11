@@ -580,9 +580,13 @@ export interface ClassroomStatus {
   leave_type: string | null;
 }
 
+export type BudgetTrack = 'academic' | 'administration';
+
 export interface BudgetDepartment {
   id: string;
   name: string;
+  kind?: 'department' | 'unit';
+  track?: BudgetTrack;
 }
 
 export interface DepartmentBudgetItem {
@@ -593,6 +597,12 @@ export interface DepartmentBudgetItem {
   unit_price: number | null;
   amount: number | null;
   sort_order: number;
+  requested_quantity?: number | null;
+  requested_unit_price?: number | null;
+  requested_description?: string | null;
+  added_stage?: 'owner' | 'reviewer' | 'accountant';
+  removed_at?: string | null;
+  removed_stage?: 'owner' | 'reviewer' | 'accountant' | null;
 }
 
 export type PopulationBasis =
@@ -628,11 +638,14 @@ export interface DepartmentBudget {
   id: string;
   school_id: string;
   department_id: string | null;
+  budget_unit_id?: string | null;
   department_name: string;
   is_custom_department: boolean;
+  owner_kind?: 'department' | 'unit' | 'custom';
+  track: BudgetTrack;
   academic_year_id: string;
   academic_year_name: string;
-  status: 'Draft' | 'Submitted' | 'Approved' | 'Changes Requested' | 'Rejected';
+  status: 'Draft' | 'Submitted' | 'Accepted' | 'Approved' | 'Changes Requested' | 'Rejected';
   submitted_by: string | null;
   submitted_by_name: string | null;
   submitted_at: string | null;
@@ -641,11 +654,45 @@ export interface DepartmentBudget {
   reviewed_at: string | null;
   review_note: string | null;
   total_amount: number;
+  requested_total?: number;
   item_count: number;
   created_at: string;
   updated_at: string;
 }
 
+export interface BudgetEvent {
+  id: string;
+  action: string;
+  note: string | null;
+  actor_label: string | null;
+  created_at: string;
+}
+
+export interface BudgetPermissions {
+  editStage: 'owner' | 'reviewer' | 'accountant' | null;
+  canSubmit: boolean;
+  canWithdraw: boolean;
+  canReview: boolean;
+  canReopen: boolean;
+  canDelete: boolean;
+}
+
 export interface DepartmentBudgetDetail extends DepartmentBudget {
   items: DepartmentBudgetItem[];
+  events?: BudgetEvent[];
+  permissions?: BudgetPermissions;
+  compilation_status?: 'Compiling' | 'Submitted' | 'Approved' | 'Returned' | null;
+  school_budget_status?: 'Compiling' | 'Final' | null;
+}
+
+export interface BudgetMe {
+  name: string;
+  is_admin: boolean;
+  management_role: string | null;
+  is_accountant: boolean;
+  view_all: boolean;
+  can_approve_compilations: boolean;
+  reviewer_tracks: BudgetTrack[];
+  heads_budget: boolean;
+  can_create_custom: boolean;
 }

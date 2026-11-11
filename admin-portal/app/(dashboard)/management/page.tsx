@@ -12,7 +12,7 @@ interface MgmtUser {
   name: string;
   teacher_code: string;
   department: string | null;
-  role: 'principal' | 'vice_principal';
+  role: ManagementRole;
   status: string;
 }
 
@@ -23,9 +23,13 @@ interface Teacher {
   department: string | null;
 }
 
+type ManagementRole = 'principal' | 'vice_principal' | 'assistant_head_academic' | 'assistant_head_admin';
+
 const ROLES = [
   { value: 'principal',      label: 'Principal / Headmaster' },
   { value: 'vice_principal', label: 'Vice Principal / Assistant Headmaster' },
+  { value: 'assistant_head_academic', label: 'Assistant Head (Academic)' },
+  { value: 'assistant_head_admin', label: 'Assistant Head (Administration)' },
 ];
 
 function roleLabel(r: string) {
@@ -40,7 +44,7 @@ export default function ManagementUsersPage() {
   const [open,      setOpen]      = useState(false);
   const [editing,   setEditing]   = useState<MgmtUser | null>(null);
   const [teacherId, setTeacherId] = useState('');
-  const [role,      setRole]      = useState<'principal' | 'vice_principal'>('principal');
+  const [role,      setRole]      = useState<ManagementRole>('principal');
   const [saving,    setSaving]    = useState(false);
   const [err,       setErr]       = useState('');
   const [revokeId,  setRevokeId]  = useState<string | null>(null);
@@ -258,7 +262,7 @@ export default function ManagementUsersPage() {
               className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm
                          bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
               value={role}
-              onChange={e => setRole(e.target.value as 'principal' | 'vice_principal')}
+              onChange={e => setRole(e.target.value as ManagementRole)}
             >
               {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
             </select>

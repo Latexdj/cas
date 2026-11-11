@@ -1,7 +1,7 @@
 'use client';
 import { api } from '@/lib/api';
-import BudgetWorkspace from '@/components/department-budgets/BudgetWorkspace';
+import BudgetsHub from '@/components/department-budgets/BudgetsHub';
 
 export default function DepartmentBudgetsPage() {
-  return <BudgetWorkspace apiClient={api} basePath="/department-budgets" canUseCustomDepartment />;
+  return <BudgetsHub apiClient={api} basePath="/department-budgets" />;
 }

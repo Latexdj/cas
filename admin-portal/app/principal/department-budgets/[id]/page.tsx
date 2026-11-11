@@ -5,6 +5,5 @@ import BudgetDetail from '@/components/department-budgets/BudgetDetail';
 
 export default function PrincipalDepartmentBudgetDetailPage() {
   const params = useParams();
-  const id = params.id as string;
-  return <BudgetDetail apiClient={principalApi} backHref="/principal/department-budgets" budgetId={id} canReview />;
+  return <BudgetDetail apiClient={principalApi} backHref="/principal/department-budgets" budgetId={params.id as string} />;
 }

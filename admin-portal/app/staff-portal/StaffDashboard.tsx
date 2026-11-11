@@ -8,7 +8,8 @@ export type DashTarget =
   | { section: 'inventory'; tab: 'items' | 'bulk-issue' | 'records' | 'loans' }
   | { section: 'accounts'; tab: 'dashboard' | 'collect' | 'arrears' | 'expenditure' }
   | { section: 'clinic'; tab: 'dashboard' | 'new-visit' | 'open' }
-  | { section: 'letters' };
+  | { section: 'letters' }
+  | { section: 'budgets' };
 
 export interface DashRoles {
   hasCl: boolean; hasLib: boolean; hasInv: boolean; isStores: boolean;
@@ -391,6 +392,29 @@ function LettersBlock({ api, go, primary }: { api: AxiosInstance; go: Go; primar
   );
 }
 
+interface BudgetTask { key: string; label: string; count: number }
+
+// Shown only when something in the budget chain is waiting on this person
+// (staff have no notification inbox, so this is where they find out).
+function BudgetTasksBlock({ api, go, primary }: { api: AxiosInstance; go: Go; primary: string }) {
+  const [tasks, setTasks] = useState<BudgetTask[] | null>(null);
+  useEffect(() => {
+    let alive = true;
+    throttled(() => withRetry(() => api.get<BudgetTask[]>('/api/department-budgets/my-tasks')))
+      .then(r => { if (alive) setTasks(r.data); })
+      .catch(() => { if (alive) setTasks([]); });
+    return () => { alive = false; };
+  }, [api]);
+  if (!tasks || tasks.length === 0) return null;
+  return (
+    <Block title="Budgets" loading={false} error={false}
+      action={{ label: 'Open budgets', onClick: () => go({ section: 'budgets' }), primary }}>
+      <Attention title="Waiting on you" empty=""
+        rows={tasks.map(t => ({ key: t.key, main: t.label, sub: '', right: String(t.count), urgent: true }))} />
+    </Block>
+  );
+}
+
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export function StaffDashboard({ api, primary, roles, onNavigate }: {
@@ -407,6 +431,7 @@ export function StaffDashboard({ api, primary, roles, onNavigate }: {
       {roles.hasInv     && <InventoryBlock {...p} isStores={roles.isStores} />}
       {roles.hasAcc     && <AccountsBlock {...p} isAccountant={roles.isAccountant} />}
       {roles.hasLetters && <LettersBlock {...p} />}
+      <BudgetTasksBlock {...p} />
     </div>
   );
 }

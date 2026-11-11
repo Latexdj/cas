@@ -1,10 +1,6 @@
-'use client';
-import { useParams } from 'next/navigation';
-import { teacherApi } from '@/lib/teacher-api';
-import BudgetDetail from '@/components/department-budgets/BudgetDetail';
+import { redirect } from 'next/navigation';
 
-export default function HodBudgetDetailPage() {
-  const params = useParams();
-  const id = params.id as string;
-  return <BudgetDetail apiClient={teacherApi} backHref="/teacher/hod/budgets" budgetId={id} canReview={false} />;
+export default async function HodBudgetRedirect({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  redirect(`/teacher/budgets/${id}`);
 }

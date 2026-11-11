@@ -5,96 +5,71 @@ import Link from 'next/link';
 import type { DepartmentBudgetDetail, DepartmentBudgetItem } from '@/types/api';
 import PopulationCalculator from './PopulationCalculator';
 import BulkExamCalculator from './BulkExamCalculator';
+import {
+  statusStyle, TRACK_LABEL, EVENT_LABELS, fmtMoney, fmtDate, describeApiError, downloadPdf, safeFileName,
+  inputCls, labelCls, cardCls, btnGhost, btnPrimary,
+} from './shared';
 
-const STATUS_STYLES: Record<string, { bg: string; color: string }> = {
-  Draft:               { bg: '#F1F5F9', color: '#64748B' },
-  Submitted:           { bg: '#FFFBEB', color: '#D97706' },
-  Approved:            { bg: '#DCFCE7', color: '#145C44' },
-  'Changes Requested': { bg: '#EFF6FF', color: '#1D4ED8' },
-  Rejected:            { bg: '#FEF2F2', color: '#DC2626' },
+type DraftItem = {
+  key: string; id: string | null; category: string; description: string; quantity: string; unitPrice: string;
+  requestedQuantity: number | null; requestedUnitPrice: number | null; addedStage: string;
 };
+type ReviewAction = 'accept' | 'changes' | 'reject' | 'reopen' | 'withdraw' | null;
 
-// Everything short of Approved stays editable — mirrors the backend's rule
-// so a department can keep refining (and re-submitting) its budget right up
-// until management signs off; only Approved locks it.
-const EDITABLE_STATUSES = ['Draft', 'Submitted', 'Changes Requested', 'Rejected'];
+const STAGE_LABEL: Record<string, string> = { reviewer: 'reviewer', accountant: 'Accountant', owner: 'owner' };
 
-function fmtMoney(n: number | null) {
-  if (n == null) return '—';
-  return `GHS ${Number(n).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+function num(v: unknown): number | null {
+  if (v == null || v === '') return null;
+  const n = Number(v);
+  return isNaN(n) ? null : n;
 }
-function fmtDate(d: string | null) {
-  if (!d) return '—';
-  return new Date(d).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-}
-
-// A server-returned error (e.response present) carries the real reason — show
-// it as-is. No response at all (request timed out, or the connection never
-// came back) looks identical to any other failure otherwise, so callers were
-// all showing the same unhelpful generic string regardless of cause.
-function describeApiError(e: unknown, fallback: string): string {
-  const err = e as { response?: { data?: { error?: string } }; code?: string };
-  if (err?.response?.data?.error) return err.response.data.error;
-  if (err?.code === 'ECONNABORTED') return 'The request timed out — the server may be busy. Please try again.';
-  return fallback;
-}
-
-// The shared DB occasionally drops a connection transiently (seen
-// independently of this feature); a brief pause and one retry resolves it
-// almost every time. Safe here because PUT fully replaces the item list —
-// running it twice lands on the same end state either way.
-async function putWithRetry<T>(apiClient: AxiosInstance, url: string, data: unknown): Promise<T> {
-  try {
-    const { data: result } = await apiClient.put<T>(url, data);
-    return result;
-  } catch {
-    await new Promise(resolve => setTimeout(resolve, 1200));
-    const { data: result } = await apiClient.put<T>(url, data);
-    return result;
-  }
-}
-
-const inputCls = 'w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-600'
-  + ' border-slate-200 bg-white text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-white';
-const labelCls = 'block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1';
-
-type DraftItem = { id: string; category: string; description: string; quantity: string; unitPrice: string };
 
 function toDraftItems(items: DepartmentBudgetItem[]): DraftItem[] {
-  return items.map(i => ({
-    id: i.id, category: i.category, description: i.description || '',
-    // The API returns NUMERIC columns as fixed-scale strings (e.g. "1294.00")
-    // — round-tripping through Number() first strips that to a plain "1294"
-    // instead of showing the raw decimal formatting.
+  return items.filter(i => !i.removed_at).map(i => ({
+    key: i.id, id: i.id, category: i.category, description: i.description || '',
+    // NUMERIC comes back as fixed-scale strings ("1294.00"); Number() tidies it.
     quantity: String(Number(i.quantity)), unitPrice: i.unit_price != null ? String(Number(i.unit_price)) : '',
+    requestedQuantity: num(i.requested_quantity), requestedUnitPrice: num(i.requested_unit_price),
+    addedStage: i.added_stage ?? 'owner',
   }));
 }
 
-function rowAmount(row: DraftItem): number | null {
+function rowAmount(row: { quantity: string; unitPrice: string }): number | null {
   const q = parseFloat(row.quantity);
   const p = parseFloat(row.unitPrice);
   if (!row.unitPrice.trim() || isNaN(p) || isNaN(q)) return null;
   return Math.round(q * p * 100) / 100;
 }
 
-export default function BudgetDetail({ apiClient, backHref, budgetId, canReview }: {
-  apiClient: AxiosInstance; backHref: string; budgetId: string; canReview: boolean;
+// "Requested 10 × GH₵ 5.00" when a later stage changed the owner's request.
+function requestedNote(r: { requestedQuantity: number | null; requestedUnitPrice: number | null; addedStage: string },
+                       quantity: number, unitPrice: number | null): string | null {
+  if (r.addedStage !== 'owner') return `Added by the ${STAGE_LABEL[r.addedStage] ?? r.addedStage}`;
+  if (r.requestedQuantity == null) return null;
+  const changed = r.requestedQuantity !== quantity || (r.requestedUnitPrice ?? null) !== (unitPrice ?? null);
+  if (!changed) return null;
+  return `Requested ${r.requestedQuantity}${r.requestedUnitPrice != null ? ` × ${fmtMoney(r.requestedUnitPrice)}` : ''}`;
+}
+
+export default function BudgetDetail({ apiClient, budgetId, backHref, onBack }: {
+  apiClient: AxiosInstance; budgetId: string; backHref?: string; onBack?: () => void;
 }) {
   const [budget, setBudget] = useState<DepartmentBudgetDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const [saving, setSaving] = useState(false);
   const [draftItems, setDraftItems] = useState<DraftItem[]>([]);
+  const [dirty, setDirty] = useState(false);
 
-  const [reviewAction, setReviewAction] = useState<'approve' | 'changes' | 'reject' | null>(null);
-  const [reviewNote, setReviewNote] = useState('');
-  const [reviewError, setReviewError] = useState('');
-  const [reviewing, setReviewing] = useState(false);
-  const [deleting, setDeleting] = useState(false);
+  const [action, setAction] = useState<ReviewAction>(null);
+  const [actionNote, setActionNote] = useState('');
+  const [actionError, setActionError] = useState('');
+  const [acting, setActing] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [calculatorFor, setCalculatorFor] = useState<string | null>(null);
   const [bulkCalculatorOpen, setBulkCalculatorOpen] = useState(false);
-  const [exportingPdf, setExportingPdf] = useState(false);
-  const [exportingExcel, setExportingExcel] = useState(false);
+  const [exporting, setExporting] = useState<'' | 'pdf' | 'excel'>('');
 
   const load = useCallback(async () => {
     setLoading(true); setError('');
@@ -102,316 +77,381 @@ export default function BudgetDetail({ apiClient, backHref, budgetId, canReview 
       const { data } = await apiClient.get<DepartmentBudgetDetail>(`/api/department-budgets/${budgetId}`);
       setBudget(data);
       setDraftItems(toDraftItems(data.items));
+      setDirty(false);
     } catch (e: unknown) {
-      setError(describeApiError(e, 'Failed to load budget.'));
+      setError(describeApiError(e, 'Could not load this budget. Check your connection and try again.'));
     } finally { setLoading(false); }
   }, [apiClient, budgetId]);
 
   useEffect(() => { load(); }, [load]);
 
+  const stage = budget?.permissions?.editStage ?? null;
+  const editable = !!stage;
+  const accountantStage = stage === 'accountant';
+
   function addRow() {
-    setDraftItems(rows => [...rows, { id: `new-${Date.now()}`, category: '', description: '', quantity: '1', unitPrice: '' }]);
+    setDraftItems(rows => [...rows, {
+      key: `new-${Date.now()}`, id: null, category: '', description: '', quantity: '1', unitPrice: '',
+      requestedQuantity: null, requestedUnitPrice: null, addedStage: stage ?? 'owner',
+    }]);
+    setDirty(true);
   }
-  function removeRow(id: string) {
-    setDraftItems(rows => rows.filter(r => r.id !== id));
+  function removeRow(key: string) {
+    setDraftItems(rows => rows.filter(r => r.key !== key));
+    setDirty(true);
   }
-  function updateRow(id: string, patch: Partial<DraftItem>) {
-    setDraftItems(rows => rows.map(r => r.id === id ? { ...r, ...patch } : r));
+  function updateRow(key: string, patch: Partial<DraftItem>) {
+    setDraftItems(rows => rows.map(r => r.key === key ? { ...r, ...patch } : r));
+    setDirty(true);
   }
 
   const draftTotal = draftItems.reduce((sum, r) => sum + (rowAmount(r) ?? 0), 0);
 
-  async function saveItems() {
-    setSaving(true); setError('');
+  async function saveItems(): Promise<boolean> {
+    if (!budget) return false;
+    setSaving(true); setError(''); setNotice('');
     try {
       const items = draftItems
         .filter(r => r.category.trim())
         .map(r => ({
+          id: r.id ?? undefined,
           category: r.category.trim(), description: r.description.trim() || undefined,
           quantity: parseFloat(r.quantity) || 0,
           unit_price: r.unitPrice.trim() ? parseFloat(r.unitPrice) : undefined,
         }));
-      const data = await putWithRetry<DepartmentBudgetDetail>(apiClient, `/api/department-budgets/${budgetId}`, { items });
-      setBudget(data);
-      setDraftItems(toDraftItems(data.items));
+      await apiClient.put(`/api/department-budgets/${budgetId}`, { items, updated_at: budget.updated_at });
+      await load();
+      setNotice('Changes saved.');
+      return true;
     } catch (e: unknown) {
-      setError(describeApiError(e, 'Failed to save.'));
+      setError(describeApiError(e, 'Could not save. Check your connection and try again.'));
+      return false;
     } finally { setSaving(false); }
   }
 
   async function submitBudget() {
+    if (dirty && !(await saveItems())) return;
     setSaving(true); setError('');
     try {
-      await saveItems();
-      const { data } = await apiClient.post<DepartmentBudgetDetail>(`/api/department-budgets/${budgetId}/submit`);
-      setBudget(data);
+      await apiClient.post(`/api/department-budgets/${budgetId}/submit`);
+      await load();
+      setNotice('Budget submitted for review.');
     } catch (e: unknown) {
-      setError(describeApiError(e, 'Failed to submit.'));
+      setError(describeApiError(e, 'Could not submit. Check your connection and try again.'));
     } finally { setSaving(false); }
   }
 
   async function deleteBudget() {
-    if (!confirm('Delete this draft budget? This cannot be undone.')) return;
-    setDeleting(true);
+    setSaving(true); setError('');
     try {
       await apiClient.delete(`/api/department-budgets/${budgetId}`);
-      window.location.href = backHref;
+      if (onBack) onBack(); else if (backHref) window.location.href = backHref;
     } catch (e: unknown) {
-      alert(describeApiError(e, 'Failed to delete.'));
-      setDeleting(false);
+      setError(describeApiError(e, 'Could not delete this draft.'));
+      setSaving(false);
     }
   }
 
   async function exportPdf() {
     if (!budget) return;
-    setExportingPdf(true);
+    setExporting('pdf'); setError('');
     try {
-      const response = await apiClient.get(`/api/department-budgets/${budgetId}/pdf`, { responseType: 'blob', timeout: 60000 });
-      const blob = new Blob([response.data], { type: 'application/pdf' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = `Budget_${budget.department_name.replace(/[^A-Za-z0-9]+/g, '_')}.pdf`;
-      document.body.appendChild(a); a.click();
-      document.body.removeChild(a); URL.revokeObjectURL(url);
+      await downloadPdf(apiClient, `/api/department-budgets/${budgetId}/pdf`, `Budget_${safeFileName(budget.department_name)}.pdf`);
     } catch {
-      alert('Could not export PDF. Please try again.');
-    } finally { setExportingPdf(false); }
+      setError('Could not export the PDF. Try again in a moment.');
+    } finally { setExporting(''); }
   }
 
   async function exportExcel() {
     if (!budget) return;
-    setExportingExcel(true);
+    setExporting('excel'); setError('');
     try {
       const XLSX = await import('xlsx');
-      const headers = ['No.', 'Item / Activity Description', 'Description', 'Quantity', 'Unit Price (GHS)', 'Estimated Amt (GHS)'];
-      const rows = budget.items.map((item, idx) => [
+      const active = budget.items.filter(i => !i.removed_at);
+      const headers = ['No.', 'Item / Activity', 'Description', 'Quantity', 'Unit Price (GH₵)', 'Amount (GH₵)', 'Requested Qty', 'Requested Unit Price'];
+      const rows = active.map((item, idx) => [
         idx + 1, item.category, item.description || '', Number(item.quantity),
         item.unit_price != null ? Number(item.unit_price) : '', item.amount != null ? Number(item.amount) : '',
+        item.requested_quantity != null ? Number(item.requested_quantity) : '',
+        item.requested_unit_price != null ? Number(item.requested_unit_price) : '',
       ]);
-      const totalRow = ['', '', '', '', 'TOTAL', budget.total_amount != null ? Number(budget.total_amount) : ''];
+      const totalRow = ['', '', '', '', 'TOTAL', Number(budget.total_amount ?? 0), '', ''];
       const ws = XLSX.utils.aoa_to_sheet([headers, ...rows, totalRow]);
-      ws['!cols'] = [{ wch: 6 }, { wch: 28 }, { wch: 28 }, { wch: 10 }, { wch: 16 }, { wch: 18 }];
+      ws['!cols'] = [{ wch: 6 }, { wch: 28 }, { wch: 28 }, { wch: 10 }, { wch: 16 }, { wch: 16 }, { wch: 14 }, { wch: 18 }];
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Budget');
-      XLSX.writeFile(wb, `Budget_${budget.department_name.replace(/[^A-Za-z0-9]+/g, '_')}.xlsx`);
+      XLSX.writeFile(wb, `Budget_${safeFileName(budget.department_name)}.xlsx`);
     } catch {
-      alert('Could not export Excel. Please try again.');
-    } finally { setExportingExcel(false); }
+      setError('Could not export the Excel file. Try again in a moment.');
+    } finally { setExporting(''); }
   }
 
-  function openReview(action: 'approve' | 'changes' | 'reject') {
-    setReviewAction(action); setReviewNote(''); setReviewError('');
+  function openAction(a: ReviewAction) {
+    setAction(a); setActionNote(''); setActionError('');
   }
 
-  async function submitReview() {
-    if (!reviewAction) return;
-    if (reviewAction !== 'approve' && !reviewNote.trim()) {
-      setReviewError(reviewAction === 'changes' ? 'A note explaining the requested changes is required.' : 'A reason is required to reject.');
+  async function runAction() {
+    if (!action) return;
+    if ((action === 'changes' || action === 'reject') && !actionNote.trim()) {
+      setActionError(action === 'changes' ? 'Say what needs to change.' : 'Give a reason for rejecting.');
       return;
     }
-    setReviewing(true); setReviewError('');
-    const endpoint = reviewAction === 'approve' ? 'approve' : reviewAction === 'changes' ? 'request-changes' : 'reject';
+    if (dirty && (action === 'accept') && !(await saveItems())) return;
+    const endpoint = { accept: 'accept', changes: 'request-changes', reject: 'reject', reopen: 'reopen', withdraw: 'withdraw' }[action];
+    setActing(true); setActionError('');
     try {
-      const { data } = await apiClient.post<DepartmentBudgetDetail>(`/api/department-budgets/${budgetId}/${endpoint}`, { note: reviewNote.trim() || undefined });
-      setBudget(data);
-      setReviewAction(null);
+      await apiClient.post(`/api/department-budgets/${budgetId}/${endpoint}`, { note: actionNote.trim() || undefined });
+      setAction(null);
+      await load();
     } catch (e: unknown) {
-      setReviewError(describeApiError(e, 'Failed to submit review.'));
-    } finally { setReviewing(false); }
+      setActionError(describeApiError(e, 'Could not complete that. Check your connection and try again.'));
+    } finally { setActing(false); }
   }
 
-  if (loading) return (
-    <div className="flex justify-center py-16">
-      <div className="w-7 h-7 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#145C44', borderTopColor: 'transparent' }} />
+  if (loading && !budget) return (
+    <div className="flex py-16">
+      <div className="w-7 h-7 rounded-full border-4 border-b-transparent animate-spin" style={{ borderColor: '#145C44', borderBottomColor: 'transparent' }} />
     </div>
   );
-  if (!budget) return <p className="text-sm text-red-600">{error || 'Budget not found.'}</p>;
+  if (!budget) return <p className="text-sm text-[#B83232]">{error || 'Budget not found.'}</p>;
 
-  const editable = EDITABLE_STATUSES.includes(budget.status);
-  const ss = STATUS_STYLES[budget.status] ?? { bg: '#F1F5F9', color: '#64748B' };
+  const p = budget.permissions;
+  const ss = statusStyle(budget.status);
+  const trackLabel = TRACK_LABEL[budget.track] ?? budget.track;
+  const removedItems = budget.items.filter(i => i.removed_at);
+  const requestedTotal = Number(budget.requested_total ?? 0);
+  const backButton = onBack
+    ? <button type="button" onClick={onBack} className="text-xs font-semibold text-slate-400 hover:text-slate-600">&larr; All budgets</button>
+    : backHref ? <Link href={backHref} className="text-xs font-semibold text-slate-400 hover:text-slate-600">&larr; All budgets</Link> : null;
+
+  const actionTitle: Record<string, string> = {
+    accept: 'Accept into the compiled budget', changes: 'Send back for changes', reject: 'Reject budget',
+    reopen: 'Reopen for review', withdraw: 'Withdraw submission',
+  };
 
   return (
     <div className="space-y-5 max-w-3xl">
-      <div className="flex items-center justify-between flex-wrap gap-3">
+      <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
-          <Link href={backHref} className="text-xs font-semibold text-slate-400 hover:text-slate-600">&larr; Back</Link>
+          {backButton}
           <h1 className="text-xl font-bold text-slate-900 dark:text-white mt-1">{budget.department_name}</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">{budget.academic_year_name} Budget</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            {budget.academic_year_name} budget, {trackLabel} track
+          </p>
         </div>
-        <div className="flex gap-2 items-center">
-          <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ backgroundColor: ss.bg, color: ss.color }}>{budget.status}</span>
-          <button onClick={exportExcel} disabled={exportingExcel}
-            className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 disabled:opacity-50">
-            {exportingExcel ? 'Exporting…' : 'Export Excel'}
-          </button>
-          <button onClick={exportPdf} disabled={exportingPdf}
-            className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 disabled:opacity-50">
-            {exportingPdf ? 'Exporting…' : 'Export PDF'}
-          </button>
-          {budget.status === 'Draft' && (
-            <button onClick={deleteBudget} disabled={deleting}
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50">
-              {deleting ? 'Deleting…' : 'Delete'}
-            </button>
-          )}
+        <div className="flex gap-2 items-center flex-wrap">
+          <span className="text-xs font-semibold px-2.5 py-1 rounded-lg" style={{ backgroundColor: ss.bg, color: ss.color }}>{budget.status}</span>
+          <button onClick={exportExcel} disabled={!!exporting} className={btnGhost}>{exporting === 'excel' ? 'Exporting…' : 'Export Excel'}</button>
+          <button onClick={exportPdf} disabled={!!exporting} className={btnGhost}>{exporting === 'pdf' ? 'Exporting…' : 'Export PDF'}</button>
+          {p?.canDelete && (confirmDelete ? (
+            <>
+              <button onClick={deleteBudget} disabled={saving} className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-[#B83232] disabled:opacity-50">Confirm delete</button>
+              <button onClick={() => setConfirmDelete(false)} className={btnGhost}>Keep</button>
+            </>
+          ) : (
+            <button onClick={() => setConfirmDelete(true)} className={btnGhost}>Delete draft</button>
+          ))}
         </div>
       </div>
 
-      {error && <p className="text-sm text-red-600 bg-red-50 dark:bg-red-900/20 rounded-lg px-3 py-2">{error}</p>}
+      {error && <p className="text-sm text-[#B83232] bg-[#FBEAEA] dark:bg-red-900/20 rounded-lg px-3 py-2">{error}</p>}
+      {notice && !error && <p className="text-sm text-[#2D7A4F]">{notice}</p>}
 
       {budget.review_note && (budget.status === 'Changes Requested' || budget.status === 'Rejected') && (
-        <div className="rounded-xl px-4 py-3 text-sm" style={{ backgroundColor: budget.status === 'Rejected' ? '#FEF2F2' : '#EFF6FF', color: budget.status === 'Rejected' ? '#991B1B' : '#1E40AF' }}>
-          <p className="font-semibold mb-0.5">{budget.status === 'Rejected' ? 'Rejection reason' : 'Requested changes'}</p>
+        <div className="rounded-xl px-4 py-3 text-sm border-l-4"
+          style={{ backgroundColor: budget.status === 'Rejected' ? '#FBEAEA' : '#FEF3DC', borderColor: budget.status === 'Rejected' ? '#B83232' : '#C8780A', color: '#2A2620' }}>
+          <p className="font-semibold mb-0.5">{budget.status === 'Rejected' ? 'Reason for rejection' : 'Changes requested'}</p>
           <p>{budget.review_note}</p>
-          {budget.reviewed_by_name && <p className="text-xs mt-1 opacity-70">— {budget.reviewed_by_name}, {fmtDate(budget.reviewed_at)}</p>}
+          {budget.reviewed_by_name && <p className="text-xs mt-1 text-slate-500">{budget.reviewed_by_name}, {fmtDate(budget.reviewed_at, true)}</p>}
         </div>
       )}
-      {budget.status === 'Approved' && budget.reviewed_by_name && (
-        <div className="rounded-xl px-4 py-3 text-sm bg-[#DCFCE7] text-[#14532D]">
-          Approved by {budget.reviewed_by_name} on {fmtDate(budget.reviewed_at)}.
+      {(budget.status === 'Accepted' || budget.status === 'Approved') && (
+        <div className="rounded-xl px-4 py-3 text-sm bg-[#E4F4EB] text-[#1F5A3A] dark:bg-green-900/20 dark:text-[#7FD1A8]">
+          Accepted into the {trackLabel} budget{budget.reviewed_by_name ? ` by ${budget.reviewed_by_name}` : ''}{budget.reviewed_at ? ` on ${fmtDate(budget.reviewed_at)}` : ''}.
+          {budget.compilation_status && budget.compilation_status !== 'Compiling' && (
+            <span> The {trackLabel} budget is now {budget.compilation_status === 'Submitted' ? 'with the Head for approval' : budget.compilation_status === 'Approved' ? 'approved by the Head' : 'returned by the Head'}.</span>
+          )}
         </div>
+      )}
+      {budget.school_budget_status === 'Final' && (
+        <p className="text-sm text-slate-500 dark:text-slate-400">The school budget for this year is final, so this budget is locked.</p>
+      )}
+      {stage === 'reviewer' && (
+        <p className="text-sm text-slate-500 dark:text-slate-400">You are reviewing this budget. Changes you make are shown to the department against what they requested.</p>
+      )}
+      {accountantStage && (
+        <p className="text-sm text-slate-500 dark:text-slate-400">You can adjust quantities and prices or remove lines. Add school-wide lines on the school budget.</p>
       )}
 
-      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm p-5 space-y-4">
+      <div className={`${cardCls} p-5 space-y-4`}>
         <div className="flex items-center justify-between flex-wrap gap-2">
-          <h2 className="text-sm font-bold text-slate-800 dark:text-white">Line Items</h2>
-          {editable && (
+          <h2 className="text-sm font-bold text-slate-800 dark:text-white">Line items</h2>
+          {editable && !accountantStage && (
             <div className="flex items-center gap-3">
-              <button onClick={() => setBulkCalculatorOpen(true)} className="text-xs font-semibold" style={{ color: '#1D4ED8' }}>
-                Calculate Whole Exam
+              <button onClick={() => setBulkCalculatorOpen(true)} className="text-xs font-semibold text-[#145C44] dark:text-[#2ab289] hover:underline">
+                Calculate whole exam
               </button>
-              <button onClick={addRow} className="text-xs font-semibold" style={{ color: '#145C44' }}>+ Add Item</button>
+              <button onClick={addRow} className="text-xs font-semibold text-[#145C44] dark:text-[#2ab289] hover:underline">Add item</button>
             </div>
           )}
         </div>
 
         {editable ? (
           <div className="space-y-3">
-            {draftItems.map(row => (
-              <div key={row.id} className="rounded-lg border border-slate-100 dark:border-slate-700 p-3 space-y-2">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <input className={inputCls} placeholder="Category (e.g. Answer Booklets)" value={row.category}
-                    onChange={e => updateRow(row.id, { category: e.target.value })} />
-                  <input className={inputCls} placeholder="Description (optional)" value={row.description}
-                    onChange={e => updateRow(row.id, { description: e.target.value })} />
+            {draftItems.map(row => {
+              const note = requestedNote(row, parseFloat(row.quantity) || 0, row.unitPrice.trim() ? parseFloat(row.unitPrice) : null);
+              return (
+                <div key={row.key} className="rounded-lg border border-slate-200 dark:border-slate-700 p-3 space-y-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <input className={inputCls} placeholder="Item (e.g. Answer booklets)" value={row.category}
+                      disabled={accountantStage} onChange={e => updateRow(row.key, { category: e.target.value })} />
+                    <input className={inputCls} placeholder="Description (optional)" value={row.description}
+                      disabled={accountantStage} onChange={e => updateRow(row.key, { description: e.target.value })} />
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-[110px_130px_1fr_auto_auto] gap-2 items-center">
+                    <input className={inputCls} type="number" min="0" step="0.01" placeholder="Qty" value={row.quantity}
+                      onChange={e => updateRow(row.key, { quantity: e.target.value })} />
+                    <input className={inputCls} type="number" min="0" step="0.01" placeholder="Unit price" value={row.unitPrice}
+                      onChange={e => updateRow(row.key, { unitPrice: e.target.value })} />
+                    <span className="text-sm font-mono text-slate-500 dark:text-slate-400 text-right sm:text-left">{fmtMoney(rowAmount(row))}</span>
+                    {!accountantStage ? (
+                      <button onClick={() => setCalculatorFor(row.key)}
+                        className="text-xs font-semibold px-2.5 py-2 rounded-lg whitespace-nowrap bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200">
+                        Calculate
+                      </button>
+                    ) : <span />}
+                    <button onClick={() => removeRow(row.key)} className="text-xs font-semibold text-[#B83232] px-2 py-2">Remove</button>
+                  </div>
+                  {note && <p className="text-xs text-[#C8780A]">{note}</p>}
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-[110px_130px_1fr_auto_auto] gap-2 items-center">
-                  <input className={inputCls} type="number" min="0" step="0.01" placeholder="Qty" value={row.quantity}
-                    onChange={e => updateRow(row.id, { quantity: e.target.value })} />
-                  <input className={inputCls} type="number" min="0" step="0.01" placeholder="Unit Price" value={row.unitPrice}
-                    onChange={e => updateRow(row.id, { unitPrice: e.target.value })} />
-                  <span className="text-sm font-mono text-slate-500 dark:text-slate-400 text-right sm:text-left">{fmtMoney(rowAmount(row))}</span>
-                  <button onClick={() => setCalculatorFor(row.id)}
-                    className="text-xs font-semibold px-2.5 py-2 rounded-lg whitespace-nowrap" style={{ backgroundColor: '#EFF6FF', color: '#1D4ED8' }}>
-                    Calculate
-                  </button>
-                  <button onClick={() => removeRow(row.id)} className="text-xs font-semibold text-red-500 px-2 py-2">Remove</button>
-                </div>
-              </div>
-            ))}
-            {draftItems.length === 0 && <p className="text-sm text-slate-400">No items yet — click &quot;+ Add Item&quot;.</p>}
-            <button onClick={addRow} className="w-full py-2 rounded-lg text-xs font-semibold border border-dashed"
-              style={{ borderColor: '#145C44', color: '#145C44' }}>
-              + Add Item
-            </button>
+              );
+            })}
+            {draftItems.length === 0 && <p className="text-sm text-slate-500 dark:text-slate-400">No lines yet. Use Add item to list what this budget needs.</p>}
+            {!accountantStage && (
+              <button onClick={addRow} className="w-full py-2 rounded-lg text-xs font-semibold border border-dashed border-[#145C44] text-[#145C44] dark:border-[#2ab289] dark:text-[#2ab289]">
+                Add item
+              </button>
+            )}
             <div className="flex justify-between items-center pt-2 border-t border-slate-100 dark:border-slate-700">
               <span className="text-sm font-semibold text-slate-600 dark:text-slate-300">Total</span>
-              <span className="text-sm font-bold text-slate-900 dark:text-white">{fmtMoney(draftTotal)}</span>
+              <span className="text-sm font-bold text-slate-900 dark:text-white font-mono">{fmtMoney(draftTotal)}</span>
             </div>
           </div>
         ) : (
           <div className="space-y-1">
-            {budget.items.map(item => (
-              <div key={item.id} className="flex justify-between items-start py-1.5 border-b border-slate-50 dark:border-slate-700 last:border-0">
-                <div>
-                  <p className="text-sm font-medium text-slate-700 dark:text-slate-200">{item.category}</p>
-                  {item.description && <p className="text-xs text-slate-400">{item.description}</p>}
-                  <p className="text-xs text-slate-400">Qty {Number(item.quantity)}{item.unit_price != null ? ` × ${fmtMoney(item.unit_price)}` : ''}</p>
+            {budget.items.filter(i => !i.removed_at).map(item => {
+              const note = requestedNote(
+                { requestedQuantity: num(item.requested_quantity), requestedUnitPrice: num(item.requested_unit_price), addedStage: item.added_stage ?? 'owner' },
+                Number(item.quantity), num(item.unit_price));
+              return (
+                <div key={item.id} className="flex justify-between items-start py-1.5 border-b border-slate-100 dark:border-slate-700 last:border-0">
+                  <div>
+                    <p className="text-sm font-medium text-slate-700 dark:text-slate-200">{item.category}</p>
+                    {item.description && <p className="text-xs text-slate-400">{item.description}</p>}
+                    <p className="text-xs text-slate-400">Qty {Number(item.quantity)}{item.unit_price != null ? ` × ${fmtMoney(item.unit_price)}` : ''}</p>
+                    {note && <p className="text-xs text-[#C8780A]">{note}</p>}
+                  </div>
+                  <span className="text-sm font-semibold text-slate-700 dark:text-slate-200 font-mono whitespace-nowrap">{fmtMoney(item.amount)}</span>
                 </div>
-                <span className="text-sm font-semibold text-slate-700 dark:text-slate-200 font-mono whitespace-nowrap">{fmtMoney(item.amount)}</span>
-              </div>
-            ))}
-            {budget.items.length === 0 && <p className="text-sm text-slate-400">No items.</p>}
+              );
+            })}
+            {budget.items.filter(i => !i.removed_at).length === 0 && <p className="text-sm text-slate-500 dark:text-slate-400">This budget has no lines.</p>}
             <div className="flex justify-between items-center pt-2 border-t border-slate-100 dark:border-slate-700">
               <span className="text-sm font-semibold text-slate-600 dark:text-slate-300">Total</span>
-              <span className="text-sm font-bold text-slate-900 dark:text-white">{fmtMoney(budget.total_amount)}</span>
+              <span className="text-sm font-bold text-slate-900 dark:text-white font-mono">{fmtMoney(budget.total_amount)}</span>
             </div>
           </div>
         )}
+        {requestedTotal > 0 && Math.abs(requestedTotal - Number(budget.total_amount)) > 0.005 && (
+          <p className="text-xs text-slate-500 dark:text-slate-400">Originally requested: {fmtMoney(requestedTotal)}</p>
+        )}
       </div>
 
-      {editable && (
-        <div className="flex justify-end gap-3">
-          <button onClick={saveItems} disabled={saving}
-            className="px-5 py-2 rounded-lg text-sm font-semibold border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 disabled:opacity-60">
-            {saving ? 'Saving…' : budget.status === 'Draft' ? 'Save Draft' : 'Save Changes'}
-          </button>
-          <button onClick={submitBudget} disabled={saving || draftItems.filter(r => r.category.trim()).length === 0}
-            className="px-5 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-60" style={{ backgroundColor: '#145C44' }}>
-            {saving ? 'Submitting…' : budget.status === 'Submitted' ? 'Update Submission' : 'Submit for Approval'}
-          </button>
+      {removedItems.length > 0 && (
+        <div className={`${cardCls} p-5 space-y-2`}>
+          <h2 className="text-sm font-bold text-slate-800 dark:text-white">Removed at review</h2>
+          {removedItems.map(item => (
+            <div key={item.id} className="flex justify-between items-start text-sm">
+              <div>
+                <p className="text-slate-500 line-through">{item.category}</p>
+                <p className="text-xs text-slate-400">Removed by the {STAGE_LABEL[item.removed_stage ?? ''] ?? 'reviewer'}</p>
+              </div>
+              <span className="font-mono text-slate-400 line-through">{fmtMoney(item.amount)}</span>
+            </div>
+          ))}
         </div>
       )}
 
-      {canReview && budget.status === 'Submitted' && (
-        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm p-5 space-y-3">
-          <h2 className="text-sm font-bold text-slate-800 dark:text-white">Review This Budget</h2>
-          <div className="flex gap-3">
-            <button onClick={() => openReview('approve')}
-              className="px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ backgroundColor: '#145C44' }}>
-              Approve
+      {(editable || p?.canSubmit || p?.canWithdraw || p?.canReview || p?.canReopen) && (
+        <div className="flex justify-end gap-2 flex-wrap">
+          {editable && (
+            <button onClick={saveItems} disabled={saving || !dirty}
+              className="px-4 py-2 rounded-lg text-sm font-semibold border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 disabled:opacity-50">
+              {saving ? 'Saving…' : 'Save changes'}
             </button>
-            <button onClick={() => openReview('changes')}
-              className="px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ backgroundColor: '#1D4ED8' }}>
-              Request Changes
+          )}
+          {p?.canSubmit && (
+            <button onClick={submitBudget} disabled={saving || draftItems.filter(r => r.category.trim()).length === 0} className={btnPrimary}>
+              {saving ? 'Submitting…' : 'Submit for review'}
             </button>
-            <button onClick={() => openReview('reject')}
-              className="px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ backgroundColor: '#DC2626' }}>
-              Reject
+          )}
+          {p?.canWithdraw && <button onClick={() => openAction('withdraw')} className={btnGhost}>Withdraw submission</button>}
+          {p?.canReopen && <button onClick={() => openAction('reopen')} className={btnGhost}>Reopen for review</button>}
+          {p?.canReview && (
+            <>
+              <button onClick={() => openAction('reject')} className="px-4 py-2 rounded-lg text-sm font-semibold border border-[#B83232] text-[#B83232]">Reject</button>
+              <button onClick={() => openAction('changes')} className="px-4 py-2 rounded-lg text-sm font-semibold border border-[#C8780A] text-[#C8780A]">Send back for changes</button>
+              <button onClick={() => openAction('accept')} className={btnPrimary}>Accept</button>
+            </>
+          )}
+        </div>
+      )}
+
+      {action && (
+        <div className={`${cardCls} p-5 space-y-3`}>
+          <p className="font-bold text-slate-900 dark:text-white">{actionTitle[action]}</p>
+          {action === 'accept' && (
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              The budget is added to the {trackLabel} budget as it stands{dirty ? ', including your unsaved changes' : ''}. You can reopen it until you submit the {trackLabel} budget to the Head.
+            </p>
+          )}
+          <div>
+            <label className={labelCls}>
+              {action === 'changes' ? 'What needs to change? (required)' : action === 'reject' ? 'Reason for rejecting (required)' : 'Note (optional)'}
+            </label>
+            <textarea value={actionNote} rows={3} onChange={e => { setActionNote(e.target.value); setActionError(''); }}
+              className={`${inputCls} resize-none`} />
+          </div>
+          {actionError && <p className="text-sm text-[#B83232]">{actionError}</p>}
+          <div className="flex gap-2 justify-end">
+            <button onClick={() => setAction(null)} className={btnGhost}>Cancel</button>
+            <button onClick={runAction} disabled={acting}
+              className={action === 'reject' ? 'px-4 py-2 rounded-lg text-sm font-semibold text-white bg-[#B83232] disabled:opacity-50' : btnPrimary}>
+              {acting ? 'Saving…' : 'Confirm'}
             </button>
           </div>
         </div>
       )}
 
-      {reviewAction && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/45 px-4">
-          <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-xl shadow-2xl p-5 space-y-4">
-            <div className="flex items-center justify-between">
-              <p className="font-bold text-slate-900 dark:text-white">
-                {reviewAction === 'approve' ? 'Approve Budget' : reviewAction === 'changes' ? 'Request Changes' : 'Reject Budget'}
-              </p>
-              <button onClick={() => setReviewAction(null)}
-                className="w-7 h-7 flex items-center justify-center rounded-full bg-slate-100 text-slate-500 text-sm">✕</button>
-            </div>
-            <div>
-              <label className={labelCls}>
-                {reviewAction === 'approve' ? 'Note (optional)' : reviewAction === 'changes' ? 'What needs to change? *' : 'Reason for rejection *'}
-              </label>
-              <textarea value={reviewNote} rows={3}
-                onChange={e => { setReviewNote(e.target.value); setReviewError(''); }}
-                placeholder={reviewAction === 'changes' ? 'e.g. Reduce textbook allocation, split equipment into two items…' : reviewAction === 'reject' ? 'e.g. Exceeds department allocation for this year…' : 'Optional comment…'}
-                className={inputCls + ' resize-none'} />
-            </div>
-            {reviewError && <p className="text-sm text-red-600">{reviewError}</p>}
-            <div className="flex gap-3">
-              <button onClick={() => setReviewAction(null)}
-                className="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-slate-200 text-slate-600">
-                Cancel
-              </button>
-              <button onClick={submitReview} disabled={reviewing}
-                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50"
-                style={{ backgroundColor: reviewAction === 'approve' ? '#145C44' : reviewAction === 'changes' ? '#1D4ED8' : '#DC2626' }}>
-                {reviewing ? 'Saving…' : 'Confirm'}
-              </button>
-            </div>
-          </div>
+      {budget.events && budget.events.length > 0 && (
+        <div className={`${cardCls} p-5 space-y-2`}>
+          <h2 className="text-sm font-bold text-slate-800 dark:text-white">History</h2>
+          <ol className="space-y-2">
+            {budget.events.map(ev => (
+              <li key={ev.id} className="text-sm">
+                <span className="text-slate-700 dark:text-slate-200">{EVENT_LABELS[ev.action] ?? ev.action}</span>
+                <span className="text-xs text-slate-400"> by {ev.actor_label || 'unknown'}, {fmtDate(ev.created_at, true)}</span>
+                {ev.note && <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{ev.note}</p>}
+              </li>
+            ))}
+          </ol>
         </div>
       )}
 
       {calculatorFor && (
         <PopulationCalculator
           apiClient={apiClient}
-          itemName={draftItems.find(r => r.id === calculatorFor)?.category || ''}
+          itemName={draftItems.find(r => r.key === calculatorFor)?.category || ''}
           onApply={(qty) => updateRow(calculatorFor, { quantity: String(qty) })}
           onClose={() => setCalculatorFor(null)}
         />
@@ -421,7 +461,11 @@ export default function BudgetDetail({ apiClient, backHref, budgetId, canReview 
         <BulkExamCalculator
           apiClient={apiClient}
           onApply={(qty, category) => {
-            setDraftItems(rows => [...rows, { id: `new-${Date.now()}`, category, description: '', quantity: String(qty), unitPrice: '' }]);
+            setDraftItems(rows => [...rows, {
+              key: `new-${Date.now()}`, id: null, category, description: '', quantity: String(qty), unitPrice: '',
+              requestedQuantity: null, requestedUnitPrice: null, addedStage: stage ?? 'owner',
+            }]);
+            setDirty(true);
             setBulkCalculatorOpen(false);
           }}
           onClose={() => setBulkCalculatorOpen(false)}
