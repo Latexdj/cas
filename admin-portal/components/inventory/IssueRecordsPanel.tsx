@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AxiosInstance } from 'axios';
 import { buildSignListHtml, type SlRecipient, type SlSchool } from '@/lib/sign-list-print';
 import { printHtml, printUploadedFile } from './print';
+import { exportIssueRecordExcel, exportIssueRecordPdf } from './exportIssueRecord';
 
 interface BatchSummary {
   id: string; title: string; recipient_type: 'student' | 'teacher';
@@ -122,6 +123,7 @@ function BatchDetailView({
   const [busy, setBusy] = useState<'' | 'upload' | 'remove' | 'print'>('');
   const [sheetError, setSheetError] = useState('');
   const [showLate, setShowLate] = useState(false);
+  const [exporting, setExporting] = useState<'' | 'pdf' | 'excel'>('');
   const fileRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(() => {
@@ -210,6 +212,17 @@ function BatchDetailView({
 
   const late = batch.recipients.filter(r => r.added_later);
 
+  async function runExport(kind: 'pdf' | 'excel') {
+    if (!batch) return;
+    setExporting(kind); setSheetError('');
+    try {
+      if (kind === 'pdf') await exportIssueRecordPdf(batch);
+      else await exportIssueRecordExcel(batch);
+    } catch {
+      setSheetError('Export failed. Please try again.');
+    } finally { setExporting(''); }
+  }
+
   return (
     <div className="space-y-4 max-w-4xl">
       <button type="button" onClick={onBack} className={btnGhost}>← All issue records</button>
@@ -287,6 +300,12 @@ function BatchDetailView({
         <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b border-slate-100 dark:border-slate-700">
           <p className="text-sm font-bold text-slate-800 dark:text-white">Recipients ({batch.recipients.length})</p>
           <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={() => runExport('pdf')} disabled={!!exporting} className={btnGhost}>
+              {exporting === 'pdf' ? 'Exporting…' : 'Export PDF'}
+            </button>
+            <button type="button" onClick={() => runExport('excel')} disabled={!!exporting} className={btnGhost}>
+              {exporting === 'excel' ? 'Exporting…' : 'Export Excel'}
+            </button>
             <button type="button" onClick={() => printSheet(batch.recipients)} className={btnGhost}>Print sign sheet</button>
             {late.length > 0 && (
               <button type="button" onClick={() => printSheet(late, ' (late collection)')} className={btnGhost}>
