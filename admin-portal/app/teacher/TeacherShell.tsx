@@ -488,7 +488,10 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
         setIsClearanceStaff(offices.length > 0);
         setIsHousemaster(offices.some(o => ['housemaster', 'senior_housemaster'].includes(o.office_type)));
         setIsSeniorHousemaster(offices.some(o => o.office_type === 'senior_housemaster'));
-        setIsHod(offices.some(o => o.office_type === 'hod'));
+        // Only ever switch HOD on here: /api/hod/check below is the main HOD
+        // check, and an empty office list arriving after it used to switch the
+        // HOD menu back off for HODs set on the Departments page.
+        if (offices.some(o => o.office_type === 'hod')) setIsHod(true);
       })
       .catch(() => {});
     teacherApi.get<{ module_keys: string[] }>('/api/responsibilities/my-modules')
