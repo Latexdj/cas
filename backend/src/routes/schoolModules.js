@@ -19,7 +19,12 @@ router.use(authenticate, requireActiveSubscription);
 // exactly the school's license, unchanged from before this existed.
 router.get('/enabled', async (req, res, next) => {
   try {
-    const modules = await getEffectiveModules(req.schoolId, req.user);
+    // The teacher portal asks for ?view=teacher: an admin there is using it
+    // as a teacher (housemaster, HOD...), so their admin-module restriction
+    // doesn't apply. Module routes treat such requests as a teacher's too
+    // (middleware/moduleAccess.js), so this grants nothing a teacher lacks.
+    const asTeacher = req.query.view === 'teacher' && req.user?.role === 'admin';
+    const modules = await getEffectiveModules(req.schoolId, asTeacher ? { ...req.user, role: 'teacher' } : req.user);
     res.json(modules);
   } catch (err) { next(err); }
 });

@@ -50,20 +50,24 @@ function writeCache(entry: CacheEntry) {
 // null as "show everything" (fail open), matching the pre-existing
 // Sidebar.tsx behavior: a transient API failure should never hide nav a
 // school has already licensed.
-export function useEnabledModules(apiClient: AxiosInstance, schoolId: string | null | undefined, userId: string | null | undefined): string[] | null {
-  const [modules, setModules] = useState<string[] | null>(() => (schoolId && userId ? readCache(schoolId, userId) : null));
+// view 'teacher' (teacher portal): an admin there is acting as a teacher, so
+// the server leaves out their admin-module restriction. Cached separately so
+// the same person's admin dashboard and teacher portal never share a list.
+export function useEnabledModules(apiClient: AxiosInstance, schoolId: string | null | undefined, userId: string | null | undefined, view?: 'teacher'): string[] | null {
+  const cacheUser = userId ? (view ? `${userId}#${view}` : userId) : userId;
+  const [modules, setModules] = useState<string[] | null>(() => (schoolId && cacheUser ? readCache(schoolId, cacheUser) : null));
 
   useEffect(() => {
-    if (!schoolId || !userId) { setModules(null); return; }
+    if (!schoolId || !cacheUser) { setModules(null); return; }
 
-    const cached = readCache(schoolId, userId);
+    const cached = readCache(schoolId, cacheUser);
     if (cached) { setModules(cached); return; }
 
     let cancelled = false;
-    apiClient.get<string[]>('/api/school-modules/enabled')
+    apiClient.get<string[]>('/api/school-modules/enabled', { params: view ? { view } : undefined })
       .then(r => {
         if (cancelled) return;
-        writeCache({ schoolId, userId, keys: r.data, cachedAt: Date.now() });
+        writeCache({ schoolId, userId: cacheUser, keys: r.data, cachedAt: Date.now() });
         setModules(r.data);
       })
       .catch(() => {
@@ -71,7 +75,7 @@ export function useEnabledModules(apiClient: AxiosInstance, schoolId: string | n
       });
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [schoolId, userId]);
+  }, [schoolId, cacheUser]);
 
   return modules;
 }

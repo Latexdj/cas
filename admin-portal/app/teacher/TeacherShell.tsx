@@ -421,7 +421,7 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
   const [schoolId,         setSchoolId]         = useState<string | undefined>(undefined);
   const [userId,           setUserId]           = useState<string | undefined>(undefined);
   const [openSection,      setOpenSection]      = useState<string | null>(null);
-  const enabledModules = useEnabledModules(teacherApi, schoolId, userId);
+  const enabledModules = useEnabledModules(teacherApi, schoolId, userId, 'teacher');
 
   useEffect(() => setMounted(true), []);
   useEffect(() => { setMoreOpen(false); }, [pathname]);

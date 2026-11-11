@@ -68,10 +68,18 @@ function checkModuleAccess(moduleKey) {
       if (isAdminIdentity) {
         const allowed = await getCachedAdminAllowed(req.user.id);
         if (allowed !== null && !allowed.includes(moduleKey)) {
-          return res.status(403).json({
-            error: 'module_access_restricted',
-            message: `You do not have access to the ${moduleKey} module.`,
-          });
+          if (req.user.role !== 'admin') {
+            return res.status(403).json({
+              error: 'module_access_restricted',
+              message: `You do not have access to the ${moduleKey} module.`,
+            });
+          }
+          // An admin login is also a teacher. Restricting what they may
+          // manage in this module must not take away their own duties in
+          // it (housemaster, HOD, clearance officer...), so handle this
+          // request as an ordinary teacher's: role-specific route checks
+          // still apply, and admin-only endpoints still refuse them.
+          req.user = { ...req.user, role: 'teacher', adminRestricted: true };
         }
       }
 
