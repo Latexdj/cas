@@ -4,7 +4,18 @@ const ExcelJS = require('exceljs');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
 const { getClassRoster, mapWithLimit } = require('../services/classHistory.service');
 
-router.use(authenticate, requireActiveSubscription, adminOnly);
+router.use(authenticate, requireActiveSubscription);
+
+// Student/teacher distribution reports are aggregate counts (no individual
+// records), so full-access Accountant and Stores staff can read them too.
+// Academic-results reports below stay admin-only.
+const SCHOOL_REPORT_STAFF_ROLES = ['accountant', 'stores'];
+function schoolReportsAccess(req, res, next) {
+  const role = req.user?.role;
+  if (role === 'admin' || role === 'super_admin') return next();
+  if (role === 'staff' && req.staffRoles?.some(r => SCHOOL_REPORT_STAFF_ROLES.includes(r))) return next();
+  return res.status(403).json({ error: 'Admin access required' });
+}
 
 // ── Student report definitions ─────────────────────────────────────────────────
 
@@ -527,7 +538,7 @@ async function buildTeacherCompletionRows(schoolId, academicYearId, semester) {
 
 // ── Routes ─────────────────────────────────────────────────────────────────────
 
-router.get('/students', async (req, res, next) => {
+router.get('/students', schoolReportsAccess, async (req, res, next) => {
   try {
     const { type = 'program_distribution', status = 'active' } = req.query;
     const report = STUDENT_REPORTS[type];
@@ -538,7 +549,7 @@ router.get('/students', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.get('/teachers', async (req, res, next) => {
+router.get('/teachers', schoolReportsAccess, async (req, res, next) => {
   try {
     const { type = 'gender_summary', status = 'active' } = req.query;
     const report = TEACHER_REPORTS[type];
@@ -549,7 +560,7 @@ router.get('/teachers', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.get('/students/excel', async (req, res, next) => {
+router.get('/students/excel', schoolReportsAccess, async (req, res, next) => {
   try {
     const { type = 'program_distribution', status = 'active' } = req.query;
     const report = STUDENT_REPORTS[type];
@@ -564,7 +575,7 @@ router.get('/students/excel', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.get('/teachers/excel', async (req, res, next) => {
+router.get('/teachers/excel', schoolReportsAccess, async (req, res, next) => {
   try {
     const { type = 'gender_summary', status = 'active' } = req.query;
     const report = TEACHER_REPORTS[type];
@@ -579,7 +590,7 @@ router.get('/teachers/excel', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.get('/academic', async (req, res, next) => {
+router.get('/academic', adminOnly, async (req, res, next) => {
   try {
     const { type, academic_year_id, semester, class_name, status = 'active' } = req.query;
     if (!type || !academic_year_id || !semester) {
@@ -760,7 +771,7 @@ router.get('/academic', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.get('/academic/excel', async (req, res, next) => {
+router.get('/academic/excel', adminOnly, async (req, res, next) => {
   try {
     const { type, academic_year_id, semester, class_name, status = 'active' } = req.query;
     if (!type || !academic_year_id || !semester) {
