@@ -3,6 +3,8 @@ const router = require('express').Router();
 const pool   = require('../config/db');
 const { authenticate, requireActiveSubscription } = require('../middleware/auth');
 const { checkModuleAccess } = require('../middleware/moduleAccess');
+const crypto = require('crypto');
+const { uploadFile, deleteFile } = require('../services/storage.service');
 
 router.use(authenticate, requireActiveSubscription, checkModuleAccess('inventory'));
 
@@ -351,7 +353,7 @@ router.delete('/items/:id', async (req, res, next) => {
       // returned (closed) loan history still blocks deletion, by design,
       // same as a library book that's ever circulated.
       if (delErr.code === '23503') {
-        return res.status(400).json({ error: 'Cannot delete — this item has loan history and cannot be removed.' });
+        return res.status(400).json({ error: 'Cannot delete — this item has loan or bulk-issue history and cannot be removed. Write it off instead.' });
       }
       throw delErr;
     }
@@ -787,6 +789,296 @@ router.get('/sign-list/recipients', async (req, res, next) => {
     );
     return res.json({ recipients: rows, school, total: rows.length });
   } catch (err) { next(err); }
+});
+
+// ── Bulk issue records ───────────────────────────────────────────────────────
+// One record per bulk issue (e.g. 2 exercise books each to Form 1A). Stock is
+// deducted once, each recipient gets their own 'issued' transaction (and a
+// loan, for returnable items), and the signed sheet is attached for audit.
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const SIGNED_LIST_MIMES = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
+const SIGNED_LIST_MAX_BYTES = 15 * 1024 * 1024;
+
+function httpErr(status, message) {
+  const e = new Error(message); e.status = status; e.expose = true; return e;
+}
+function sendErr(res, next, err) {
+  if (err.expose) return res.status(err.status).json({ error: err.message });
+  return next(err);
+}
+
+async function resolveRecipients(db, schoolId, type, ids) {
+  if (!Array.isArray(ids) || ids.length === 0) throw httpErr(400, 'Select at least one recipient');
+  const unique = [...new Set(ids)];
+  if (!unique.every(id => typeof id === 'string' && UUID_RE.test(id))) throw httpErr(400, 'Invalid recipient list');
+  if (unique.length > 5000) throw httpErr(400, 'Too many recipients in one issue (max 5000)');
+  const { rows } = type === 'student'
+    ? await db.query(
+        `SELECT id, name, student_code AS code, class_name AS detail
+         FROM students WHERE school_id=$1 AND status='Active' AND id = ANY($2::uuid[])`,
+        [schoolId, unique])
+    : await db.query(
+        `SELECT id, name, teacher_code AS code, department AS detail
+         FROM teachers WHERE school_id=$1 AND status='Active' AND id = ANY($2::uuid[])`,
+        [schoolId, unique]);
+  if (rows.length !== unique.length) {
+    throw httpErr(400, `${unique.length - rows.length} selected ${type === 'student' ? 'student(s)' : 'teacher(s)'} could not be found or are no longer active`);
+  }
+  return rows;
+}
+
+// Writes one 'issued' transaction per recipient (plus a loan per recipient
+// for returnable items) in two set-based inserts, so 1000 students is two
+// queries, not 2000.
+async function recordBatchIssues(db, req, { item, batch, recipients }) {
+  const ids     = recipients.map(r => r.id);
+  const names   = recipients.map(r => r.name);
+  const details = recipients.map(r => r.detail ?? null);
+  const codes   = recipients.map(r => r.code ?? null);
+  const [byTeacher, byStaff] = performedBy(req);
+
+  await db.query(
+    `INSERT INTO inventory_transactions
+       (school_id, item_id, type, quantity, issued_to_name, issued_to_role, issued_to_type,
+        student_id, teacher_id, notes, performed_by_id, performed_by_staff_id, performed_by_name, batch_id)
+     SELECT $1, $2, 'issued', $3, r.name, r.detail, $4::text,
+            CASE WHEN $4::text = 'student' THEN r.id END,
+            CASE WHEN $4::text = 'teacher' THEN r.id END,
+            $5, $6, $7, $8, $9
+     FROM unnest($10::uuid[], $11::text[], $12::text[]) AS r(id, name, detail)`,
+    [req.schoolId, item.id, batch.qty_per_person, batch.recipient_type,
+     batch.title, byTeacher, byStaff, req.user.name, batch.id,
+     ids, names, details]
+  );
+
+  if (item.is_returnable) {
+    await db.query(
+      `INSERT INTO inventory_loans
+         (school_id, item_id, quantity, borrower_type, student_id, teacher_id,
+          borrower_name, borrower_detail, due_date, notes,
+          issued_by_teacher_id, issued_by_school_staff_id, batch_id)
+       SELECT $1, $2, $3, $4::text,
+              CASE WHEN $4::text = 'student' THEN r.id END,
+              CASE WHEN $4::text = 'teacher' THEN r.id END,
+              r.name, NULLIF(CONCAT_WS(' · ', r.code, r.detail), ''), $5, $6, $7, $8, $9
+       FROM unnest($10::uuid[], $11::text[], $12::text[], $13::text[]) AS r(id, name, code, detail)`,
+      [req.schoolId, item.id, batch.qty_per_person, batch.recipient_type,
+       batch.due_date, batch.title, byTeacher, byStaff, batch.id,
+       ids, names, codes, details]
+    );
+  }
+}
+
+async function loadScopedBatch(db, req, id, { lock = false } = {}) {
+  if (!UUID_RE.test(id)) throw httpErr(404, 'Issue record not found');
+  const { rows } = await db.query(
+    `SELECT b.*, i.name AS item_name, i.asset_tag, i.is_returnable,
+            i.ownership_type, i.department_id
+     FROM inventory_issue_batches b JOIN inventory_items i ON i.id = b.item_id
+     WHERE b.id=$1 AND b.school_id=$2 ${lock ? 'FOR UPDATE OF b' : ''}`,
+    [id, req.schoolId]
+  );
+  if (!rows.length) throw httpErr(404, 'Issue record not found');
+  const scopeErr = checkItemScope(req.inventoryScope, req.inventoryDeptId, rows[0]);
+  if (scopeErr) throw httpErr(403, scopeErr);
+  return rows[0];
+}
+
+router.post('/batches', async (req, res, next) => {
+  const { item_id, title, recipient_type, recipient_ids, qty_per_person,
+          due_date, notes, filters, filter_label } = req.body;
+  const client = await pool.connect();
+  try {
+    if (!title?.trim()) throw httpErr(400, 'A title is required (e.g. "Exercise Books — Form 1A, Term 1")');
+    if (!['student', 'teacher'].includes(recipient_type)) throw httpErr(400, 'recipient_type must be "student" or "teacher"');
+    if (typeof item_id !== 'string' || !UUID_RE.test(item_id)) throw httpErr(400, 'Select an item');
+    const qty = parseInt(qty_per_person);
+    if (!qty || qty < 1) throw httpErr(400, 'Quantity per person must be at least 1');
+
+    await client.query('BEGIN');
+    const { rows: itemRows } = await client.query(
+      `SELECT * FROM inventory_items WHERE id=$1 AND school_id=$2 FOR UPDATE`,
+      [item_id, req.schoolId]
+    );
+    if (!itemRows.length) throw httpErr(404, 'Item not found');
+    const item = itemRows[0];
+    const scopeErr = checkItemScope(req.inventoryScope, req.inventoryDeptId, item);
+    if (scopeErr) throw httpErr(403, scopeErr);
+    if (item.condition === 'Written Off') throw httpErr(400, 'Cannot issue a written-off item');
+
+    const recipients = await resolveRecipients(client, req.schoolId, recipient_type, recipient_ids);
+    const total = recipients.length * qty;
+    if (item.quantity_available < total) {
+      throw httpErr(400, `Not enough stock — ${recipients.length} × ${qty} = ${total} needed, only ${item.quantity_available} available`);
+    }
+
+    const [byTeacher, byStaff] = performedBy(req);
+    const { rows: batchRows } = await client.query(
+      `INSERT INTO inventory_issue_batches
+         (school_id, item_id, title, recipient_type, qty_per_person, recipient_count, total_quantity,
+          filters, filter_label, due_date, notes, created_by_teacher_id, created_by_school_staff_id, created_by_name)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
+      [req.schoolId, item.id, title.trim(), recipient_type, qty, recipients.length, total,
+       JSON.stringify(filters && typeof filters === 'object' ? filters : {}),
+       filter_label?.trim() || null,
+       item.is_returnable ? (due_date || null) : null,
+       notes?.trim() || null, byTeacher, byStaff, req.user.name]
+    );
+    const batch = batchRows[0];
+
+    await recordBatchIssues(client, req, { item, batch, recipients });
+    await client.query(
+      `UPDATE inventory_items SET quantity_available = quantity_available - $1, updated_at = now() WHERE id=$2`,
+      [total, item.id]
+    );
+    await client.query('COMMIT');
+    res.status(201).json({ ...batch, item_name: item.name, is_returnable: item.is_returnable });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    sendErr(res, next, err);
+  } finally { client.release(); }
+});
+
+router.get('/batches', async (req, res, next) => {
+  try {
+    const { item_id, search } = req.query;
+    const params = [req.schoolId];
+    const conditions = [`b.school_id=$1`];
+    const sf = appendScope(params, req.inventoryScope, req.inventoryDeptId);
+    if (sf) conditions.push(sf.replace(/^AND /, ''));
+    if (item_id && UUID_RE.test(item_id)) { params.push(item_id); conditions.push(`b.item_id=$${params.length}`); }
+    if (search) {
+      params.push(`%${search}%`);
+      conditions.push(`(b.title ILIKE $${params.length} OR i.name ILIKE $${params.length} OR b.filter_label ILIKE $${params.length})`);
+    }
+    const { rows } = await pool.query(
+      `SELECT b.id, b.title, b.recipient_type, b.qty_per_person, b.recipient_count, b.total_quantity,
+              b.filter_label, b.due_date, b.issued_at, b.created_by_name,
+              b.signed_list_url, b.signed_list_filename, b.signed_list_mime, b.signed_list_uploaded_at,
+              i.name AS item_name, i.asset_tag, i.is_returnable
+       FROM inventory_issue_batches b JOIN inventory_items i ON i.id = b.item_id
+       WHERE ${conditions.join(' AND ')}
+       ORDER BY b.issued_at DESC LIMIT 300`,
+      params
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+router.get('/batches/:id', async (req, res, next) => {
+  try {
+    const batch = await loadScopedBatch(pool, req, req.params.id);
+    const [{ rows: recipients }, { rows: schRows }] = await Promise.all([
+      pool.query(
+        `SELECT t.id AS transaction_id, t.created_at, t.issued_to_name AS name, t.quantity,
+                COALESCE(t.student_id, t.teacher_id) AS person_id,
+                s.student_code, s.class_name, s.residential_status,
+                te.teacher_code, te.department,
+                (t.created_at > $2::timestamptz + interval '2 minutes') AS added_later
+         FROM inventory_transactions t
+         LEFT JOIN students s  ON s.id  = t.student_id
+         LEFT JOIN teachers te ON te.id = t.teacher_id
+         WHERE t.batch_id=$1 AND t.type='issued'
+         ORDER BY s.class_name NULLS LAST, t.issued_to_name`,
+        [batch.id, batch.issued_at]
+      ),
+      pool.query(`SELECT name, address, logo_url FROM schools WHERE id=$1`, [req.schoolId]),
+    ]);
+    res.json({ ...batch, recipients, school: schRows[0] ?? {} });
+  } catch (err) { sendErr(res, next, err); }
+});
+
+// Late collectors — people who were absent on the day and collect later.
+router.post('/batches/:id/recipients', async (req, res, next) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const batch = await loadScopedBatch(client, req, req.params.id, { lock: true });
+    const { rows: itemRows } = await client.query(
+      `SELECT * FROM inventory_items WHERE id=$1 FOR UPDATE`, [batch.item_id]
+    );
+    const item = itemRows[0];
+    if (item.condition === 'Written Off') throw httpErr(400, 'This item has been written off');
+
+    const { rows: existing } = await client.query(
+      `SELECT COALESCE(student_id, teacher_id) AS person_id FROM inventory_transactions
+       WHERE batch_id=$1 AND type='issued'`,
+      [batch.id]
+    );
+    const already = new Set(existing.map(r => r.person_id));
+    const requested = Array.isArray(req.body.recipient_ids) ? req.body.recipient_ids : [];
+    const fresh = [...new Set(requested)].filter(id => !already.has(id));
+    if (!fresh.length) throw httpErr(400, 'Everyone selected has already received this item in this record');
+
+    const recipients = await resolveRecipients(client, req.schoolId, batch.recipient_type, fresh);
+    const total = recipients.length * batch.qty_per_person;
+    if (item.quantity_available < total) {
+      throw httpErr(400, `Not enough stock — ${total} needed, only ${item.quantity_available} available`);
+    }
+
+    await recordBatchIssues(client, req, { item, batch, recipients });
+    await client.query(
+      `UPDATE inventory_items SET quantity_available = quantity_available - $1, updated_at = now() WHERE id=$2`,
+      [total, item.id]
+    );
+    const { rows: updated } = await client.query(
+      `UPDATE inventory_issue_batches
+       SET recipient_count = recipient_count + $1, total_quantity = total_quantity + $2
+       WHERE id=$3 RETURNING *`,
+      [recipients.length, total, batch.id]
+    );
+    await client.query('COMMIT');
+    res.json({ ...updated[0], added: recipients.length });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    sendErr(res, next, err);
+  } finally { client.release(); }
+});
+
+// Upload (or replace) the signed sheet — a phone photo or scanned PDF.
+router.put('/batches/:id/signed-list', async (req, res, next) => {
+  try {
+    const batch = await loadScopedBatch(pool, req, req.params.id);
+    const { file_data, filename } = req.body;
+    const m = typeof file_data === 'string' ? file_data.match(/^data:([^;]+);base64,(.+)$/) : null;
+    if (!m) throw httpErr(400, 'Attach the signed sheet as a PDF or image');
+    const mime = m[1].toLowerCase();
+    if (!SIGNED_LIST_MIMES.includes(mime)) throw httpErr(400, 'Only PDF, JPG, PNG or WebP files are accepted');
+    if (Math.floor(m[2].length * 3 / 4) > SIGNED_LIST_MAX_BYTES) throw httpErr(400, 'File is too large (max 15 MB)');
+
+    const safeName = String(filename || 'signed-list').replace(/[^a-zA-Z0-9._-]/g, '_').slice(-120);
+    const path = `inventory-signed-lists/${req.schoolId}/${batch.id}/${Date.now()}_${crypto.randomUUID()}_${safeName}`;
+    const url = await uploadFile(file_data, path);
+
+    const { rows } = await pool.query(
+      `UPDATE inventory_issue_batches
+       SET signed_list_url=$1, signed_list_path=$2, signed_list_filename=$3, signed_list_mime=$4,
+           signed_list_uploaded_at=now(), signed_list_uploaded_by=$5
+       WHERE id=$6 RETURNING *`,
+      [url, path, safeName, mime, req.user.name, batch.id]
+    );
+    if (batch.signed_list_path) {
+      deleteFile(batch.signed_list_path).catch(e => console.error('[inventory] old signed list delete failed:', e.message));
+    }
+    res.json(rows[0]);
+  } catch (err) { sendErr(res, next, err); }
+});
+
+router.delete('/batches/:id/signed-list', async (req, res, next) => {
+  try {
+    const batch = await loadScopedBatch(pool, req, req.params.id);
+    if (!batch.signed_list_path) throw httpErr(400, 'No signed sheet is attached');
+    const { rows } = await pool.query(
+      `UPDATE inventory_issue_batches
+       SET signed_list_url=NULL, signed_list_path=NULL, signed_list_filename=NULL, signed_list_mime=NULL,
+           signed_list_uploaded_at=NULL, signed_list_uploaded_by=NULL
+       WHERE id=$1 RETURNING *`,
+      [batch.id]
+    );
+    deleteFile(batch.signed_list_path).catch(e => console.error('[inventory] signed list delete failed:', e.message));
+    res.json(rows[0]);
+  } catch (err) { sendErr(res, next, err); }
 });
 
 module.exports = router;

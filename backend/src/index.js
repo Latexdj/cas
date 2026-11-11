@@ -2303,6 +2303,40 @@ async function runMigrations() {
     `);
     await pool.query(`ALTER TABLE inventory_transactions ADD COLUMN IF NOT EXISTS teacher_id UUID REFERENCES teachers(id) ON DELETE SET NULL`);
 
+    // Bulk issue records — one row per bulk issue (e.g. exercise books to
+    // Form 1A), with the uploaded signed sheet attached for audit.
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS inventory_issue_batches (
+        id                          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id                   UUID        NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        item_id                     UUID        NOT NULL REFERENCES inventory_items(id) ON DELETE RESTRICT,
+        title                       TEXT        NOT NULL,
+        recipient_type              TEXT        NOT NULL CHECK (recipient_type IN ('student','teacher')),
+        qty_per_person              INTEGER     NOT NULL CHECK (qty_per_person > 0),
+        recipient_count             INTEGER     NOT NULL DEFAULT 0,
+        total_quantity              INTEGER     NOT NULL DEFAULT 0,
+        filters                     JSONB       NOT NULL DEFAULT '{}'::jsonb,
+        filter_label                TEXT,
+        due_date                    DATE,
+        notes                       TEXT,
+        issued_at                   TIMESTAMPTZ NOT NULL DEFAULT now(),
+        created_by_teacher_id       UUID        REFERENCES teachers(id) ON DELETE SET NULL,
+        created_by_school_staff_id  UUID        REFERENCES school_staff(id) ON DELETE SET NULL,
+        created_by_name             TEXT,
+        signed_list_url             TEXT,
+        signed_list_path            TEXT,
+        signed_list_filename        TEXT,
+        signed_list_mime            TEXT,
+        signed_list_uploaded_at     TIMESTAMPTZ,
+        signed_list_uploaded_by     TEXT,
+        created_at                  TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_inventory_issue_batches_school ON inventory_issue_batches(school_id, issued_at DESC)`);
+    await pool.query(`ALTER TABLE inventory_transactions ADD COLUMN IF NOT EXISTS batch_id UUID REFERENCES inventory_issue_batches(id) ON DELETE SET NULL`);
+    await pool.query(`ALTER TABLE inventory_loans ADD COLUMN IF NOT EXISTS batch_id UUID REFERENCES inventory_issue_batches(id) ON DELETE SET NULL`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_inventory_transactions_batch ON inventory_transactions(batch_id)`);
+
     // Fix school_staff_roles CHECK constraint to allow 'inventory' role
     await pool.query(`
       DO $$ BEGIN
