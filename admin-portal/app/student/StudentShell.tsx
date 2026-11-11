@@ -390,15 +390,15 @@ export default function StudentShell({ children }: { children: ReactNode }) {
 
       {/* ── Mobile More bottom-sheet ── */}
       {moreOpen && (
-        <div className={`md:hidden fixed bottom-[60px] left-0 right-0 rounded-t-xl shadow-2xl z-40 px-4 pt-4 pb-5 ${isDark ? 'bg-slate-800 border-t border-slate-700' : 'bg-white border-t border-slate-200'}`}>
-          <div className="flex items-center justify-between mb-3">
+        <div className={`md:hidden fixed bottom-[60px] left-0 right-0 rounded-t-xl shadow-2xl z-40 px-4 pt-4 pb-3 flex flex-col max-h-[80vh] ${isDark ? 'bg-slate-800 border-t border-slate-700' : 'bg-white border-t border-slate-200'}`}>
+          <div className="flex items-center justify-between mb-3 shrink-0">
             <p className={`text-sm font-bold ${isDark ? 'text-slate-100' : 'text-slate-800'}`}>More</p>
             <button onClick={() => setMoreOpen(false)}
               className={`w-7 h-7 flex items-center justify-center rounded-full ${isDark ? 'bg-slate-700 text-slate-400' : 'bg-slate-100 text-slate-500'}`}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" className="w-3.5 h-3.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             </button>
           </div>
-          <div className="space-y-1">
+          <div className="space-y-1 overflow-y-auto overscroll-contain pb-2">
             {mobileMoreItems.map((item) => {
               const active = isActive(item.href);
               return (
