@@ -1,4 +1,5 @@
 ﻿'use strict';
+const { getOutstandingItems } = require('../services/clearance-blockers');
 const router  = require('express').Router();
 const jwt     = require('jsonwebtoken');
 const bcrypt  = require('bcrypt');
@@ -601,7 +602,9 @@ router.get('/clearance', checkModuleAccess('clearance'), async (req, res, next) 
              sc.is_fully_cleared,
              sc.fully_cleared_at,
              COUNT(sci.id)::int                                              AS total_offices,
-             COUNT(sci.id) FILTER (WHERE sci.status = 'cleared')::int AS cleared_offices
+             COUNT(sci.id) FILTER (WHERE sci.status = 'cleared')::int AS cleared_offices,
+             ((SELECT COUNT(*) FROM inventory_loans il WHERE il.student_id = s.id AND il.status = 'active')
+               + (SELECT COUNT(*) FROM library_loans ll WHERE ll.student_id = s.id AND ll.status = 'active'))::int AS items_outstanding
       FROM students s
       LEFT JOIN programs p        ON p.id = s.program_id
       LEFT JOIN student_clearances sc ON sc.student_id = s.id AND sc.school_id = s.school_id
@@ -610,6 +613,7 @@ router.get('/clearance', checkModuleAccess('clearance'), async (req, res, next) 
       GROUP BY s.id, p.name, sc.id, sc.is_fully_cleared, sc.fully_cleared_at
       ORDER BY s.class_name, s.name
     `, params);
+    for (const r of rows) if (r.items_outstanding > 0) r.is_fully_cleared = false;
 
     const filtered = status === 'fully_cleared'
       ? rows.filter(r => r.is_fully_cleared)
@@ -654,10 +658,13 @@ router.get('/clearance/student/:id', checkModuleAccess('clearance'), async (req,
       offices = rows;
     }
 
+    const outstanding_items = (await getOutstandingItems(req.schoolId, [stu[0].id])).get(stu[0].id) || [];
+    const clearance = sc[0] ? { ...sc[0], is_fully_cleared: sc[0].is_fully_cleared && !outstanding_items.length } : null;
     res.json({
       student: stu[0],
-      clearance: sc[0] || null,
+      clearance,
       offices,
+      outstanding_items,
     });
   } catch (err) { next(err); }
 });

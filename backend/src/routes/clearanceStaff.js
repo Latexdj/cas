@@ -3,6 +3,7 @@ const pool   = require('../config/db');
 const { authenticate, requireActiveSubscription } = require('../middleware/auth');
 const { checkModuleAccess } = require('../middleware/moduleAccess');
 const { recalcFullyCleared } = require('./clearanceAdmin');
+const { getOutstandingItems } = require('../services/clearance-blockers');
 
 router.use(authenticate, requireActiveSubscription, checkModuleAccess('clearance'));
 
@@ -56,7 +57,9 @@ router.get('/pending', async (req, res, next) => {
     const { rows } = await pool.query(
       `SELECT s.id AS student_id, s.name, s.student_code, s.class_name, s.picture_url,
               sci.id AS item_id, sci.office_id, sci.status, sci.notes, sci.actioned_at,
-              co.name AS office_name
+              co.name AS office_name,
+              ((SELECT COUNT(*) FROM inventory_loans il WHERE il.student_id = s.id AND il.status = 'active')
+               + (SELECT COUNT(*) FROM library_loans ll WHERE ll.student_id = s.id AND ll.status = 'active'))::int AS items_outstanding
        FROM student_clearance_items sci
        JOIN student_clearances sc ON sc.id = sci.clearance_id
        JOIN students s ON s.id = sc.student_id
@@ -85,7 +88,8 @@ router.get('/student/:studentCode', async (req, res, next) => {
     if (!sRows.length) return res.status(404).json({ error: 'Student not found' });
     const student = sRows[0];
 
-    if (!officeIds.length) return res.json({ student, items: [] });
+    const outstanding_items = (await getOutstandingItems(req.schoolId, [student.id])).get(student.id) || [];
+    if (!officeIds.length) return res.json({ student, items: [], outstanding_items });
 
     const { rows: items } = await pool.query(
       `SELECT sci.id AS item_id, sci.office_id, sci.status, sci.notes, sci.actioned_at,
@@ -97,7 +101,7 @@ router.get('/student/:studentCode', async (req, res, next) => {
        ORDER BY co.sort_order, co.name`,
       [student.id, req.schoolId, officeIds]
     );
-    res.json({ student, items });
+    res.json({ student, items, outstanding_items });
   } catch (err) { next(err); }
 });
 

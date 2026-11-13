@@ -2337,6 +2337,47 @@ async function runMigrations() {
     await pool.query(`ALTER TABLE inventory_loans ADD COLUMN IF NOT EXISTS batch_id UUID REFERENCES inventory_issue_batches(id) ON DELETE SET NULL`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_inventory_transactions_batch ON inventory_transactions(batch_id)`);
 
+    // Individually tracked units (tablets, laptops): each unit has its own tag
+    // number and IMEI, and every loan of such an item names the exact unit.
+    await pool.query(`ALTER TABLE inventory_items ADD COLUMN IF NOT EXISTS track_units BOOLEAN NOT NULL DEFAULT false`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS inventory_units (
+        id             UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id      UUID        NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        item_id        UUID        NOT NULL REFERENCES inventory_items(id) ON DELETE RESTRICT,
+        tag_number     TEXT        NOT NULL,
+        imei           TEXT,
+        serial_number  TEXT,
+        condition      TEXT        NOT NULL DEFAULT 'Good' CHECK (condition IN ('Good','Damaged')),
+        status         TEXT        NOT NULL DEFAULT 'in_store' CHECK (status IN ('in_store','issued','lost','written_off')),
+        notes          TEXT,
+        created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `);
+    await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS uq_inventory_units_tag  ON inventory_units(school_id, UPPER(tag_number))`);
+    await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS uq_inventory_units_imei ON inventory_units(school_id, imei) WHERE imei IS NOT NULL`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_inventory_units_item ON inventory_units(item_id, status)`);
+    await pool.query(`ALTER TABLE inventory_loans ADD COLUMN IF NOT EXISTS unit_id UUID REFERENCES inventory_units(id) ON DELETE RESTRICT`);
+    await pool.query(`ALTER TABLE inventory_transactions ADD COLUMN IF NOT EXISTS unit_id UUID REFERENCES inventory_units(id) ON DELETE SET NULL`);
+    await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS uq_inventory_loans_active_unit ON inventory_loans(unit_id) WHERE status = 'active' AND unit_id IS NOT NULL`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_inventory_loans_student_active ON inventory_loans(student_id) WHERE status = 'active'`);
+    // A borrower can now report an item lost on return.
+    await pool.query(`
+      DO $$ BEGIN
+        ALTER TABLE inventory_loans DROP CONSTRAINT IF EXISTS inventory_loans_condition_on_return_check;
+        ALTER TABLE inventory_loans ADD CONSTRAINT inventory_loans_condition_on_return_check
+          CHECK (condition_on_return IN ('Good','Damaged','Lost'));
+      EXCEPTION WHEN OTHERS THEN NULL; END $$
+    `);
+    await pool.query(`
+      DO $$ BEGIN
+        ALTER TABLE inventory_transactions DROP CONSTRAINT IF EXISTS inventory_transactions_type_check;
+        ALTER TABLE inventory_transactions ADD CONSTRAINT inventory_transactions_type_check
+          CHECK (type IN ('issued','returned','damaged','repaired','written_off','added','adjusted','lost'));
+      EXCEPTION WHEN OTHERS THEN NULL; END $$
+    `);
+
     // Fix school_staff_roles CHECK constraint to allow 'inventory' role
     await pool.query(`
       DO $$ BEGIN

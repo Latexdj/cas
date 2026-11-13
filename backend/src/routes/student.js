@@ -1,4 +1,5 @@
 ﻿const router = require('express').Router();
+const { getOutstandingItems } = require('../services/clearance-blockers');
 const bcrypt = require('bcrypt');
 const pool   = require('../config/db');
 const { authenticate, requireActiveSubscription } = require('../middleware/auth');
@@ -680,14 +681,17 @@ router.get('/clearance', checkModuleAccess('clearance'), async (req, res, next) 
       [req.user.id, req.schoolId]
     );
     const activeDisciplineCount = parseInt(discRows[0].cnt);
+    const outstanding_items = (await getOutstandingItems(req.schoolId, [req.user.id])).get(req.user.id) || [];
 
     res.json({
-      status: clearance.is_fully_cleared ? 'fully_cleared'
+      status: (clearance.is_fully_cleared && !outstanding_items.length) ? 'fully_cleared'
+            : outstanding_items.length ? 'action_required'
             : items.some(i => i.status === 'not_cleared') ? 'action_required'
             : 'in_progress',
       initiated_at:    clearance.initiated_at,
       fully_cleared_at: clearance.fully_cleared_at,
       active_discipline_count: activeDisciplineCount,
+      outstanding_items,
       items,
     });
   } catch (err) { next(err); }

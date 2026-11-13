@@ -1,3 +1,4 @@
+const { recalcFullyCleared, getOutstandingItems } = require('../services/clearance-blockers');
 const router  = require('express').Router();
 const bcrypt  = require('bcrypt');
 const pool    = require('../config/db');
@@ -357,7 +358,9 @@ router.get('/students', async (req, res, next) => {
               sc.id AS clearance_id, sc.is_fully_cleared, sc.initiated_at, sc.fully_cleared_at,
               COUNT(sci.id)::int AS total_offices,
               COUNT(sci.id) FILTER (WHERE sci.status = 'cleared')::int AS cleared_count,
-              COUNT(sci.id) FILTER (WHERE sci.status = 'not_cleared')::int AS not_cleared_count
+              COUNT(sci.id) FILTER (WHERE sci.status = 'not_cleared')::int AS not_cleared_count,
+              ((SELECT COUNT(*) FROM inventory_loans il WHERE il.student_id = s.id AND il.status = 'active')
+               + (SELECT COUNT(*) FROM library_loans ll WHERE ll.student_id = s.id AND ll.status = 'active'))::int AS items_outstanding
        FROM students s
        LEFT JOIN student_clearances sc ON sc.student_id = s.id AND sc.school_id = s.school_id
        LEFT JOIN student_clearance_items sci ON sci.clearance_id = sc.id
@@ -367,6 +370,9 @@ router.get('/students', async (req, res, next) => {
        LIMIT 200`,
       params
     );
+
+    // Items still to be returned stop a student counting as fully cleared.
+    for (const r of rows) if (r.items_outstanding > 0) r.is_fully_cleared = false;
 
     // Filter by status if requested
     const filtered = status
@@ -408,7 +414,8 @@ router.get('/students/:studentId', async (req, res, next) => {
       [req.params.studentId, req.schoolId]
     );
 
-    res.json({ student, clearance: clRows });
+    const outstanding_items = (await getOutstandingItems(req.schoolId, [student.id])).get(student.id) || [];
+    res.json({ student, clearance: clRows, outstanding_items });
   } catch (err) { next(err); }
 });
 
@@ -451,21 +458,5 @@ router.post('/students/:studentId/override', async (req, res, next) => {
     res.json({ ok: true });
   } catch (err) { next(err); }
 });
-
-// ── Shared helper ─────────────────────────────────────────────────────────────
-async function recalcFullyCleared(clearanceId, schoolId) {
-  const { rows } = await pool.query(
-    `SELECT COUNT(*) FILTER (WHERE status != 'cleared')::int AS pending_count
-     FROM student_clearance_items WHERE clearance_id = $1`,
-    [clearanceId]
-  );
-  const fullyCleared = rows[0].pending_count === 0;
-  await pool.query(
-    `UPDATE student_clearances
-     SET is_fully_cleared = $1, fully_cleared_at = $2
-     WHERE id = $3`,
-    [fullyCleared, fullyCleared ? new Date() : null, clearanceId]
-  );
-}
 
 module.exports = { router, recalcFullyCleared };

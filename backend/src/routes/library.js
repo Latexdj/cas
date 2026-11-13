@@ -5,6 +5,7 @@ const { authenticate, requireActiveSubscription } = require('../middleware/auth'
 const { checkModuleAccess } = require('../middleware/moduleAccess');
 const { uploadDocument } = require('../services/storage.service');
 const { syncBookCounts } = require('./libraryAdmin');
+const { refreshStudentsClearance } = require('../services/clearance-blockers');
 
 router.use(authenticate, requireActiveSubscription, checkModuleAccess('library'));
 
@@ -360,6 +361,7 @@ router.post('/loans/issue', async (req, res, next) => {
        dueDateStr, notes?.trim() || null]
     );
     await syncBookCounts(bookId);
+    refreshStudentsClearance(req.schoolId, [student_id]);
     res.status(201).json(rows[0]);
   } catch (err) { next(err); }
 });
@@ -398,6 +400,7 @@ router.post('/loans/:id/return', async (req, res, next) => {
       [loan.copy_id]
     );
     await syncBookCounts(loan.book_id);
+    refreshStudentsClearance(req.schoolId, [loan.student_id]);
     res.json({ ok: true, fine_amount: fineAmount, days_overdue: daysOverdue });
   } catch (err) { next(err); }
 });
