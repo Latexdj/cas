@@ -255,10 +255,10 @@ function ConductContent() {
                     )}
 
                     {/* Response submitted */}
-                    {q.teacher_response_text && (
+                    {(q.teacher_response_text || q.teacher_response_file_url) && (
                       <div style={{ background: '#E8F4EE', border: '1px solid #B7DFC9', borderRadius: 12, padding: 14, marginBottom: 14 }}>
                         <p style={{ fontSize: 11, fontWeight: 700, color: C.mid, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Your Response</p>
-                        <p style={{ fontSize: 13, color: C.dark, lineHeight: 1.7, whiteSpace: 'pre-wrap', margin: 0 }}>{q.teacher_response_text}</p>
+                        {q.teacher_response_text && <p style={{ fontSize: 13, color: C.dark, lineHeight: 1.7, whiteSpace: 'pre-wrap', margin: 0 }}>{q.teacher_response_text}</p>}
                         {q.teacher_response_file_url && (
                           <a href={q.teacher_response_file_url} target="_blank" rel="noreferrer"
                             style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginTop: 8, fontSize: 12, color: C.mid, fontWeight: 600, textDecoration: 'none' }}>

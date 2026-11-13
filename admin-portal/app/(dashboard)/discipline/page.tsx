@@ -1649,10 +1649,10 @@ function QueryDetailPanel({ query, onClose, onUpdate, onPrint, onEdit }: {
       )}
 
       {/* Teacher response */}
-      {query.teacher_response_text && (
+      {(query.teacher_response_text || query.teacher_response_file_url) && (
         <div style={{ background: '#E8F4EE', border: `1px solid #B7DFC9`, borderRadius: 12, padding: 16, marginBottom: 16 }}>
           <p style={{ fontSize: 11, fontWeight: 700, color: C.mid, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Teacher Response</p>
-          <p style={{ fontSize: 13, color: C.dark, lineHeight: 1.65, whiteSpace: 'pre-wrap', margin: 0 }}>{query.teacher_response_text}</p>
+          {query.teacher_response_text && <p style={{ fontSize: 13, color: C.dark, lineHeight: 1.65, whiteSpace: 'pre-wrap', margin: 0 }}>{query.teacher_response_text}</p>}
           {query.teacher_response_file_url && (
             <a href={query.teacher_response_file_url} target="_blank" rel="noreferrer"
               style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginTop: 8, fontSize: 12, color: C.mid, fontWeight: 600, textDecoration: 'none' }}>
