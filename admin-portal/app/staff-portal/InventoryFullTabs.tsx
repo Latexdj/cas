@@ -5,6 +5,7 @@ import type { AxiosInstance } from 'axios';
 import { UnitsManager } from '@/components/inventory/UnitsManager';
 
 const inputCls = 'w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]';
+const filterSelCls = 'border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]';
 const cardCls  = 'bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden';
 
 interface Category { id: string; name: string; description: string | null; item_count: number; }
@@ -66,6 +67,13 @@ function ManageItemsTab({ api, primary, onItemsChanged }: { api: AxiosInstance; 
   const [saving, setSaving] = useState(false);
   const formRef = useRef<HTMLDivElement>(null);
   const [unitsFor, setUnitsFor] = useState<{ id: string; name: string } | null>(null);
+  const [search, setSearch] = useState('');
+  const [filterCat, setFilterCat] = useState('');
+  const [filterCond, setFilterCond] = useState('');
+  const shown = items.filter(i =>
+    (!search.trim() || `${i.name} ${i.asset_tag ?? ''} ${i.serial_number ?? ''} ${i.location ?? ''}`.toLowerCase().includes(search.trim().toLowerCase()))
+    && (!filterCat || (filterCat === 'none' ? !i.category_id : i.category_id === filterCat))
+    && (!filterCond || i.condition === filterCond));
 
   function load() {
     setLoading(true);
@@ -288,12 +296,31 @@ function ManageItemsTab({ api, primary, onItemsChanged }: { api: AxiosInstance; 
         </div>
       )}
 
+      {items.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          <input className={`${inputCls} flex-1 min-w-0 basis-full sm:basis-auto`} placeholder="Search name, tag or location…" value={search} onChange={e => setSearch(e.target.value)} />
+          <select className={filterSelCls} value={filterCat} onChange={e => setFilterCat(e.target.value)}>
+            <option value="">All categories</option>
+            {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            <option value="none">No category</option>
+          </select>
+          <select className={filterSelCls} value={filterCond} onChange={e => setFilterCond(e.target.value)}>
+            <option value="">Any condition</option>
+            <option value="Good">Good</option>
+            <option value="Damaged">Damaged</option>
+            <option value="Written Off">Written Off</option>
+          </select>
+        </div>
+      )}
+
       <div className={cardCls}>
         {loading ? <p className="p-5 text-center text-slate-400 text-sm">Loading…</p> : items.length === 0 ? (
           <p className="p-5 text-center text-slate-400 text-sm">No items in stock yet. Use Add Item to record the first one.</p>
+        ) : shown.length === 0 ? (
+          <p className="p-5 text-center text-slate-400 text-sm">No items match your search.</p>
         ) : (
           <div className="divide-y divide-slate-100 dark:divide-slate-700">
-            {items.map(i => (
+            {shown.map(i => (
               <div key={i.id} className="flex items-center gap-3 px-4 py-3">
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-slate-800 dark:text-white truncate">{i.name}</p>
@@ -406,22 +433,42 @@ function CategoriesTab({ api, primary }: { api: AxiosInstance; primary: string }
 }
 
 // ── Transaction Log ──────────────────────────────────────────────────────────
+const LOG_TYPES = [
+  ['', 'All activity'], ['issued', 'Issued'], ['returned', 'Returned'], ['added', 'Added'],
+  ['damaged', 'Damaged'], ['repaired', 'Repaired'], ['written_off', 'Written Off'],
+] as const;
+
 function TransactionLogTab({ api }: { api: AxiosInstance }) {
   const [rows, setRows] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
+  const [type, setType] = useState('');
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
-    api.get<Transaction[]>('/api/inventory/transactions', { params: { limit: 100 } })
+    setLoading(true);
+    api.get<Transaction[]>('/api/inventory/transactions', { params: { limit: 200, ...(type ? { type } : {}) } })
       .then(r => setRows(r.data)).catch(() => {}).finally(() => setLoading(false));
-  }, []);
+  }, [type]);
+
+  const q = search.trim().toLowerCase();
+  const shown = q ? rows.filter(t => `${t.item_name} ${t.issued_to_name ?? ''} ${t.performed_by_name ?? ''}`.toLowerCase().includes(q)) : rows;
 
   return (
+    <div className="space-y-3">
+    <div className="flex flex-wrap gap-2">
+      <input className={`${inputCls} flex-1 min-w-0 basis-full sm:basis-auto`} placeholder="Search item or person…" value={search} onChange={e => setSearch(e.target.value)} />
+      <select className={filterSelCls} value={type} onChange={e => setType(e.target.value)}>
+        {LOG_TYPES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+      </select>
+    </div>
     <div className={cardCls}>
       {loading ? <p className="p-5 text-center text-slate-400 text-sm">Loading…</p> : rows.length === 0 ? (
-        <p className="p-5 text-center text-slate-400 text-sm">No stock movements yet. Issues, returns and new items are logged here.</p>
+        <p className="p-5 text-center text-slate-400 text-sm">{type ? 'Nothing of this type yet.' : 'No stock movements yet. Issues, returns and new items are logged here.'}</p>
+      ) : shown.length === 0 ? (
+        <p className="p-5 text-center text-slate-400 text-sm">Nothing matches your search.</p>
       ) : (
         <div className="divide-y divide-slate-100 dark:divide-slate-700">
-          {rows.map(t => (
+          {shown.map(t => (
             <div key={t.id} className="flex items-center gap-3 px-4 py-3">
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-slate-800 dark:text-white truncate">{t.item_name}</p>
@@ -435,6 +482,7 @@ function TransactionLogTab({ api }: { api: AxiosInstance }) {
           ))}
         </div>
       )}
+    </div>
     </div>
   );
 }

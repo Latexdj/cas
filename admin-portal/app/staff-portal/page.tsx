@@ -223,7 +223,10 @@ export default function StaffPortalPage() {
 
   // Issue
   const [invIssueItem,    setInvIssueItem]    = useState('');
-  const [invIssueBorrower,setInvIssueBorrower]= useState<'student' | 'teacher'>('student');
+  const [invIssueBorrower,setInvIssueBorrower]= useState<'student' | 'teacher' | 'staff' | 'department'>('student');
+  // Name (and role, for staff) when a used-up item goes to a member of staff or a department
+  const [invIssueOtherName, setInvIssueOtherName] = useState('');
+  const [invIssueOtherRole, setInvIssueOtherRole] = useState('');
   const [invIssueCode,    setInvIssueCode]    = useState('');
   const [invIssueStudent, setInvIssueStudent] = useState<InvStudent | null>(null);
   const [invIssueStudErr, setInvIssueStudErr] = useState('');
@@ -603,9 +606,12 @@ export default function StaffPortalPage() {
   async function submitInvIssue() {
     const item = invItems.find(i => i.id === invIssueItem);
     if (!item) return;
-    // Non-returnable items keep today's exact behavior: student-only, no due date.
-    const borrower = item.is_returnable ? invIssueBorrower : 'student';
-    const recipient = borrower === 'teacher' ? invIssueTeacher : invIssueStudent;
+    // Returnable items are lent to a named student or teacher; used-up items
+    // can also go to a member of staff or a department (same as the admin page).
+    const borrower = item.is_returnable && (invIssueBorrower === 'staff' || invIssueBorrower === 'department') ? 'student' : invIssueBorrower;
+    const recipient = borrower === 'teacher' ? invIssueTeacher
+      : borrower === 'student' ? invIssueStudent
+      : invIssueOtherName.trim() ? { name: invIssueOtherName.trim() } : null;
     if (!recipient) return;
     if (item.track_units && !invIssueUnit) { setInvIssueErr('Choose the tag number of the unit being handed over.'); return; }
     setInvIssuing(true); setInvIssueErr('');
@@ -614,14 +620,16 @@ export default function StaffPortalPage() {
         unit_id: item.track_units ? invIssueUnit?.id : undefined,
         issued_to_name: recipient.name,
         issued_to_type: borrower,
-        student_id: borrower === 'student' ? recipient.id : undefined,
-        teacher_id: borrower === 'teacher' ? recipient.id : undefined,
+        issued_to_role: borrower === 'staff' ? (invIssueOtherRole.trim() || null) : undefined,
+        student_id: borrower === 'student' ? invIssueStudent?.id : undefined,
+        teacher_id: borrower === 'teacher' ? invIssueTeacher?.id : undefined,
         due_date: item.is_returnable ? (invIssueDueDate || undefined) : undefined,
         quantity: parseInt(invIssueQty) || 1,
         notes: invIssueNotes || null,
       });
       setInvIssueStudent(null); setInvIssueCode('');
       setInvIssueTeacher(null); setInvIssueTCode(''); setInvIssueDueDate('');
+      setInvIssueOtherName(''); setInvIssueOtherRole('');
       setInvIssueItem(''); setInvIssueQty('1'); setInvIssueNotes(''); setInvIssueUnit(null);
       loadInvItems();
     } catch (e: any) { setInvIssueErr(e.response?.data?.error ?? 'Failed to issue'); }
@@ -1343,7 +1351,11 @@ export default function StaffPortalPage() {
           {invTab === 'issue' && (() => {
             const issueItemObj = invItems.find(i => i.id === invIssueItem);
             const returnable = issueItemObj?.is_returnable ?? false;
-            const recipient = (returnable ? invIssueBorrower : 'student') === 'teacher' ? invIssueTeacher : invIssueStudent;
+            const who = returnable && (invIssueBorrower === 'staff' || invIssueBorrower === 'department') ? 'student' : invIssueBorrower;
+            const whoOptions = returnable ? (['student', 'teacher'] as const) : (['student', 'teacher', 'staff', 'department'] as const);
+            const recipient = who === 'teacher' ? invIssueTeacher
+              : who === 'student' ? invIssueStudent
+              : invIssueOtherName.trim() ? { name: invIssueOtherName.trim() } : null;
             return (
             <div className="space-y-4">
               <div>
@@ -1353,6 +1365,7 @@ export default function StaffPortalPage() {
                     setInvIssueItem(e.target.value); setInvIssueQty('1'); setInvIssueUnit(null);
                     setInvIssueStudent(null); setInvIssueCode(''); setInvIssueStudErr('');
                     setInvIssueTeacher(null); setInvIssueTCode(''); setInvIssueTErr(''); setInvIssueDueDate('');
+                    setInvIssueOtherName(''); setInvIssueOtherRole('');
                   }}>
                   <option value="">Select item</option>
                   {invItems.filter(i => i.quantity_available > 0 && i.condition !== 'Written Off').map(i => (
@@ -1361,19 +1374,19 @@ export default function StaffPortalPage() {
                 </select>
               </div>
 
-              {invIssueItem && returnable && (
+              {invIssueItem && (
                 <div className="flex gap-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-1">
-                  {(['student', 'teacher'] as const).map(t => (
+                  {whoOptions.map(t => (
                     <button key={t} onClick={() => setInvIssueBorrower(t)}
-                      className={`flex-1 py-2 rounded-lg text-sm font-medium capitalize transition-colors ${invIssueBorrower === t ? 'text-white' : 'text-slate-600 dark:text-slate-300'}`}
-                      style={invIssueBorrower === t ? { background: primary } : {}}>
+                      className={`flex-1 py-2 rounded-lg text-sm font-medium capitalize transition-colors ${who === t ? 'text-white' : 'text-slate-600 dark:text-slate-300'}`}
+                      style={who === t ? { background: primary } : {}}>
                       {t}
                     </button>
                   ))}
                 </div>
               )}
 
-              {invIssueItem && (!returnable || invIssueBorrower === 'student') && (
+              {invIssueItem && who === 'student' && (
                 <div className="flex gap-2">
                   <NameOrIdSearch className="flex-1" inputClassName="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-4 py-2.5 text-sm font-medium bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]"
                   value={invIssueCode} onChange={v => { setInvIssueCode(v); setInvIssueStudent(null); setInvIssueStudErr(''); }}
@@ -1386,7 +1399,7 @@ export default function StaffPortalPage() {
                   </button>
                 </div>
               )}
-              {invIssueItem && returnable && invIssueBorrower === 'teacher' && (
+              {invIssueItem && who === 'teacher' && (
                 <div className="flex gap-2">
                   <NameOrIdSearch className="flex-1" inputClassName="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-4 py-2.5 text-sm font-medium bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]"
                   value={invIssueTCode} onChange={v => { setInvIssueTCode(v); setInvIssueTeacher(null); setInvIssueTErr(''); }}
@@ -1399,8 +1412,20 @@ export default function StaffPortalPage() {
                   </button>
                 </div>
               )}
-              {invIssueStudErr && (!returnable || invIssueBorrower === 'student') && <p className="text-sm text-red-600 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3">{invIssueStudErr}</p>}
-              {invIssueTErr && returnable && invIssueBorrower === 'teacher' && <p className="text-sm text-red-600 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3">{invIssueTErr}</p>}
+              {invIssueItem && (who === 'staff' || who === 'department') && (
+                <div className={who === 'staff' ? 'grid grid-cols-2 gap-2' : ''}>
+                  <input value={invIssueOtherName} onChange={e => setInvIssueOtherName(e.target.value)}
+                    placeholder={who === 'staff' ? 'Full name' : 'Department or section, e.g. Kitchen'}
+                    className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-4 py-2.5 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
+                  {who === 'staff' && (
+                    <input value={invIssueOtherRole} onChange={e => setInvIssueOtherRole(e.target.value)}
+                      placeholder="Role, e.g. Cleaner"
+                      className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-4 py-2.5 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
+                  )}
+                </div>
+              )}
+              {invIssueStudErr && who === 'student' && <p className="text-sm text-red-600 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3">{invIssueStudErr}</p>}
+              {invIssueTErr && who === 'teacher' && <p className="text-sm text-red-600 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3">{invIssueTErr}</p>}
 
               {invIssueItem && recipient && (
                 <div className="space-y-4">
@@ -1411,7 +1436,9 @@ export default function StaffPortalPage() {
                     <div>
                       <p className="font-bold text-slate-800 dark:text-white">{recipient.name}</p>
                       <p className="text-xs text-slate-400">
-                        {'student_code' in recipient ? `${recipient.student_code}, ${recipient.class_name}` : `${recipient.teacher_code}${recipient.department ? `, ${recipient.department}` : ''}`}
+                        {'student_code' in recipient ? `${recipient.student_code}, ${recipient.class_name}`
+                          : 'teacher_code' in recipient ? `${recipient.teacher_code}${recipient.department ? `, ${recipient.department}` : ''}`
+                          : who === 'staff' ? (invIssueOtherRole.trim() || 'Member of staff') : 'Department'}
                       </p>
                     </div>
                   </div>
