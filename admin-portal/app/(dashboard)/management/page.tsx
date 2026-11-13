@@ -177,6 +177,7 @@ export default function ManagementUsersPage() {
         </div>
       ) : (
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40">
@@ -216,6 +217,7 @@ export default function ManagementUsersPage() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
       <Pagination page={page} pageSize={pageSize} total={total} onPage={setPage} onPageSize={(s) => { setPageSize(s); setPage(1); }} />

@@ -164,6 +164,7 @@ export default function BookCatalogPage() {
           ) : filtered.length === 0 ? (
             <p className="p-5 text-sm text-slate-500">No books found. Try a different search or add a new book using the button above.</p>
           ) : (
+            <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
@@ -202,6 +203,7 @@ export default function BookCatalogPage() {
                 ))}
               </tbody>
             </table>
+            </div>
           )}
           {!loading && filtered.length > 0 && (
             <Pagination page={page} pageSize={pageSize} total={total}

@@ -109,6 +109,7 @@ export default function PlacementPage() {
       </div>
 
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-slate-50 border-b border-slate-100">
             <tr>
@@ -151,6 +152,7 @@ export default function PlacementPage() {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
 
       <Pagination page={page} pageSize={pageSize} total={total} onPage={setPage} onPageSize={(p) => { setPageSize(p); setPage(1); }} />

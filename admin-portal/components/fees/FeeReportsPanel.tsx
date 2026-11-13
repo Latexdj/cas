@@ -220,6 +220,7 @@ export function FeeReportsPanel({ apiClient, years: yearsProp, levels: levelsPro
             <p className="text-sm text-slate-400 text-center py-8">Could not load report.</p>
           ) : (
             <>
+              <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-200 dark:border-slate-700">
@@ -251,6 +252,7 @@ export function FeeReportsPanel({ apiClient, years: yearsProp, levels: levelsPro
                   )}
                 </tbody>
               </table>
+              </div>
 
               <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-3">
@@ -325,6 +327,7 @@ export function FeeReportsPanel({ apiClient, years: yearsProp, levels: levelsPro
           {studentLoading ? (
             <p className="text-sm text-slate-400 text-center py-8">Loading…</p>
           ) : (
+            <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-200 dark:border-slate-700">
@@ -353,6 +356,7 @@ export function FeeReportsPanel({ apiClient, years: yearsProp, levels: levelsPro
                 )}
               </tbody>
             </table>
+            </div>
           )}
         </div>
       )}

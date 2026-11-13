@@ -899,6 +899,7 @@ function MissingResultsModal({ academicYears, handledTeacherIds, onClose, onDraf
                                 {c.submission_rejected_reason ? <> — &quot;{c.submission_rejected_reason}&quot;</> : ' — no reason recorded'}
                               </div>
                             )}
+                            <div style={{ overflowX: 'auto' }}>
                             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
                               <tbody>
                                 {c.mode_breakdown.map(m => {
@@ -928,6 +929,7 @@ function MissingResultsModal({ academicYears, handledTeacherIds, onClose, onDraf
                                 </tr>
                               </tbody>
                             </table>
+                            </div>
                           </div>
                         ))}
                       </div>

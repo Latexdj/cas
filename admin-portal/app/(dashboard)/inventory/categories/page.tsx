@@ -86,6 +86,7 @@ export default function InventoryCategoriesPage() {
         </div>
       ) : (
         <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-100 dark:border-slate-700">
@@ -117,6 +118,7 @@ export default function InventoryCategoriesPage() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 

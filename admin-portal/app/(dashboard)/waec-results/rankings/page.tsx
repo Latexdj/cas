@@ -262,6 +262,7 @@ export default function WaecRankingsPage() {
             </div>
           ) : (
             <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
+              <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-slate-50 text-xs text-slate-500 font-semibold">
                   <tr>
@@ -286,6 +287,7 @@ export default function WaecRankingsPage() {
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
           )}
         </>

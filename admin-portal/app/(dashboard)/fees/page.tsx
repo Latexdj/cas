@@ -180,6 +180,7 @@ function ItemsTab({ items, loading, onRefresh }: { items: FeeItem[]; loading: bo
       </div>
 
       {loading ? <p style={{ color: '#94a3b8', textAlign: 'center', padding: 32 }}>Loading…</p> : (
+        <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
           <thead>
             <tr style={{ background: '#F5F0E8' }}>
@@ -207,6 +208,7 @@ function ItemsTab({ items, loading, onRefresh }: { items: FeeItem[]; loading: bo
             ))}
           </tbody>
         </table>
+        </div>
       )}
       <Pagination page={itemPage} pageSize={itemPageSize} total={itemTotal} onPage={setItemPage} onPageSize={(s) => { setItemPageSize(s); setItemPage(1); }} />
 
@@ -395,6 +397,7 @@ function SchedulesTab({
       )}
 
       {loading ? <p style={{ color: '#94a3b8', textAlign: 'center', padding: 32 }}>Loading…</p> : (
+        <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
           <thead>
             <tr style={{ background: '#F5F0E8' }}>
@@ -434,6 +437,7 @@ function SchedulesTab({
             ))}
           </tbody>
         </table>
+        </div>
       )}
       <Pagination page={schedulePage} pageSize={schedulePageSize} total={scheduleTotal} onPage={setSchedulePage} onPageSize={(s) => { setSchedulePageSize(s); setSchedulePage(1); }} />
 
@@ -727,6 +731,7 @@ function CollectionsTab({ items }: { items: FeeItem[] }) {
 
           {/* Bills */}
           <h3 style={{ fontWeight: 700, fontSize: 14, marginBottom: 8 }}>Bills</h3>
+          <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginBottom: 24 }}>
             <thead>
               <tr style={{ background: '#F5F0E8' }}>
@@ -755,9 +760,11 @@ function CollectionsTab({ items }: { items: FeeItem[] }) {
               })}
             </tbody>
           </table>
+          </div>
 
           {/* Payments */}
           <h3 style={{ fontWeight: 700, fontSize: 14, marginBottom: 8 }}>Payment History</h3>
+          <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ background: '#F5F0E8' }}>
@@ -783,6 +790,7 @@ function CollectionsTab({ items }: { items: FeeItem[] }) {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 
@@ -950,6 +958,7 @@ function ArrearTab({ years, classes }: { years: AcademicYear[]; classes: string[
                   <h3 style={{ fontWeight: 700, fontSize: 13, color: '#374151', marginBottom: 6, padding: '6px 10px', background: '#f1f5f9', borderRadius: 6 }}>
                     {cls} — {students.length} student(s) — {fmt(students.reduce((s, r) => s + Number(r.outstanding), 0))}
                   </h3>
+                  <div style={{ overflowX: 'auto' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                     <thead>
                       <tr>
@@ -970,6 +979,7 @@ function ArrearTab({ years, classes }: { years: AcademicYear[]; classes: string[
                       ))}
                     </tbody>
                   </table>
+                  </div>
                 </div>
               ))}
               <Pagination page={arrearPage} pageSize={arrearPageSize} total={arrearTotal} onPage={setArrearPage} onPageSize={(s) => { setArrearPageSize(s); setArrearPage(1); }} />
@@ -1062,6 +1072,7 @@ function PaymentsReportTab({ years, classes }: { years: AcademicYear[]; classes:
                 <span style={{ color: '#64748b', fontSize: 13 }}>{totalPaymentCount} payment(s) across {paymentTotal} day/method group(s)</span>
               </div>
 
+              <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                 <thead>
                   <tr>
@@ -1081,6 +1092,7 @@ function PaymentsReportTab({ years, classes }: { years: AcademicYear[]; classes:
                   ))}
                 </tbody>
               </table>
+              </div>
               <Pagination page={paymentPage} pageSize={paymentPageSize} total={paymentTotal} onPage={setPaymentPage} onPageSize={(s) => { setPaymentPageSize(s); setPaymentPage(1); }} />
             </>
           )}
@@ -1161,6 +1173,7 @@ function BillCleanupTab({ onCleaned }: { onCleaned: () => void }) {
       {groups.length === 0 ? (
         <p style={{ color: '#94a3b8', textAlign: 'center', padding: 24 }}>No unscheduled bills found — nothing to review.</p>
       ) : (
+        <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
             <tr>
@@ -1201,6 +1214,7 @@ function BillCleanupTab({ onCleaned }: { onCleaned: () => void }) {
             })}
           </tbody>
         </table>
+        </div>
       )}
     </div>
   );
@@ -1344,6 +1358,7 @@ function NeedsReviewTab() {
       {rows.length === 0 ? (
         <p style={{ color: '#94a3b8', textAlign: 'center', padding: 24 }}>Nothing needs review — no paid bill disagrees with its current schedule.</p>
       ) : (
+        <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
             <tr>
@@ -1380,6 +1395,7 @@ function NeedsReviewTab() {
             })}
           </tbody>
         </table>
+        </div>
       )}
     </div>
   );
@@ -1522,6 +1538,7 @@ function ExpenditureTab({ onExpenseChange }: { onExpenseChange: () => void }) {
       {/* Expenses table */}
       {loading ? <p style={{ color: '#94a3b8', textAlign: 'center', padding: 32 }}>Loading…</p> : (
         <>
+          <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
             <thead>
               <tr style={{ background: '#F5F0E8' }}>
@@ -1563,6 +1580,7 @@ function ExpenditureTab({ onExpenseChange }: { onExpenseChange: () => void }) {
               </tfoot>
             )}
           </table>
+          </div>
           <Pagination page={expensePage} pageSize={expensePageSize} total={expenseTotal} onPage={setExpensePage} onPageSize={(s) => { setExpensePageSize(s); setExpensePage(1); }} />
         </>
       )}

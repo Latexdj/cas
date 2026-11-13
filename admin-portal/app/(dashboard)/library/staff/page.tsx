@@ -147,6 +147,7 @@ export default function LibraryStaffPage() {
           {staff.length === 0 ? (
             <p className="p-5 text-sm text-slate-400">No librarian accounts yet.</p>
           ) : (
+            <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
                 <tr>
@@ -208,6 +209,7 @@ export default function LibraryStaffPage() {
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </div>
 

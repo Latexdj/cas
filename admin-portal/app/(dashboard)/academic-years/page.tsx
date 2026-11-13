@@ -330,6 +330,7 @@ function SemesterPanel({ yearId, onRefresh: _onRefresh }: { yearId: string; onRe
         <p className="text-xs text-slate-400">No semesters defined yet. Add one to track semester dates.</p>
       ) : semesters.length > 0 && (
         <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-600 overflow-hidden">
+          <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
               <tr className="bg-slate-50 dark:bg-slate-700/40 border-b border-slate-100 dark:border-slate-700">
@@ -357,6 +358,7 @@ function SemesterPanel({ yearId, onRefresh: _onRefresh }: { yearId: string; onRe
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>

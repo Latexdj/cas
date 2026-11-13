@@ -1235,6 +1235,7 @@ function AllocationsTab({ onGapChange }: { onGapChange: (n: number) => void }) {
       ) : (
         <>
           <div className="bg-white rounded-xl overflow-hidden border border-slate-100 shadow-sm">
+            <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-slate-50 border-b border-slate-100">
                 <tr>
@@ -1300,6 +1301,7 @@ function AllocationsTab({ onGapChange }: { onGapChange: (n: number) => void }) {
                 )}
               </tbody>
             </table>
+            </div>
           </div>
           <Pagination page={allocPage} pageSize={allocPageSize} total={allocTotal} onPage={setAllocPage} onPageSize={(s) => { setAllocPageSize(s); setAllocPage(1); }} />
 

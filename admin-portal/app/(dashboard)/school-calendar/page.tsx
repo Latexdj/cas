@@ -615,6 +615,7 @@ function PeriodTab({ periods, kind, year, onRefresh }: { periods: Period[]; kind
         </div>
       ) : periods.length > 0 && (
         <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-slate-50 dark:bg-slate-700/40 border-b border-slate-100 dark:border-slate-700">
@@ -696,6 +697,7 @@ function PeriodTab({ periods, kind, year, onRefresh }: { periods: Period[]; kind
               })}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>

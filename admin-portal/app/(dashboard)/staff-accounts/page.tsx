@@ -125,6 +125,7 @@ export default function SupportStaffPage() {
         ) : staff.length === 0 ? (
           <p className="p-5 text-sm text-slate-500">No support staff accounts yet. Add one to get started.</p>
         ) : (
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
@@ -168,6 +169,7 @@ export default function SupportStaffPage() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 

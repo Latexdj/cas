@@ -412,6 +412,7 @@ export default function AssessmentTrackerPage() {
                 {/* Expanded subject rows */}
                 {isExpanded && (
                   <div className="border-t border-slate-100">
+                    <div className="overflow-x-auto">
                     <table className="w-full text-xs">
                       <thead className="bg-slate-50">
                         <tr>
@@ -471,6 +472,7 @@ export default function AssessmentTrackerPage() {
                         })}
                       </tbody>
                     </table>
+                    </div>
                   </div>
                 )}
               </div>
@@ -585,6 +587,7 @@ export default function AssessmentTrackerPage() {
                       </div>
 
                       {/* Subject/class breakdown table */}
+                      <div style={{ overflowX: 'auto' }}>
                       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                         <thead>
                           <tr>
@@ -622,6 +625,7 @@ export default function AssessmentTrackerPage() {
                           })}
                         </tbody>
                       </table>
+                      </div>
                     </div>
                   );
                 })

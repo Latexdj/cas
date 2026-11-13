@@ -359,7 +359,7 @@ export default function StudentShell({ children }: { children: ReactNode }) {
       </aside>
 
       {/* ── Main content ── */}
-      <div className="flex-1 flex flex-col md:ml-60 min-h-screen">
+      <div className="flex-1 flex flex-col md:ml-60 min-h-screen min-w-0">
         {/* Mobile header */}
         <header className="md:hidden sticky top-0 z-10 px-4 py-3 flex items-center gap-3"
           style={{ backgroundColor: isDark ? '#152210' : '#FDFAF5', borderBottom: `1px solid ${sidebarBorder}` }}>
@@ -376,7 +376,7 @@ export default function StudentShell({ children }: { children: ReactNode }) {
           </button>
         </header>
 
-        <main className="flex-1 pb-20 md:pb-6">{children}</main>
+        <main className="flex-1 pb-20 md:pb-6 min-w-0">{children}</main>
       </div>
 
       {pathname === '/student' && (

@@ -291,6 +291,7 @@ export default function WaecAnalyticsPage() {
 
             <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
               <h3 className="text-sm font-semibold text-slate-700 px-5 pt-5">Subject performance by year</h3>
+              <div className="overflow-x-auto">
               <table className="w-full text-sm mt-3">
                 <thead className="bg-slate-50 text-xs text-slate-500 font-semibold">
                   <tr>
@@ -317,6 +318,7 @@ export default function WaecAnalyticsPage() {
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
           </div>
         </div>

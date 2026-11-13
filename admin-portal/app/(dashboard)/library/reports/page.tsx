@@ -162,6 +162,7 @@ export default function LibraryReportsPage() {
             Most Borrowed Titles{from || to ? ' (filtered period)' : ' (all time)'}
           </h2>
           <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-slate-50 dark:bg-slate-900 border-b border-slate-100 dark:border-slate-700">
                 <tr>
@@ -191,6 +192,7 @@ export default function LibraryReportsPage() {
                 })}
               </tbody>
             </table>
+            </div>
           </div>
         </section>
       )}

@@ -403,6 +403,7 @@ function SessionsTab() {
               </div>
             </div>
             <div className="border border-slate-200 dark:border-slate-600 rounded-xl overflow-hidden">
+              <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-slate-50 dark:bg-slate-700/40 border-b border-slate-200 dark:border-slate-600">
@@ -459,6 +460,7 @@ function SessionsTab() {
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
           </div>
 
@@ -495,6 +497,7 @@ function SessionsTab() {
             <div key={date}>
               <p className="text-xs font-bold font-medium mb-2 px-1 text-slate-400">{fmt(date)}</p>
               <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-slate-50 dark:bg-slate-700/40 border-b border-slate-100 dark:border-slate-700">
@@ -656,6 +659,7 @@ function SessionsTab() {
                     ))}
                   </tbody>
                 </table>
+                </div>
               </div>
             </div>
           ))}

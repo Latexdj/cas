@@ -168,6 +168,7 @@ export default function ClearancePage() {
           <div className="text-center py-16 text-slate-400 text-sm">No students found.</div>
         ) : (
           <>
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-slate-50 text-xs font-semibold text-slate-500 font-medium border-b border-slate-100">
@@ -224,6 +225,7 @@ export default function ClearancePage() {
               })}
             </tbody>
           </table>
+          </div>
           <Pagination page={page} pageSize={pageSize} total={total}
             onPage={setPage} onPageSize={p => { setPageSize(p); setPage(1); }} />
           </>

@@ -978,6 +978,7 @@ export function GeneralLettersModule({ apiClient = defaultApi, defaultStatusFilt
         </div>
       ) : (
         <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, overflow: 'hidden' }}>
+          <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ borderBottom: `1px solid ${C.border}` }}>
@@ -1042,6 +1043,7 @@ export function GeneralLettersModule({ apiClient = defaultApi, defaultStatusFilt
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 

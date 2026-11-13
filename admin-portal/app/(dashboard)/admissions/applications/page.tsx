@@ -445,6 +445,7 @@ export default function ApplicationsPage() {
 
       {/* Table */}
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-slate-50 border-b border-slate-100">
             <tr>{['Admission No.','Name','Index No.','Program','House','Status','Date','Actions'].map(h =>
@@ -496,6 +497,7 @@ export default function ApplicationsPage() {
             })}
           </tbody>
         </table>
+        </div>
       </div>
 
       {pages > 1 && (

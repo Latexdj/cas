@@ -301,6 +301,7 @@ export default function FormTeachersPage() {
               No classes found. Add students with class names to see them here.
             </div>
           ) : (
+            <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-slate-50 text-xs font-semibold text-slate-500 font-medium border-b border-slate-100">
@@ -337,6 +338,7 @@ export default function FormTeachersPage() {
                 })}
               </tbody>
             </table>
+            </div>
           )}
         </div>
       )}
