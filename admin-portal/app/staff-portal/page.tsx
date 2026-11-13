@@ -241,6 +241,7 @@ export default function StaffPortalPage() {
   const [invIssueNotes,   setInvIssueNotes]   = useState('');
   const [invIssuing,      setInvIssuing]      = useState(false);
   const [invIssueErr,     setInvIssueErr]     = useState('');
+  const [invIssueOk,      setInvIssueOk]      = useState('');
 
   // Return
   const [invReturnItem,   setInvReturnItem]   = useState('');
@@ -614,7 +615,7 @@ export default function StaffPortalPage() {
       : invIssueOtherName.trim() ? { name: invIssueOtherName.trim() } : null;
     if (!recipient) return;
     if (item.track_units && !invIssueUnit) { setInvIssueErr('Choose the tag number of the unit being handed over.'); return; }
-    setInvIssuing(true); setInvIssueErr('');
+    setInvIssuing(true); setInvIssueErr(''); setInvIssueOk('');
     try {
       await api.post(`/api/inventory/items/${invIssueItem}/issue`, {
         unit_id: item.track_units ? invIssueUnit?.id : undefined,
@@ -627,6 +628,7 @@ export default function StaffPortalPage() {
         quantity: parseInt(invIssueQty) || 1,
         notes: invIssueNotes || null,
       });
+      setInvIssueOk(`Issued ${parseInt(invIssueQty) || 1} × ${item.name} to ${recipient.name}.`);
       setInvIssueStudent(null); setInvIssueCode('');
       setInvIssueTeacher(null); setInvIssueTCode(''); setInvIssueDueDate('');
       setInvIssueOtherName(''); setInvIssueOtherRole('');
@@ -1369,7 +1371,7 @@ export default function StaffPortalPage() {
                 <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-medium block mb-1.5">Select Item</label>
                 <select className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none"
                   value={invIssueItem} onChange={e => {
-                    setInvIssueItem(e.target.value); setInvIssueQty('1'); setInvIssueUnit(null);
+                    setInvIssueItem(e.target.value); setInvIssueQty('1'); setInvIssueUnit(null); setInvIssueOk('');
                     setInvIssueStudent(null); setInvIssueCode(''); setInvIssueStudErr('');
                     setInvIssueTeacher(null); setInvIssueTCode(''); setInvIssueTErr(''); setInvIssueDueDate('');
                     setInvIssueOtherName(''); setInvIssueOtherRole('');
@@ -1381,6 +1383,9 @@ export default function StaffPortalPage() {
                 </select>
               </div>
 
+              {invIssueOk && !invIssueItem && (
+                <p className="text-sm font-medium text-[#145C44] dark:text-[#2ab289] bg-[#E8F4EE] dark:bg-[#145C44]/20 border border-[#B8D9C8] dark:border-[#145C44] rounded-xl px-4 py-3">{invIssueOk}</p>
+              )}
               {invIssueItem && (
                 <div className="flex gap-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-1">
                   {whoOptions.map(t => (
