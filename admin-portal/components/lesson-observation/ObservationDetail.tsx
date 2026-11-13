@@ -100,6 +100,17 @@ export default function ObservationDetail({ apiClient, backHref, observationId }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editingSetup, obs, apiClient, setupForm.academic_year_id, setupForm.semester]);
 
+  // PATCH replies with the bare observation row (no scores, actions or photos),
+  // so reload the full record after a change instead of replacing state with it.
+  async function refreshObs(patched: LessonObservationDetail) {
+    try {
+      const { data } = await apiClient.get<LessonObservationDetail>(`/api/lesson-observation/${observationId}`);
+      setObs(data);
+    } catch {
+      setObs(prev => (prev ? { ...prev, ...patched, scores: prev.scores, actions: prev.actions, photos: prev.photos } : prev));
+    }
+  }
+
   async function saveSetup() {
     setSavingSetup(true); setError('');
     try {
@@ -115,7 +126,7 @@ export default function ObservationDetail({ apiClient, backHref, observationId }
         semester: setupForm.semester ? Number(setupForm.semester) : null,
         scheduled_at,
       });
-      setObs(data);
+      await refreshObs(data);
       setEditingSetup(false);
     } catch (e: unknown) {
       setError((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to save setup details.');
@@ -147,7 +158,7 @@ export default function ObservationDetail({ apiClient, backHref, observationId }
         glow_notes: glow, grow_notes: grow, recommended_action: action, evidence_notes: evidence,
         status: publish ? 'Completed' : undefined,
       });
-      setObs(data);
+      await refreshObs(data);
     } catch (e: unknown) {
       setError((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to save.');
     } finally { setSaving(false); }
@@ -157,7 +168,7 @@ export default function ObservationDetail({ apiClient, backHref, observationId }
     if (!confirm('Close this observation? This marks it as fully done.')) return;
     try {
       const { data } = await apiClient.patch<LessonObservationDetail>(`/api/lesson-observation/${observationId}`, { status: 'Closed' });
-      setObs(data);
+      await refreshObs(data);
     } catch { alert('Failed to close.'); }
   }
 
