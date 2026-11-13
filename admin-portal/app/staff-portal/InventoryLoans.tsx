@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import type { AxiosInstance } from 'axios';
 import { UnitLookup } from '@/components/inventory/UnitLookup';
+import { AssignTag } from '@/components/inventory/AssignTag';
 
 const inputCls = 'w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]';
 const cardCls  = 'bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden';
@@ -12,7 +13,7 @@ interface Loan {
   borrower_type: 'student' | 'teacher'; borrower_name: string; borrower_detail: string | null;
   issued_at: string; due_date: string | null; notes: string | null;
   item_name: string; asset_tag: string | null; is_overdue: boolean;
-  tag_number?: string | null; imei?: string | null;
+  tag_number?: string | null; imei?: string | null; track_units?: boolean;
 }
 
 function fmtDate(d: string) {
@@ -109,6 +110,12 @@ export function InventoryLoans({
                       {l.due_date ? `${l.is_overdue ? 'Overdue since ' : 'Due '}${fmtDate(l.due_date)}` : 'No due date'}
                     </p>
                     {l.notes && <p className="text-xs text-slate-400 mt-0.5">{l.notes}</p>}
+                    {l.track_units && !l.tag_number && (
+                      <div className="mt-1.5">
+                        <AssignTag apiClient={api} loanId={l.id} itemId={l.item_id}
+                          onDone={(tag, imei) => setLoans(prev => prev.map(x => x.id === l.id ? { ...x, tag_number: tag, imei } : x))} />
+                      </div>
+                    )}
                   </div>
                   <button onClick={() => setReturningId(returningId === l.id ? null : l.id)}
                     className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white shrink-0" style={{ background: primary }}>

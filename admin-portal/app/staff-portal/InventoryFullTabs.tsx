@@ -125,6 +125,8 @@ function ManageItemsTab({ api, primary, onItemsChanged }: { api: AxiosInstance; 
         if (form.track_units) setUnitsFor({ id: data.id, name: data.name });
       } else {
         await api.put(`/api/inventory/items/${editingId}`, payload);
+        // Switching tracking on: go straight to adding the tags.
+        if (form.track_units && editingOriginal && !editingOriginal.track_units) setUnitsFor({ id: editingOriginal.id, name: form.name || editingOriginal.name });
         // The edit route doesn't touch condition — it has its own route
         // because Written Off also zeroes availability and logs a transaction.
         if (conditionChanged && !form.track_units) {
@@ -203,11 +205,21 @@ function ManageItemsTab({ api, primary, onItemsChanged }: { api: AxiosInstance; 
           </div>
 
           {form.track_units ? (
-            <p className="text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/40 rounded-lg px-3 py-2">
-              {editingId === 'new'
-                ? 'The quantity comes from the units you register. After saving, paste or upload the list of tag numbers and IMEIs.'
-                : `${editingOriginal?.quantity_available ?? 0} in store of ${editingOriginal?.quantity_total ?? 0}. Use Units on the item list to add units or change a unit's condition.`}
-            </p>
+            <div className="text-xs text-[#0B3D2E] dark:text-[#7cc79d] bg-[#E8F4EE] dark:bg-[#145C44]/20 rounded-lg px-3 py-2 space-y-1.5">
+              {editingId === 'new' ? (
+                <p>After saving, the Units window opens so you can download the template, fill in each tag number and IMEI, and upload it.</p>
+              ) : editingOriginal && !editingOriginal.track_units ? (
+                <p>Save to switch on unit tracking. The Units window then opens so you can download the template, fill in each tag number and IMEI, and upload it. The current quantity ({editingOriginal.quantity_total}) is replaced by the units you register. Any already issued stay on loan; give each one its tag from Loans with Add tag.</p>
+              ) : (
+                <>
+                  <p>{editingOriginal?.quantity_available ?? 0} in store of {editingOriginal?.quantity_total ?? 0} registered units.</p>
+                  {editingOriginal && (
+                    <button type="button" onClick={() => { const o = editingOriginal; setEditingId(null); setEditingOriginal(null); setUnitsFor({ id: o.id, name: o.name }); }}
+                      className="font-semibold underline">Add or manage units (tags and IMEIs)</button>
+                  )}
+                </>
+              )}
+            </div>
           ) : (
           <div className="grid grid-cols-2 gap-2">
             {editingId === 'new' ? (

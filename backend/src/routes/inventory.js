@@ -337,7 +337,9 @@ router.put('/items/:id', async (req, res, next) => {
         pool.query(`SELECT COUNT(*)::int AS loans FROM inventory_loans WHERE item_id=$1 AND status='active'`, [req.params.id]),
       ]);
       if (!tracked && units > 0) return res.status(400).json({ error: 'This item has individual units recorded, so unit tracking cannot be switched off.' });
-      if (tracked && loans > 0) return res.status(400).json({ error: `Record the return of the ${loans} item(s) currently on loan before switching on unit tracking.` });
+      // Loans already out stay as they are. Each can be given its tag later
+      // from Loans ("Add tag"), which marks that unit as on loan.
+      void loans;
     }
 
     const { rows } = await pool.query(
@@ -728,7 +730,10 @@ router.post('/loans/:id/return', async (req, res, next) => {
     if (!updatedLoan.length) return res.status(409).json({ error: 'This loan has already been returned' });
 
     let updatedItem;
-    if (loan.track_units && loan.unit_id) {
+    if (loan.track_units && !loan.unit_id) {
+      await syncUnitCounts(pool, loan.item_id);
+      ({ rows: updatedItem } = await pool.query(`SELECT * FROM inventory_items WHERE id=$1`, [loan.item_id]));
+    } else if (loan.track_units && loan.unit_id) {
       await pool.query(
         `UPDATE inventory_units SET status=$1, condition=COALESCE($2, condition), updated_at=now() WHERE id=$3`,
         [lost ? 'lost' : 'in_store', lost ? null : newCondition, loan.unit_id]
@@ -761,6 +766,49 @@ router.post('/loans/:id/return', async (req, res, next) => {
     if (loan.student_id) refreshStudentsClearance(req.schoolId, [loan.student_id]);
     res.json({ item: updatedItem[0], loan: updatedLoan[0] });
   } catch (err) { next(err); }
+});
+
+// Give a loan made before unit tracking was switched on its exact unit, so
+// the record shows which tablet that person has.
+router.post('/loans/:id/assign-unit', async (req, res, next) => {
+  const client = await pool.connect();
+  try {
+    if (!UUID_RE.test(req.params.id) || !UUID_RE.test(String(req.body.unit_id))) throw httpErr(400, 'Choose a unit');
+    await client.query('BEGIN');
+    const { rows: loanRows } = await client.query(
+      `SELECT l.*, i.ownership_type, i.department_id, i.track_units
+       FROM inventory_loans l JOIN inventory_items i ON i.id = l.item_id
+       WHERE l.id=$1 AND l.school_id=$2 AND l.status='active' FOR UPDATE OF l`,
+      [req.params.id, req.schoolId]
+    );
+    if (!loanRows.length) throw httpErr(404, 'Active loan not found');
+    const loan = loanRows[0];
+    const scopeErr = checkItemScope(req.inventoryScope, req.inventoryDeptId, loan);
+    if (scopeErr) throw httpErr(403, scopeErr);
+    if (!loan.track_units) throw httpErr(400, 'This item is not tracked by unit');
+    if (loan.unit_id) throw httpErr(400, 'This loan already has a tag');
+    const { rows: claimed } = await client.query(
+      `UPDATE inventory_units SET status='issued', updated_at=now()
+       WHERE id=$1 AND item_id=$2 AND status='in_store' RETURNING *`,
+      [req.body.unit_id, loan.item_id]
+    );
+    if (!claimed.length) throw httpErr(400, 'That unit is not in store. Choose another tag number.');
+    await client.query(`UPDATE inventory_loans SET unit_id=$1 WHERE id=$2`, [claimed[0].id, loan.id]);
+    await client.query(
+      `UPDATE inventory_transactions SET unit_id=$1
+       WHERE id = (SELECT id FROM inventory_transactions
+                   WHERE item_id=$2 AND type='issued' AND unit_id IS NULL
+                     AND COALESCE(student_id, teacher_id) = COALESCE($3::uuid, $4::uuid)
+                   ORDER BY created_at DESC LIMIT 1)`,
+      [claimed[0].id, loan.item_id, loan.student_id, loan.teacher_id]
+    );
+    await syncUnitCounts(client, loan.item_id);
+    await client.query('COMMIT');
+    res.json({ ok: true, tag_number: claimed[0].tag_number, imei: claimed[0].imei });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    sendErr(res, next, err);
+  } finally { client.release(); }
 });
 
 // ── Management report (admin / full access only) ──────────────────────────────

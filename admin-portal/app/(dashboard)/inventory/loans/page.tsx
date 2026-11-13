@@ -5,12 +5,13 @@ import { api } from '@/lib/api';
 import { useTableControls } from '@/hooks/useTableControls';
 import { Pagination, Th } from '@/components/ui/Pagination';
 import { UnitLookup } from '@/components/inventory/UnitLookup';
+import { AssignTag } from '@/components/inventory/AssignTag';
 
 interface Loan {
   id: string; item_id: string; quantity: number; borrower_type: 'student' | 'teacher';
   borrower_name: string; borrower_detail: string | null; issued_at: string;
   due_date: string | null; notes: string | null; item_name: string; asset_tag: string | null;
-  is_overdue: boolean; tag_number?: string | null; imei?: string | null;
+  is_overdue: boolean; tag_number?: string | null; imei?: string | null; track_units?: boolean;
 }
 
 const BORROWER_COLORS: Record<string, string> = {
@@ -126,6 +127,12 @@ function LoansPageInner() {
                         {l.imei && <p className="text-xs font-mono text-slate-400">IMEI {l.imei}</p>}
                       </>
                     ) : l.asset_tag && <p className="text-xs text-slate-400">{l.asset_tag}</p>}
+                    {l.track_units && !l.tag_number && (
+                      <div className="mt-1.5">
+                        <AssignTag apiClient={api} loanId={l.id} itemId={l.item_id}
+                          onDone={(tag, imei) => setLoans(prev => prev.map(x => x.id === l.id ? { ...x, tag_number: tag, imei } : x))} />
+                      </div>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     <p className="font-medium text-slate-900 dark:text-white">{l.borrower_name}</p>

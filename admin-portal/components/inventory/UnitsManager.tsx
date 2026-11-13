@@ -1,7 +1,7 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AxiosInstance } from 'axios';
-import { type InvUnit, type UnitRow, UNIT_STATUS_LABEL, gridToUnits, textToGrid, fileToGrid, apiError } from './units';
+import { type InvUnit, type UnitRow, UNIT_STATUS_LABEL, gridToUnits, textToGrid, fileToGrid, apiError, downloadUnitsTemplate } from './units';
 
 const inputCls = 'w-full border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]';
 const btnPrimary = 'px-4 py-2 rounded-lg text-sm font-semibold text-white bg-[#145C44] hover:bg-[#0B3D2E] disabled:opacity-50';
@@ -34,11 +34,17 @@ export function UnitsManager({
   const [status, setStatus] = useState('');
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<InvUnit | null>(null);
+  const firstLoad = useRef(true);
 
   const load = useCallback(() => {
     setLoading(true); setLoadError('');
     apiClient.get<InvUnit[]>(`/api/inventory/items/${item.id}/units`, { params: { ...extraParams, search: search || undefined, status: status || undefined } })
-      .then(r => setUnits(r.data))
+      .then(r => {
+        setUnits(r.data);
+        // An item with no units yet opens straight on Add units.
+        if (firstLoad.current && !r.data.length && !search && !status) setAdding(true);
+        firstLoad.current = false;
+      })
       .catch(e => setLoadError(apiError(e, 'Could not load the units. Check your connection and try again.')))
       .finally(() => setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -74,7 +80,7 @@ export function UnitsManager({
 
         <div className="overflow-y-auto flex-1">
           {adding ? (
-            <AddUnits apiClient={apiClient} extraParams={extraParams} itemId={item.id} onCancel={() => setAdding(false)} onSaved={() => { setAdding(false); changed(); }} />
+            <AddUnits apiClient={apiClient} extraParams={extraParams} itemId={item.id} itemName={item.name} onCancel={() => setAdding(false)} onSaved={() => { setAdding(false); changed(); }} />
           ) : loading ? (
             <p className="p-5 text-sm text-slate-500">Loading units…</p>
           ) : loadError ? (
@@ -140,8 +146,8 @@ export function UnitsManager({
   );
 }
 
-function AddUnits({ apiClient, extraParams, itemId, onCancel, onSaved }: {
-  apiClient: AxiosInstance; extraParams?: Record<string, string>; itemId: string; onCancel: () => void; onSaved: () => void;
+function AddUnits({ apiClient, extraParams, itemId, itemName, onCancel, onSaved }: {
+  apiClient: AxiosInstance; extraParams?: Record<string, string>; itemId: string; itemName: string; onCancel: () => void; onSaved: () => void;
 }) {
   const [text, setText] = useState('');
   const [rows, setRows] = useState<UnitRow[]>([]);
@@ -185,14 +191,23 @@ function AddUnits({ apiClient, extraParams, itemId, onCancel, onSaved }: {
       <div className="space-y-1">
         <p className="text-sm font-semibold text-slate-800 dark:text-white">Add units</p>
         <p className="text-xs text-slate-500 dark:text-slate-400">
-          Copy the Tag, IMEI and Serial columns from Excel and paste them below, or upload the spreadsheet. A first row with the column names is fine. Without one, the columns are read as Tag, IMEI, Serial.
+          Download the template, fill in one row per unit (Tag Number, IMEI, Serial Number), then upload it. You can also copy the columns from any Excel sheet and paste them below.
         </p>
       </div>
-      <div className="flex flex-wrap gap-2 items-center">
+      <div className="grid sm:grid-cols-2 gap-2">
+        <button type="button" onClick={() => downloadUnitsTemplate(itemName).catch(() => setMsg('The template could not be created. Try again.'))}
+          className="rounded-xl border border-slate-200 dark:border-slate-600 px-4 py-3 text-left hover:bg-slate-50 dark:hover:bg-slate-700">
+          <span className="block text-sm font-semibold text-slate-800 dark:text-white">1. Download empty template</span>
+          <span className="block text-xs text-slate-500 dark:text-slate-400">Excel file with Tag Number, IMEI, Serial Number and Notes columns</span>
+        </button>
         <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv,.txt" className="hidden" onChange={e => onFile(e.target.files?.[0])} />
-        <button className={btnGhost} onClick={() => fileRef.current?.click()}>Upload spreadsheet</button>
-        <span className="text-xs text-slate-400">or paste:</span>
+        <button type="button" onClick={() => fileRef.current?.click()}
+          className="rounded-xl border-2 border-dashed border-[#145C44]/40 px-4 py-3 text-left hover:bg-[#E8F4EE] dark:hover:bg-[#145C44]/15">
+          <span className="block text-sm font-semibold text-[#145C44] dark:text-[#7cc79d]">2. Upload filled template</span>
+          <span className="block text-xs text-slate-500 dark:text-slate-400">.xlsx or .csv; every row is checked before anything is saved</span>
+        </button>
       </div>
+      <p className="text-xs text-slate-400">Or paste the columns here:</p>
       <textarea className={`${inputCls} font-mono text-xs h-32`} value={text}
         placeholder={'Tag\tIMEI\tSerial\nTAB-001\t356789104512345\tR58N12ABC\nTAB-002\t356789104512346\tR58N12ABD'}
         onChange={e => { setText(e.target.value); setFromGrid(textToGrid(e.target.value)); }} />

@@ -168,6 +168,8 @@ export default function InventoryItemsPage() {
       };
       if (editItem) {
         await api.put(`/api/inventory/items/${editItem.id}`, payload);
+        // Switching tracking on: go straight to adding the tags.
+        if (form.track_units && !editItem.track_units) setUnitsFor({ id: editItem.id, name: form.name || editItem.name });
       } else {
         const { data } = await api.post<Item>('/api/inventory/items', payload);
         // A tracked item starts with no units: go straight to adding them.
@@ -464,6 +466,21 @@ export default function InventoryItemsPage() {
                     <input value={form.asset_tag} onChange={e => setForm(f => ({ ...f, asset_tag: e.target.value }))} placeholder="AST-0001" className={inputCls} />
                   </div>
                 </div>
+                {form.track_units && (
+                  <div className="rounded-lg bg-[#E8F4EE] dark:bg-[#145C44]/20 px-3 py-2 text-xs text-[#0B3D2E] dark:text-[#7cc79d] space-y-1.5">
+                    {editItem && !editItem.track_units ? (
+                      <p>Save to switch on unit tracking. The Units window then opens so you can download the template, fill in each tag number and IMEI, and upload it. The current quantity ({editItem.quantity_total}) is replaced by the units you register. Any already issued stay on loan; give each one its tag from Loans with Add tag.</p>
+                    ) : editItem ? (
+                      <>
+                        <p>{editItem.quantity_available} in store of {editItem.quantity_total} registered units.</p>
+                        <button type="button" onClick={() => { setShowForm(false); setUnitsFor({ id: editItem.id, name: editItem.name }); }}
+                          className="font-semibold underline">Add or manage units (tags and IMEIs)</button>
+                      </>
+                    ) : (
+                      <p>After saving, the Units window opens so you can download the template, fill in each tag number and IMEI, and upload it.</p>
+                    )}
+                  </div>
+                )}
                 {!editItem && !form.track_units && (
                   <div>
                     <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 font-medium">Quantity</label>

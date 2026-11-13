@@ -51,8 +51,61 @@ export async function fileToGrid(file: File): Promise<unknown[][]> {
   const XLSX = await import('xlsx');
   const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
   const ws = wb.Sheets[wb.SheetNames[0]];
-  // raw:false keeps long IMEIs as written instead of turning them into 3.5E+14.
-  return XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' }) as unknown[][];
+  // Read raw values: a 15-digit IMEI that Excel stored as a number would
+  // otherwise come back formatted as 3.56789E+14. Whole numbers are written
+  // out in full (IMEIs fit exactly in a JS number).
+  const grid = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '' }) as unknown[][];
+  return grid.map(row => (row ?? []).map(c =>
+    typeof c === 'number' ? (Number.isInteger(c) ? c.toFixed(0) : String(c)) : c));
+}
+
+// An empty spreadsheet with the columns the upload expects. The IMEI and tag
+// columns are formatted as text so Excel keeps long IMEIs exactly as typed
+// (otherwise 356789104512345 becomes 3.56789E+14).
+export async function downloadUnitsTemplate(itemName: string) {
+  const XLSX = await import('xlsx');
+  const head = ['Tag Number', 'IMEI', 'Serial Number', 'Notes'];
+  const ws = XLSX.utils.aoa_to_sheet([head]);
+  for (let r = 1; r <= 1000; r++) {
+    for (const c of [0, 1, 2]) ws[XLSX.utils.encode_cell({ r, c })] = { t: 's', v: '', z: '@' };
+  }
+  ws['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: 1000, c: 3 } });
+  ws['!cols'] = [{ wch: 16 }, { wch: 20 }, { wch: 18 }, { wch: 30 }];
+  const help = XLSX.utils.aoa_to_sheet([
+    ['How to fill in this template'],
+    [`Item: ${itemName}`],
+    [],
+    ['1. On the Units sheet, enter one row per unit (one tablet, laptop, etc.).'],
+    ['2. Tag Number is required and must be different for every unit, e.g. TAB-001.'],
+    ['3. IMEI is optional but recommended for tablets and phones. Type it in full; the column is already set to text.'],
+    ['4. Serial Number and Notes are optional.'],
+    ['5. Keep the first row (the column names). Leave any unused rows empty.'],
+    ['6. Save the file, then in CAS open the item, choose Units, Add units, Upload spreadsheet, and pick this file.'],
+  ]);
+  help['!cols'] = [{ wch: 100 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Units');
+  XLSX.utils.book_append_sheet(wb, help, 'Instructions');
+  const safe = itemName.replace(/[^A-Za-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 40) || 'Item';
+  XLSX.writeFile(wb, `${safe}_units_template.xlsx`);
+}
+
+// A pairing sheet for bulk issue: everyone being issued, with an empty Tag
+// Number column to fill in and upload back.
+export async function downloadPairingTemplate(people: { code: string; name: string; detail?: string | null }[], itemName: string) {
+  const XLSX = await import('xlsx');
+  const rows: string[][] = [['ID', 'Name', 'Class / Department', 'Tag Number']];
+  for (const p of people) rows.push([p.code, p.name, p.detail ?? '', '']);
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  for (let r = 1; r < rows.length; r++) {
+    ws[XLSX.utils.encode_cell({ r, c: 0 })].z = '@';
+    ws[XLSX.utils.encode_cell({ r, c: 3 })] = { t: 's', v: '', z: '@' };
+  }
+  ws['!cols'] = [{ wch: 14 }, { wch: 32 }, { wch: 20 }, { wch: 18 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Pairing');
+  const safe = itemName.replace(/[^A-Za-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 40) || 'Item';
+  XLSX.writeFile(wb, `${safe}_pairing_sheet.xlsx`);
 }
 
 export function apiError(e: unknown, fallback: string) {

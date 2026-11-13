@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { AxiosInstance } from 'axios';
-import { type InvUnit, fileToGrid, apiError } from './units';
+import { type InvUnit, fileToGrid, apiError, downloadPairingTemplate } from './units';
 
 export interface AssignPerson { id: string; name: string; code: string; detail?: string | null }
 export interface UnitAssignment { recipient_id: string; unit_id: string; tag_number: string; imei: string | null }
@@ -110,12 +110,14 @@ export function UnitAssignments({
   return (
     <div className="space-y-2">
       <p className="text-xs text-slate-500 dark:text-slate-400">
-        {units.length} unit{units.length === 1 ? '' : 's'} free in store. Each person needs one tag number. Type or scan a tag (or IMEI) on each row, fill the rest in tag order, or upload a sheet with an ID column and a Tag column.
+        {units.length} unit{units.length === 1 ? '' : 's'} free in store. Each person needs one tag number. Type or scan a tag (or IMEI) on each row, fill the rest in tag order, or download the pairing sheet (everyone listed, with an empty Tag Number column), fill it in and upload it back.
       </p>
       <div className="flex flex-wrap gap-2">
         <button type="button" onClick={fillInOrder}
           className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-[#145C44] hover:bg-[#0B3D2E]">Fill empty rows in tag order</button>
         <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv,.txt" className="hidden" onChange={e => onFile(e.target.files?.[0])} />
+        <button type="button" onClick={() => downloadPairingTemplate(people, 'Issue').catch(() => setNote('The pairing sheet could not be created. Try again.'))}
+          className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300">Download pairing sheet</button>
         <button type="button" onClick={() => fileRef.current?.click()}
           className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300">Upload pairing sheet</button>
         <button type="button" onClick={() => { setTyped({}); setNote(''); }}
