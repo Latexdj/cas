@@ -696,6 +696,13 @@ export default function StaffPortalPage() {
     return parts.join(' · ');
   }
 
+  // Refresh the matching count after a filter change has rendered, so the
+  // request uses the new filter values rather than the previous ones.
+  useEffect(() => {
+    if (section === 'inventory' && invTab === 'sign-list') slRefreshCount();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slRecipType, slClassName, slProgramId, slYearBatch, slGender, slResStatus, slDeptId, slTeacherGender]);
+
   function slRefreshCount() {
     if (slDebounceRef.current) clearTimeout(slDebounceRef.current);
     slDebounceRef.current = setTimeout(() => {
@@ -1519,7 +1526,7 @@ export default function StaffPortalPage() {
                 <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-medium">Recipients</p>
                 <div className="flex gap-2">
                   {(['students', 'teachers'] as const).map(t => (
-                    <button key={t} onClick={() => { setSlRecipType(t); setTimeout(slRefreshCount, 0); }}
+                    <button key={t} onClick={() => setSlRecipType(t)}
                       className={`flex-1 py-2 rounded-xl text-xs font-semibold border transition-colors ${slRecipType === t ? 'text-white' : 'text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-600'}`}
                       style={slRecipType === t ? { background: primary, borderColor: primary } : {}}>
                       {t === 'students' ? 'Students' : 'Teachers'}
@@ -1529,29 +1536,29 @@ export default function StaffPortalPage() {
 
                 {slRecipType === 'students' ? (
                   <div className="space-y-2">
-                    <select value={slClassName} onChange={e => { setSlClassName(e.target.value); slRefreshCount(); }}
+                    <select value={slClassName} onChange={e => setSlClassName(e.target.value)}
                       className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none">
                       <option value="">All Classes</option>
                       {slFilters.classes.map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
-                    <select value={slProgramId} onChange={e => { setSlProgramId(e.target.value); slRefreshCount(); }}
+                    <select value={slProgramId} onChange={e => setSlProgramId(e.target.value)}
                       className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none">
                       <option value="">All Programs</option>
                       {slFilters.programs.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                     </select>
-                    <select value={slYearBatch} onChange={e => { setSlYearBatch(e.target.value); slRefreshCount(); }}
+                    <select value={slYearBatch} onChange={e => setSlYearBatch(e.target.value)}
                       className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none">
                       <option value="">All Year Batches</option>
                       {slFilters.years.map(y => <option key={y} value={String(y)}>{y} Batch</option>)}
                     </select>
                     <div className="grid grid-cols-2 gap-2">
-                      <select value={slGender} onChange={e => { setSlGender(e.target.value); slRefreshCount(); }}
+                      <select value={slGender} onChange={e => setSlGender(e.target.value)}
                         className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none">
                         <option value="">All Genders</option>
                         <option value="Male">Male</option>
                         <option value="Female">Female</option>
                       </select>
-                      <select value={slResStatus} onChange={e => { setSlResStatus(e.target.value); slRefreshCount(); }}
+                      <select value={slResStatus} onChange={e => setSlResStatus(e.target.value)}
                         className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none">
                         <option value="">Day &amp; Boarding</option>
                         <option value="Day">Day Only</option>
@@ -1561,12 +1568,12 @@ export default function StaffPortalPage() {
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    <select value={slDeptId} onChange={e => { setSlDeptId(e.target.value); slRefreshCount(); }}
+                    <select value={slDeptId} onChange={e => setSlDeptId(e.target.value)}
                       className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none">
                       <option value="">All Departments</option>
                       {slFilters.departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                     </select>
-                    <select value={slTeacherGender} onChange={e => { setSlTeacherGender(e.target.value); slRefreshCount(); }}
+                    <select value={slTeacherGender} onChange={e => setSlTeacherGender(e.target.value)}
                       className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none">
                       <option value="">All Genders</option>
                       <option value="Male">Male</option>
