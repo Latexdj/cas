@@ -157,8 +157,8 @@ export default function StaffPortalLayout({ children }: { children: ReactNode })
 
       {/* ── Change Credentials Modal ──────────────────────────────────────── */}
       {showCredModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/55 p-4">
-          <div className={`rounded-xl shadow-2xl w-full max-w-sm ${isDark ? 'bg-slate-800' : 'bg-white'}`}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/55 p-4 overflow-y-auto">
+          <div className={`rounded-xl shadow-2xl w-full max-w-sm ${isDark ? 'bg-slate-800' : 'bg-white'} my-auto`}>
             <div className={`flex items-center justify-between px-5 py-4 border-b ${isDark ? 'border-slate-700' : 'border-slate-100'}`}>
               <p className={`font-bold ${isDark ? 'text-white' : 'text-slate-800'}`}>Change Login Credentials</p>
               <button onClick={() => setShowCredModal(false)} className={isDark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-400 hover:text-slate-600'}>

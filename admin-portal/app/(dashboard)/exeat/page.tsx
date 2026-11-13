@@ -43,8 +43,8 @@ function SettingsModal({ onClose, onSaved }: { onClose: () => void; onSaved: (s:
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/45 px-4">
-      <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-xl shadow-2xl p-6 space-y-5">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/45 px-4 overflow-y-auto py-4">
+      <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-xl shadow-2xl p-6 space-y-5 my-auto">
         <div className="flex items-center justify-between">
           <p className="font-bold text-slate-900 dark:text-white">Exeat Quota Settings</p>
           <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full bg-slate-100 dark:bg-slate-700 text-slate-500 text-sm">✕</button>

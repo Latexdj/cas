@@ -306,8 +306,8 @@ export default function LMSOverviewPage() {
       </div>
 
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/45">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/45 overflow-y-auto py-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4 my-auto">
             <div className="p-5 border-b border-slate-100 flex items-center justify-between">
               <h2 className="text-base font-semibold text-slate-900">New Course</h2>
               <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-600 text-xl leading-none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg></button>

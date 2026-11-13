@@ -527,8 +527,8 @@ export default function CashBookPage() {
 
       {/* ── New Cashbook Modal ─────────────────────────────────────────────────── */}
       {showNewCB && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/45 px-4 no-print">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/45 px-4 no-print overflow-y-auto py-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md my-auto">
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
               <h2 className="font-bold text-slate-900">New Cashbook</h2>
               <button onClick={() => setShowNewCB(false)} className="text-slate-400 hover:text-slate-600">

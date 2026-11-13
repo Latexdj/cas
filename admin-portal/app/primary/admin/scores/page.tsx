@@ -261,8 +261,8 @@ export default function PrimaryScoresAdminPage() {
 
       {/* Score Upload Modal (single subject or all subjects) */}
       {uploadModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/45 px-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/45 px-4 overflow-y-auto py-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md my-auto">
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
               <h2 className="font-bold text-slate-900">
                 {uploadModal === 'single' ? 'Upload Scores — ' + (activeSubject?.subject_name ?? '') : 'Upload All-Subjects Scores'}

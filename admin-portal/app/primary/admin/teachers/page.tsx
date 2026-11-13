@@ -306,8 +306,8 @@ export default function PrimaryTeachersPage() {
 
       {/* PIN Reset Modal */}
       {modal === 'pin' && pinTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/55 px-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/55 px-4 overflow-y-auto py-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6 space-y-4 my-auto">
             <h2 className="font-bold text-slate-900">Reset PIN — {pinTarget.name}</h2>
             <div>
               <label className="block text-xs font-semibold text-slate-600 mb-1">New Password / PIN</label>
@@ -327,8 +327,8 @@ export default function PrimaryTeachersPage() {
 
       {/* Import Teachers Modal */}
       {impModal === 'import' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/45 px-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/45 px-4 overflow-y-auto py-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md my-auto">
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
               <h2 className="font-bold text-slate-900">Import Teachers</h2>
               <button onClick={() => setImpModal(null)} className="text-slate-400 hover:text-slate-600">

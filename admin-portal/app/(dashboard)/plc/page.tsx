@@ -101,8 +101,8 @@ function SessionFormModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/55 p-4" onClick={onClose}>
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/55 p-4 overflow-y-auto" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg my-auto" onClick={e => e.stopPropagation()}>
         <div className="px-6 py-5 border-b border-slate-100">
           <h3 className="text-lg font-bold text-slate-800">{initial?.id ? 'Edit PLC Session' : 'New PLC Session'}</h3>
         </div>
@@ -168,8 +168,8 @@ function SessionFormModal({
 function PhotoModal({ record, onClose }: { record: PlcAttendanceRecord; onClose: () => void }) {
   const mapsUrl = record.gps_coordinates ? `https://www.google.com/maps?q=${record.gps_coordinates}` : null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/65 p-4" onClick={onClose}>
-      <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full overflow-hidden" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/65 p-4 overflow-y-auto" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full overflow-hidden my-auto" onClick={e => e.stopPropagation()}>
         {record.photo_url
           ? <img src={record.photo_url} alt="PLC photo" className="w-full max-h-80 object-cover" />
           : <div className="w-full h-48 bg-slate-100 flex items-center justify-center text-slate-400">No photo</div>}
@@ -219,8 +219,8 @@ function RejectModal({
   error: string; rejecting: boolean; onConfirm: () => void; onClose: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/65 p-4" onClick={onClose}>
-      <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-5 space-y-4" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/65 p-4 overflow-y-auto" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-5 space-y-4 my-auto" onClick={e => e.stopPropagation()}>
         <h3 className="text-base font-semibold text-slate-800">Reject Pending Submission</h3>
         <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-900">
           <p className="font-semibold mb-1">This action will:</p>
@@ -694,8 +694,8 @@ export default function PlcPage() {
 
       {/* QR modal */}
       {qrSession && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/65 p-4" onClick={() => { setQrSession(null); setQrDataUrl(null); }}>
-          <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/65 p-4 overflow-y-auto" onClick={() => { setQrSession(null); setQrDataUrl(null); }}>
+          <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full overflow-hidden my-auto" onClick={e => e.stopPropagation()}>
             <div className="px-6 py-4 border-b border-slate-100">
               <h3 className="text-base font-bold text-slate-800">PLC Venue QR Code</h3>
               <p className="text-sm text-slate-500 mt-0.5">{qrSession.title} — {qrSession.location_name}</p>

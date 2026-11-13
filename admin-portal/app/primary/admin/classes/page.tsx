@@ -76,8 +76,8 @@ function ClassModal({ editing, onClose, onSaved }: {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/55 px-4">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/55 px-4 overflow-y-auto py-4">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6 space-y-4 my-auto">
         <h2 className="font-bold text-slate-900">{editing ? 'Rename Class' : 'New Class'}</h2>
         <div>
           <label className="block text-xs font-semibold text-slate-600 mb-1">Class Name *</label>
@@ -242,8 +242,8 @@ function MoveStudentModal({ student, classes, onClose, onSaved }: {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/55 px-4">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/55 px-4 overflow-y-auto py-4">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6 space-y-4 my-auto">
         <h2 className="font-bold text-slate-900">Move Student</h2>
         <p className="text-sm text-slate-600">
           Move <strong>{student.surname}{student.other_names ? ` ${student.other_names}` : ''}</strong> to a different class.
@@ -300,8 +300,8 @@ function AssignTeacherModal({ cls, yearId, teachers, onClose, onSaved }: {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/55 px-4">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/55 px-4 overflow-y-auto py-4">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6 space-y-4 my-auto">
         <h2 className="font-bold text-slate-900">Assign Class Teacher — {cls.class_name}</h2>
         <div>
           <label className="block text-xs font-semibold text-slate-600 mb-1">Teacher *</label>

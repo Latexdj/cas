@@ -425,8 +425,8 @@ function ExamContent() {
 
       {/* Upload result modal */}
       {uploadResult && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#0B3D2E]/35 px-4 pb-6">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-5">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#0B3D2E]/35 px-4 pb-6 overflow-y-auto pt-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-5 mt-auto">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-base font-bold text-[#2C2218]">Upload Results</h2>
               <button

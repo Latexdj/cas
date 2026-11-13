@@ -60,8 +60,8 @@ function AssignModal({ className, yearId, teachers, existing, onSave, onDelete, 
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-[#0B3D2E]/45 flex items-center justify-center p-4" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
+    <div className="fixed inset-0 z-50 bg-[#0B3D2E]/45 flex items-center justify-center p-4 overflow-y-auto" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md my-auto">
         <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
           <div>
             <p className="font-bold text-slate-800">Assign Form Teacher</p>
@@ -137,8 +137,8 @@ function CopyModal({ fromYear, toYear, onConfirm, onClose, copying }: {
   onConfirm: () => void; onClose: () => void; copying: boolean;
 }) {
   return (
-    <div className="fixed inset-0 z-50 bg-[#0B3D2E]/45 flex items-center justify-center p-4" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
+    <div className="fixed inset-0 z-50 bg-[#0B3D2E]/45 flex items-center justify-center p-4 overflow-y-auto" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md my-auto">
         <div className="px-6 py-5 border-b border-slate-100">
           <p className="font-bold text-slate-800">Copy Form Teacher Assignments</p>
           <p className="text-sm text-slate-500 mt-0.5">From <span className="font-semibold">{fromYear}</span> → <span className="font-semibold">{toYear}</span></p>

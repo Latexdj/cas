@@ -791,8 +791,8 @@ function MinutesModal({ meeting, onClose, onSaved }: { meeting: Meeting; onClose
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/55 p-4" onClick={onClose}>
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/55 p-4 overflow-y-auto" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md my-auto" onClick={e => e.stopPropagation()}>
         <div className="px-6 py-4 border-b border-slate-100">
           <h3 className="text-base font-bold text-slate-800">Meeting Minutes</h3>
           <p className="text-sm text-slate-500 mt-0.5 truncate">{meeting.title} — {fmtDate(meeting.date)}</p>
@@ -955,11 +955,11 @@ function PhotoModal({ record, onClose }: { record: AttendanceRecord; onClose: ()
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/65 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/65 p-4 overflow-y-auto"
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-xl shadow-2xl max-w-2xl w-full overflow-hidden"
+        className="bg-white rounded-xl shadow-2xl max-w-2xl w-full overflow-hidden my-auto"
         onClick={e => e.stopPropagation()}
       >
         {record.photo_url
@@ -1019,8 +1019,8 @@ function RejectModal({
   error: string; rejecting: boolean; onConfirm: () => void; onClose: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/65 p-4" onClick={onClose}>
-      <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-5 space-y-4" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/65 p-4 overflow-y-auto" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-5 space-y-4 my-auto" onClick={e => e.stopPropagation()}>
         <h3 className="text-base font-semibold text-slate-800">Reject Pending Submission</h3>
         <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-900">
           <p className="font-semibold mb-1">This action will:</p>
@@ -1121,8 +1121,8 @@ function ManualAttendanceModal({
   const INPUT = 'w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#145C44]';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/55 p-4" onClick={onClose}>
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/55 p-4 overflow-y-auto" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md my-auto" onClick={e => e.stopPropagation()}>
         <div className="px-6 py-5 border-b border-slate-100">
           <h3 className="text-base font-bold text-slate-800">Record Attendance Manually</h3>
           <p className="text-xs text-slate-500 mt-0.5">Use when a teacher attended but could not log in</p>
@@ -1224,8 +1224,8 @@ function GenerateAbsencesModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/55 p-4" onClick={onClose}>
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/55 p-4 overflow-y-auto" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md my-auto" onClick={e => e.stopPropagation()}>
         <div className="px-6 py-4 border-b border-slate-100">
           <h3 className="text-base font-bold text-slate-800">Generate Absence Records</h3>
           <p className="text-xs text-slate-500 mt-0.5 truncate">{meeting.title}</p>

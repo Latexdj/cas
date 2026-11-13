@@ -412,8 +412,8 @@ function RoomsTab({
 
       {/* Add/Edit Room bottom sheet */}
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-[#0B3D2E]/55 px-0 sm:px-4">
-          <div className="bg-white dark:bg-slate-800 w-full sm:max-w-sm rounded-t-2xl sm:rounded-xl shadow-2xl p-5 space-y-4">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-[#0B3D2E]/55 px-0 sm:px-4 overflow-y-auto pt-4 sm:pb-4">
+          <div className="bg-white dark:bg-slate-800 w-full sm:max-w-sm rounded-t-2xl sm:rounded-xl shadow-2xl p-5 space-y-4 mt-auto sm:mb-auto">
             <div className="flex items-center justify-between">
               <p className="font-bold text-slate-900 dark:text-white">{editRoom ? 'Edit Room' : 'Add Room'}</p>
               <button onClick={() => setShowForm(false)} className="w-7 h-7 flex items-center justify-center rounded-full bg-slate-100 dark:bg-slate-700 text-slate-500 text-slate-500"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg></button>
@@ -730,8 +730,8 @@ function ReturnModal({ exeat, onClose, onReturned }: { exeat: Exeat; onClose: ()
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-[#0B3D2E]/55 px-0 sm:px-4">
-      <div className="bg-white dark:bg-slate-800 w-full sm:max-w-sm rounded-t-2xl sm:rounded-xl shadow-2xl p-5 space-y-4">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-[#0B3D2E]/55 px-0 sm:px-4 overflow-y-auto pt-4 sm:pb-4">
+      <div className="bg-white dark:bg-slate-800 w-full sm:max-w-sm rounded-t-2xl sm:rounded-xl shadow-2xl p-5 space-y-4 mt-auto sm:mb-auto">
         <div className="flex items-center justify-between">
           <p className="font-bold text-slate-900 dark:text-white">Mark Returned</p>
           <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full bg-slate-100 dark:bg-slate-700 text-slate-500 text-slate-500"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg></button>
@@ -962,8 +962,8 @@ function ExeatTab({ role, houseOptions }: { role: 'housemaster' | 'senior_housem
 
       {/* Reject modal */}
       {rejectId && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-[#0B3D2E]/55 px-0 sm:px-4">
-          <div className="bg-white dark:bg-slate-800 w-full sm:max-w-sm rounded-t-2xl sm:rounded-xl shadow-2xl p-5 space-y-4">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-[#0B3D2E]/55 px-0 sm:px-4 overflow-y-auto pt-4 sm:pb-4">
+          <div className="bg-white dark:bg-slate-800 w-full sm:max-w-sm rounded-t-2xl sm:rounded-xl shadow-2xl p-5 space-y-4 mt-auto sm:mb-auto">
             <div className="flex items-center justify-between">
               <p className="font-bold text-slate-900 dark:text-white">Reject Exeat</p>
               <button onClick={() => setRejectId(null)} className="w-7 h-7 flex items-center justify-center rounded-full bg-slate-100 dark:bg-slate-700 text-slate-500 text-slate-500"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg></button>

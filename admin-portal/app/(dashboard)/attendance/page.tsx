@@ -23,11 +23,11 @@ function PhotoModal({ record, onClose }: { record: AttendanceRecord; onClose: ()
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/65 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/65 p-4 overflow-y-auto"
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-xl shadow-2xl max-w-2xl w-full overflow-hidden"
+        className="bg-white rounded-xl shadow-2xl max-w-2xl w-full overflow-hidden my-auto"
         onClick={e => e.stopPropagation()}
       >
         {record.photo_url ? (

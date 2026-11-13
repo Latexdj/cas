@@ -113,8 +113,8 @@ export default function TeacherLeavesPage() {
 
       {/* New Request Modal */}
       {modal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/55 p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/55 p-4 overflow-y-auto">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 space-y-4 my-auto">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-slate-900">New Leave Request</h2>
               <button onClick={() => setModal(false)} className="text-slate-400 hover:text-slate-600 text-xl">×</button>

@@ -264,11 +264,11 @@ export default function LeavesPage() {
 
       {/* Action confirmation overlay */}
       {actId && action && (
-        <div style={{
+        <div style={{ overflowY: 'auto',
           position: 'fixed', inset: 0, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center',
           background: 'rgba(0,0,0,0.55)', padding: 16,
         }}>
-          <div style={{
+          <div style={{ marginTop: 'auto', marginBottom: 'auto',
             background: dark ? '#1E293B' : '#FFFFFF', borderRadius: 16, padding: 28, width: '100%', maxWidth: 420,
             boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
           }}>
@@ -354,14 +354,14 @@ export default function LeavesPage() {
       {docModal && (
         <div
           onClick={() => setDocModal(null)}
-          style={{
+          style={{ overflowY: 'auto',
             position: 'fixed', inset: 0, zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center',
             background: 'rgba(0,0,0,0.75)', padding: 16,
           }}
         >
           <div
             onClick={e => e.stopPropagation()}
-            style={{
+            style={{ marginTop: 'auto', marginBottom: 'auto',
               background: dark ? '#1E293B' : '#FFFFFF', borderRadius: 16,
               width: '100%', maxWidth: 860, height: '85vh',
               display: 'flex', flexDirection: 'column',

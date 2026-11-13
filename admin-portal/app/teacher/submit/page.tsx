@@ -922,10 +922,10 @@ export default function SubmitPage() {
 
       {/* ── Edit Status Picker ── */}
       {editStatusSheet && (
-        <div className="fixed inset-0 z-[60] flex items-end justify-center"
+        <div className="fixed inset-0 z-[60] flex items-end justify-center overflow-y-auto pt-4"
           style={{ backgroundColor: 'rgba(11,61,46,0.55)' }}
           onClick={() => setEditStatusSheet(null)}>
-          <div className="rounded-t-3xl w-full shadow-xl" style={{ background: dk.cardBg }}
+          <div className="rounded-t-3xl w-full shadow-xl mt-auto" style={{ background: dk.cardBg }}
             onClick={e => e.stopPropagation()}>
             <div className="px-5 pt-5 pb-3" style={{ borderBottom: `1px solid ${dk.border}` }}>
               <p className="text-xs font-semibold" style={{ color: dk.muted }}>Change status for</p>

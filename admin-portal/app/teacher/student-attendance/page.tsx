@@ -312,10 +312,10 @@ export default function StudentAttendancePage() {
 
           {/* Status picker overlay */}
           {statusSheet && (
-            <div className="fixed inset-0 z-[60] flex items-end justify-center"
+            <div className="fixed inset-0 z-[60] flex items-end justify-center overflow-y-auto pt-4"
               style={{ backgroundColor: 'rgba(11,61,46,0.55)' }}
               onClick={() => setStatusSheet(null)}>
-              <div className="bg-white rounded-t-3xl w-full shadow-xl"
+              <div className="bg-white rounded-t-3xl w-full shadow-xl mt-auto"
                 onClick={e => e.stopPropagation()}>
                 <div className="px-5 pt-5 pb-3 border-b border-[#E2D9CC]">
                   <p className="text-xs font-semibold text-[#8C7E6E]">Change status for</p>

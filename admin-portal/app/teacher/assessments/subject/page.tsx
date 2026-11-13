@@ -703,8 +703,8 @@ function SubjectContent() {
 
       {/* Bulk CA upload result modal */}
       {bulkUploadResult && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#0B3D2E]/35 px-4 pb-6">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-5">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#0B3D2E]/35 px-4 pb-6 overflow-y-auto pt-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-5 mt-auto">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-base font-bold text-[#2C2218]">Upload Results</h2>
               <button
@@ -744,9 +744,9 @@ function SubjectContent() {
 
       {/* Create modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-[#0B3D2E]/55 z-40 flex items-end md:items-center justify-center" onClick={() => setShowModal(false)}>
+        <div className="fixed inset-0 bg-[#0B3D2E]/55 z-40 flex items-end md:items-center justify-center overflow-y-auto pt-4 md:pb-4" onClick={() => setShowModal(false)}>
           <div
-            className="bg-white w-full max-w-lg rounded-t-3xl md:rounded-xl p-6 pb-8 shadow-2xl"
+            className="bg-white w-full max-w-lg rounded-t-3xl md:rounded-xl p-6 pb-8 shadow-2xl mt-auto md:mb-auto"
             onClick={e => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-5">

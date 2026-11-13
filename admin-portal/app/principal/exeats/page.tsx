@@ -186,11 +186,11 @@ export default function ExeatsPage() {
 
       {/* Quota override modal */}
       {editQuota && (
-        <div style={{
+        <div style={{ overflowY: 'auto',
           position: 'fixed', inset: 0, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center',
           background: 'rgba(0,0,0,0.55)', padding: 16,
         }}>
-          <div style={{
+          <div style={{ marginTop: 'auto', marginBottom: 'auto',
             background: dark ? '#1E293B' : '#FFFFFF', borderRadius: 16, padding: 28, width: '100%', maxWidth: 380,
           }}>
             <h3 style={{ fontSize: 17, fontWeight: 700, color: dark ? '#F1F5F9' : '#1C1208', marginBottom: 4 }}>

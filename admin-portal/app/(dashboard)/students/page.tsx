@@ -843,8 +843,8 @@ export default function StudentsPage() {
 
       {/* Upload modal */}
       {modal === 'upload' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-          <div className="bg-white rounded-xl p-6 w-full max-w-lg shadow-xl" style={{ border: '1px solid #E2D9CC' }}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto py-4" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div className="bg-white rounded-xl p-6 w-full max-w-lg shadow-xl my-auto" style={{ border: '1px solid #E2D9CC' }}>
             <h2 className="text-lg font-bold mb-4" style={{ color: '#1C1208' }}>Upload Students (Excel / CSV)</h2>
             <div className="rounded-lg p-4 mb-4 text-sm" style={{ backgroundColor: '#F5F0E8', border: '1px solid #E2D9CC' }}>
               <p className="font-semibold mb-2" style={{ color: '#1C1208' }}>Column format:</p>
@@ -883,8 +883,8 @@ export default function StudentsPage() {
 
       {/* Update Records modal */}
       {modal === 'update' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-          <div className="bg-white rounded-xl p-6 w-full max-w-lg shadow-xl" style={{ border: '1px solid #E2D9CC' }}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto py-4" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div className="bg-white rounded-xl p-6 w-full max-w-lg shadow-xl my-auto" style={{ border: '1px solid #E2D9CC' }}>
             <h2 className="text-lg font-bold mb-1" style={{ color: '#1C1208' }}>Update Student Records</h2>
             <p className="text-sm mb-4" style={{ color: '#64748B' }}>Upload a file where column A is the Student ID. Only non-blank fields will be updated — blank cells are skipped.</p>
             <div className="rounded-lg p-4 mb-4 text-sm" style={{ backgroundColor: '#F5F0E8', border: '1px solid #E2D9CC' }}>
@@ -929,8 +929,8 @@ export default function StudentsPage() {
 
       {/* Promote modal */}
       {modal === 'promote' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-          <div className="bg-white rounded-xl p-6 w-full max-w-lg shadow-xl" style={{ border: '1px solid #E2D9CC' }}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto py-4" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div className="bg-white rounded-xl p-6 w-full max-w-lg shadow-xl my-auto" style={{ border: '1px solid #E2D9CC' }}>
             <h2 className="text-lg font-bold mb-1" style={{ color: '#1C1208' }}>Promote Class</h2>
             <p className="text-sm mb-4" style={{ color: '#64748B' }}>Uncheck students who should repeat the year — only checked students will be moved.</p>
             <div className="space-y-3">
@@ -1000,8 +1000,8 @@ export default function StudentsPage() {
 
       {/* Graduate modal */}
       {modal === 'graduate' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-          <div className="bg-white rounded-xl p-6 w-full max-w-lg shadow-xl" style={{ border: '1px solid #E2D9CC' }}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto py-4" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div className="bg-white rounded-xl p-6 w-full max-w-lg shadow-xl my-auto" style={{ border: '1px solid #E2D9CC' }}>
             <h2 className="text-lg font-bold mb-1" style={{ color: '#1C1208' }}>Graduate Class</h2>
             <p className="text-sm mb-4" style={{ color: '#64748B' }}>Uncheck students who should not graduate yet. Historical attendance is preserved.</p>
             <div className="space-y-3">
@@ -1061,8 +1061,8 @@ export default function StudentsPage() {
 
       {/* Template download modal */}
       {tmplOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-          <div className="bg-white rounded-xl p-6 w-full max-w-md shadow-xl" style={{ border: '1px solid #E2D9CC' }}>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center overflow-y-auto py-4" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div className="bg-white rounded-xl p-6 w-full max-w-md shadow-xl my-auto" style={{ border: '1px solid #E2D9CC' }}>
             <h2 className="text-lg font-bold mb-1" style={{ color: '#1C1208' }}>Download Template</h2>
             <p className="text-sm mb-5" style={{ color: '#64748B' }}>Download a blank template or one pre-filled with existing students for editing and re-upload.</p>
 
@@ -1111,10 +1111,10 @@ export default function StudentsPage() {
       )}
       {/* Batch ID card generation panel */}
       {batchOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center"
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto py-4"
           style={{ background: 'rgba(0,0,0,0.45)' }}
           onClick={e => { if (e.target === e.currentTarget) closeBatchPanel(); }}>
-          <div className="rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden"
+          <div className="rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden my-auto"
             style={{ background: 'var(--bg-card, #fff)', border: '1.5px solid #E2D9CC' }}>
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-4"

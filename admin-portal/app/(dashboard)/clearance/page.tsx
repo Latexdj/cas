@@ -285,8 +285,8 @@ export default function ClearancePage() {
 
       {/* Batch Initiation Modal */}
       {showBatch && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/55 p-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/55 p-4 overflow-y-auto">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md my-auto">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
               <p className="font-bold text-slate-800">Initiate Batch Clearance</p>
               <button onClick={() => setShowBatch(false)} className="text-slate-400 hover:text-slate-600">
@@ -338,8 +338,8 @@ export default function ClearancePage() {
 
       {/* Override Modal */}
       {override && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/55 p-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/55 p-4 overflow-y-auto">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm my-auto">
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
               <p className="font-bold text-slate-800">Admin Override</p>
               <button onClick={() => setOverride(null)} className="text-slate-400 hover:text-slate-600">

@@ -123,8 +123,8 @@ export default function InventoryCategoriesPage() {
       )}
 
       {showForm && (
-        <div className="fixed inset-0 z-50 bg-[#0B3D2E]/45 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-sm">
+        <div className="fixed inset-0 z-50 bg-[#0B3D2E]/45 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-sm my-auto">
             <div className="p-6">
               <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-4">
                 {editCat ? 'Edit Category' : 'New Category'}

@@ -280,8 +280,8 @@ export default function AdminAssessmentsPage() {
 
       {/* Edit Modal */}
       {editing && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/45 px-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/45 px-4 overflow-y-auto py-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md my-auto">
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
               <div>
                 <h2 className="font-bold text-slate-900">Edit Assessment</h2>
@@ -375,8 +375,8 @@ export default function AdminAssessmentsPage() {
 
       {/* Delete Confirm Modal */}
       {deleting && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/45 px-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/45 px-4 overflow-y-auto py-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm my-auto">
             <div className="px-6 py-5">
               <h2 className="font-bold text-slate-900 text-base">Delete Assessment?</h2>
               <p className="text-sm text-slate-600 mt-2">

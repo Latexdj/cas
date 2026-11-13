@@ -60,8 +60,8 @@ function DetailsModal({ row, onClose }: { row: MonitorRow; onClose: () => void }
   const pct   = denom === 0 ? 0 : Math.round((numer / denom) * 100);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/45 px-4">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/45 px-4 overflow-y-auto py-4">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col my-auto">
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-100 flex items-start justify-between">
           <div>

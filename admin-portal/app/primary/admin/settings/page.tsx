@@ -436,8 +436,8 @@ export default function PrimarySettingsPage() {
 
       {/* Mode modal */}
       {modeModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/55 p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6 space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/55 p-4 overflow-y-auto">
+          <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6 space-y-4 my-auto">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-slate-900">{editMode ? 'Edit Mode' : 'New Assessment Mode'}</h2>
               <button onClick={() => setModeModal(false)} className="text-slate-400 hover:text-slate-600 text-xl">×</button>

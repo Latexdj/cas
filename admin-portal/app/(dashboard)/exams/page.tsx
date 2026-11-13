@@ -1237,8 +1237,8 @@ function CheckInPanel({
       )}
 
       {rejectTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/65 p-4" onClick={() => setRejectTarget(null)}>
-          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl max-w-md w-full p-5 space-y-4" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/65 p-4 overflow-y-auto" onClick={() => setRejectTarget(null)}>
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl max-w-md w-full p-5 space-y-4 my-auto" onClick={e => e.stopPropagation()}>
             <h3 className="text-base font-semibold text-slate-800 dark:text-white">Reject Pending Check-In</h3>
             <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4 text-sm text-red-900 dark:text-red-300">
               <p className="font-semibold mb-1">This will mark the submission rejected and notify the teacher. They will need to check in again.</p>

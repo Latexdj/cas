@@ -998,8 +998,8 @@ export default function TeachersPage() {
 
       {/* Template download modal */}
       {tmplOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-          <div className="bg-white rounded-xl p-6 w-full max-w-md shadow-xl" style={{ border: '1px solid #E2D9CC' }}>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center overflow-y-auto py-4" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div className="bg-white rounded-xl p-6 w-full max-w-md shadow-xl my-auto" style={{ border: '1px solid #E2D9CC' }}>
             <h2 className="text-lg font-bold mb-1" style={{ color: '#1C1208' }}>Download Template</h2>
             <p className="text-sm mb-5" style={{ color: '#64748B' }}>Download a blank template or one pre-filled with existing teachers for editing and re-upload.</p>
 

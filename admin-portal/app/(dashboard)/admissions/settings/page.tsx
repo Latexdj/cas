@@ -307,10 +307,10 @@ export default function AdmissionSettingsPage() {
       {/* ── Reset Sequence Dialog ──────────────────────────────────────────────── */}
       {showResetDialog && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 overflow-y-auto"
           onClick={e => { if (e.target === e.currentTarget) setShowResetDialog(false); }}
         >
-          <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl p-6 space-y-4">
+          <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl p-6 space-y-4 my-auto">
             <div className="flex items-start justify-between">
               <div>
                 <h3 className="font-bold text-slate-900">Reset Admission Counter</h3>

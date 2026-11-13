@@ -365,8 +365,8 @@ export default function LeaveExcusesPage() {
 
         {/* Approve modal */}
         {approveId && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/45 px-4">
-            <div className="bg-white w-full max-w-sm rounded-xl shadow-2xl p-5 space-y-4">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/45 px-4 overflow-y-auto py-4">
+            <div className="bg-white w-full max-w-sm rounded-xl shadow-2xl p-5 space-y-4 my-auto">
               <div className="flex items-center justify-between">
                 <p className="font-bold" style={{ color: '#1C1208' }}>Approve Leave Request</p>
                 <button onClick={() => setApproveId(null)}
@@ -401,8 +401,8 @@ export default function LeaveExcusesPage() {
 
         {/* Reject modal */}
         {rejectId && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/45 px-4">
-            <div className="bg-white w-full max-w-sm rounded-xl shadow-2xl p-5 space-y-4">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/45 px-4 overflow-y-auto py-4">
+            <div className="bg-white w-full max-w-sm rounded-xl shadow-2xl p-5 space-y-4 my-auto">
               <div className="flex items-center justify-between">
                 <p className="font-bold" style={{ color: '#1C1208' }}>Reject Leave Request</p>
                 <button onClick={() => setRejectId(null)}

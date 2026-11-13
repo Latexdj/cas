@@ -554,9 +554,9 @@ export default function HodPage() {
 
             {/* Review modal */}
             {reviewTarget && (
-              <div style={{ position: 'fixed', inset: 0, background: 'rgba(11,61,46,0.55)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+              <div style={{ overflowY: 'auto', position: 'fixed', inset: 0, background: 'rgba(11,61,46,0.55)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
                 onClick={() => setReviewTarget(null)}>
-                <div style={{ background: '#fff', borderRadius: 16, padding: 24, width: '100%', maxWidth: 480, boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}
+                <div style={{ marginTop: 'auto', marginBottom: 'auto', background: '#fff', borderRadius: 16, padding: 24, width: '100%', maxWidth: 480, boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}
                   onClick={e => e.stopPropagation()}>
                   <h3 style={{ fontSize: 16, fontWeight: 700, color: '#1C1208', marginBottom: 4 }}>Review Submission</h3>
                   <p style={{ fontSize: 13, color: '#64748B', marginBottom: 16 }}>{reviewTarget.subject} · {reviewTarget.class_name} · {reviewTarget.teacher_name}</p>

@@ -136,8 +136,8 @@ export default function PrimaryAcademicYearsPage() {
       )}
 
       {modal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/55 px-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/55 px-4 overflow-y-auto py-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6 space-y-4 my-auto">
             <h2 className="font-bold text-slate-900">{editId ? 'Edit Academic Year' : 'New Academic Year'}</h2>
             <div>
               <label className="block text-xs font-semibold text-slate-600 mb-1">Year Name *</label>
