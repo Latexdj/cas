@@ -4,6 +4,7 @@ import type { AxiosInstance } from 'axios';
 import { buildSignListHtml, type SlRecipient, type SlSchool } from '@/lib/sign-list-print';
 import { printHtml, printUploadedFile } from './print';
 import { exportIssueRecordExcel, exportIssueRecordPdf } from './exportIssueRecord';
+import { UnitAssignments, type AssignResult } from './UnitAssignments';
 
 interface BatchSummary {
   id: string; title: string; recipient_type: 'student' | 'teacher';
@@ -11,14 +12,16 @@ interface BatchSummary {
   filter_label: string | null; due_date: string | null; issued_at: string; created_by_name: string | null;
   signed_list_url: string | null; signed_list_filename: string | null; signed_list_mime: string | null;
   signed_list_uploaded_at: string | null;
-  item_name: string; asset_tag: string | null; is_returnable: boolean;
+  item_name: string; asset_tag: string | null; is_returnable: boolean; track_units?: boolean;
 }
 interface BatchRecipient {
   transaction_id: string; created_at: string; name: string; quantity: number; person_id: string;
   student_code: string | null; class_name: string | null; residential_status: string | null;
   teacher_code: string | null; department: string | null; added_later: boolean;
+  tag_number?: string | null; imei?: string | null;
 }
 interface BatchDetail extends BatchSummary {
+  item_id: string;
   notes: string | null; filters: Record<string, string>;
   signed_list_uploaded_by: string | null;
   recipients: BatchRecipient[]; school: SlSchool;
@@ -153,6 +156,7 @@ function BatchDetailView({
       student_code: r.student_code ?? undefined, class_name: r.class_name ?? undefined,
       residential_status: r.residential_status ?? undefined,
       teacher_code: r.teacher_code ?? undefined, department: r.department ?? undefined,
+      tag_number: r.tag_number ?? undefined, imei: r.imei ?? undefined,
     };
   }
 
@@ -230,8 +234,12 @@ function BatchDetailView({
       <div className={`${cardCls} p-4 space-y-1`}>
         <h2 className="text-lg font-bold text-slate-900 dark:text-white">{batch.title}</h2>
         <p className="text-sm text-slate-600 dark:text-slate-300">
-          {batch.recipient_count} {isStudents ? 'student(s)' : 'teacher(s)'} × {batch.qty_per_person} ={' '}
-          <span className="font-semibold">{batch.total_quantity}</span> {batch.item_name}
+          {batch.track_units ? (
+            <>{batch.recipient_count} {isStudents ? 'student(s)' : 'teacher(s)'}, one <span className="font-semibold">{batch.item_name}</span> each, recorded by tag number</>
+          ) : (
+            <>{batch.recipient_count} {isStudents ? 'student(s)' : 'teacher(s)'} × {batch.qty_per_person} ={' '}
+            <span className="font-semibold">{batch.total_quantity}</span> {batch.item_name}</>
+          )}
           {batch.asset_tag ? ` (${batch.asset_tag})` : ''}
         </p>
         <p className="text-xs text-slate-400">
@@ -340,7 +348,12 @@ function BatchDetailView({
                   Late, {fmtDate(r.created_at)}
                 </span>
               )}
-              <span className="text-xs text-slate-500 shrink-0">× {r.quantity}</span>
+              {r.tag_number ? (
+                <span className="text-right shrink-0">
+                  <span className="block text-xs font-semibold text-slate-700 dark:text-slate-200">Tag {r.tag_number}</span>
+                  {r.imei && <span className="block text-[11px] font-mono text-slate-400">{r.imei}</span>}
+                </span>
+              ) : <span className="text-xs text-slate-500 shrink-0">× {r.quantity}</span>}
             </div>
           ))}
         </div>
@@ -359,6 +372,8 @@ function LateCollectors({
   const [search, setSearch] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [assign, setAssign] = useState<AssignResult | null>(null);
+  const tracked = !!batch.track_units;
 
   useEffect(() => {
     const already = new Set(batch.recipients.map(r => r.person_id));
@@ -379,10 +394,16 @@ function LateCollectors({
   async function add() {
     if (!selected.size) return;
     const n = selected.size;
-    if (!confirm(`Issue ${batch.qty_per_person} × ${batch.item_name} to ${n} more ${n === 1 ? 'person' : 'people'} (${n * batch.qty_per_person} in total)?`)) return;
+    if (tracked && !assign?.complete) { setError('Give each late collector a tag number first.'); return; }
+    if (!confirm(tracked
+      ? `Issue ${batch.item_name} to ${n} more ${n === 1 ? 'person' : 'people'}, each with the tag number shown?`
+      : `Issue ${batch.qty_per_person} × ${batch.item_name} to ${n} more ${n === 1 ? 'person' : 'people'} (${n * batch.qty_per_person} in total)?`)) return;
     setSaving(true); setError('');
     try {
-      await apiClient.post(`/api/inventory/batches/${batch.id}/recipients`, { recipient_ids: [...selected] }, { timeout: 60000 });
+      await apiClient.post(`/api/inventory/batches/${batch.id}/recipients`, {
+        recipient_ids: [...selected],
+        assignments: tracked ? assign?.assignments.map(a => ({ recipient_id: a.recipient_id, unit_id: a.unit_id })) : undefined,
+      }, { timeout: 60000 });
       onAdded();
     } catch (e) { setError(errMsg(e, 'Could not add these people. Check your connection and try again.')); }
     finally { setSaving(false); }
@@ -418,8 +439,16 @@ function LateCollectors({
               </label>
             ))}
           </div>
+          {tracked && selected.size > 0 && (
+            <UnitAssignments apiClient={apiClient} itemId={batch.item_id} onChange={setAssign}
+              people={(candidates ?? []).filter(r => selected.has(r.id)).map(r => ({
+                id: r.id, name: r.name,
+                code: (batch.recipient_type === 'student' ? r.student_code : r.teacher_code) ?? '',
+                detail: batch.recipient_type === 'student' ? r.class_name : r.department,
+              }))} />
+          )}
           {error && <p className="text-sm text-red-600">{error}</p>}
-          <button type="button" onClick={add} disabled={saving || !selected.size}
+          <button type="button" onClick={add} disabled={saving || !selected.size || (tracked && !assign?.complete)}
             className="w-full py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-40" style={{ background: primary }}>
             {saving ? 'Issuing…' : `Issue to ${selected.size} late collector${selected.size === 1 ? '' : 's'}`}
           </button>

@@ -3,6 +3,9 @@ import NameOrIdSearch from '@/components/NameOrIdSearch';
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
+import { UnitsManager } from '@/components/inventory/UnitsManager';
+import { UnitPicker } from '@/components/inventory/UnitPicker';
+import type { InvUnit } from '@/components/inventory/units';
 
 interface Category { id: string; name: string; }
 interface Department { id: string; name: string; }
@@ -14,7 +17,7 @@ interface Item {
   asset_tag: string | null; quantity_total: number; quantity_available: number;
   condition: string; location: string | null; acquired_date: string | null; notes: string | null;
   ownership_type: string; department_id: string | null; department_name: string | null;
-  is_returnable: boolean;
+  is_returnable: boolean; track_units?: boolean;
 }
 
 const TYPE_LABELS: Record<string, string> = { equipment: 'Equipment', book: 'Book', asset: 'Asset' };
@@ -32,7 +35,7 @@ const OWN_COLORS: Record<string, string> = {
 const EMPTY_FORM = {
   name: '', item_type: 'equipment', category_id: '', description: '', serial_number: '',
   asset_tag: '', quantity: '1', condition: 'Good', location: '', acquired_date: '', notes: '',
-  ownership_value: 'general', is_returnable: false,
+  ownership_value: 'general', is_returnable: false, track_units: false,
 };
 
 const ISSUE_TYPES = [
@@ -80,6 +83,8 @@ export default function InventoryItemsPage() {
   const [issueTo,          setIssueTo]          = useState('');
   const [issueRole,        setIssueRole]        = useState('');
   const [issueQty,         setIssueQty]         = useState('1');
+  const [issueUnit,        setIssueUnit]        = useState<InvUnit | null>(null);
+  const [unitsFor,         setUnitsFor]         = useState<{ id: string; name: string } | null>(null);
   const [issueNotes,       setIssueNotes]       = useState('');
   const [issueSaving,      setIssueSaving]      = useState(false);
   const [issueError,       setIssueError]       = useState('');
@@ -143,7 +148,7 @@ export default function InventoryItemsPage() {
       acquired_date: item.acquired_date ? item.acquired_date.slice(0, 10) : '',
       notes: item.notes ?? '',
       ownership_value: item.ownership_type === 'departmental' && item.department_id ? item.department_id : 'general',
-      is_returnable: item.is_returnable,
+      is_returnable: item.is_returnable, track_units: !!item.track_units,
     });
     setFormError(''); setShowForm(true);
   }
@@ -159,11 +164,14 @@ export default function InventoryItemsPage() {
         department_id: isGeneral ? null : form.ownership_value,
         quantity: parseInt(form.quantity) || 1,
         acquired_date: form.acquired_date || null,
+        is_returnable: form.is_returnable || form.track_units,
       };
       if (editItem) {
         await api.put(`/api/inventory/items/${editItem.id}`, payload);
       } else {
-        await api.post('/api/inventory/items', payload);
+        const { data } = await api.post<Item>('/api/inventory/items', payload);
+        // A tracked item starts with no units: go straight to adding them.
+        if (form.track_units) setUnitsFor({ id: data.id, name: data.name });
       }
       setShowForm(false); load();
     } catch (err: unknown) {
@@ -182,7 +190,7 @@ export default function InventoryItemsPage() {
   }
 
   function openIssue(item: Item) {
-    setIssueItem(item);
+    setIssueItem(item); setIssueUnit(null);
     setIssueToType(item.is_returnable ? 'student' : 'staff'); setIssueTo(''); setIssueRole('');
     setIssueStudentCode(''); setIssueStudent(null); setIssueStudentErr('');
     setIssueTeacherCode(''); setIssueTeacher(null); setIssueTeacherErr('');
@@ -224,6 +232,7 @@ export default function InventoryItemsPage() {
         : issueToType === 'teacher' ? (issueTeacher?.name ?? '')
         : issueTo;
       if (!recipientName.trim()) { setIssueError('Recipient name is required'); setIssueSaving(false); return; }
+      if (issueItem?.track_units && !issueUnit) { setIssueError('Choose the tag number of the unit being handed over.'); setIssueSaving(false); return; }
       await api.post(`/api/inventory/items/${issueItem!.id}/issue`, {
         issued_to_name: recipientName,
         issued_to_role: issueToType === 'teacher' ? (issueTeacher?.department || null) : (issueRole || null),
@@ -232,6 +241,7 @@ export default function InventoryItemsPage() {
         teacher_id: issueToType === 'teacher' ? (issueTeacher?.id ?? null) : null,
         due_date: issueItem?.is_returnable ? (issueDueDate || null) : null,
         quantity: parseInt(issueQty) || 1,
+        unit_id: issueItem?.track_units ? issueUnit?.id : undefined,
         notes: issueNotes,
       });
       setIssueItem(null); load();
@@ -360,7 +370,7 @@ export default function InventoryItemsPage() {
                       <div className="flex items-center gap-1 justify-end flex-wrap">
                         {item.condition !== 'Written Off' && item.quantity_available > 0 && (
                           <button onClick={() => openIssue(item)}
-                            className="px-2.5 py-1 rounded-md text-xs font-semibold bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 hover:bg-blue-100">Issue</button>
+                            className="px-2.5 py-1 rounded-md text-xs font-semibold bg-[#145C44] text-white hover:bg-[#0B3D2E]">Issue</button>
                         )}
                         {issued > 0 && (
                           item.is_returnable ? (
@@ -371,8 +381,12 @@ export default function InventoryItemsPage() {
                               className="px-2.5 py-1 rounded-md text-xs font-semibold bg-[#E8F4EE] dark:bg-green-900/20 text-[#145C44] dark:text-[#2ab289] hover:bg-[#D1EAD9]">Return</button>
                           )
                         )}
-                        <button onClick={() => { setCondItem(item); setNewCond(item.condition === 'Written Off' ? 'Good' : item.condition); setCondNotes(''); setCondError(''); }}
-                          className="px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200">Condition</button>
+                        {item.track_units && (
+                          <button onClick={() => setUnitsFor({ id: item.id, name: item.name })}
+                            className="px-2.5 py-1 rounded-md text-xs font-semibold bg-[#E8F4EE] dark:bg-green-900/20 text-[#145C44] dark:text-[#2ab289] hover:bg-[#D1EAD9]">Units</button>
+                        )}
+                        {!item.track_units && <button onClick={() => { setCondItem(item); setNewCond(item.condition === 'Written Off' ? 'Good' : item.condition); setCondNotes(''); setCondError(''); }}
+                          className="px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200">Condition</button>}
                         <button onClick={() => openEdit(item)}
                           className="px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200">Edit</button>
                         <button onClick={() => deleteItem(item.id)} disabled={deletingId === item.id}
@@ -421,6 +435,12 @@ export default function InventoryItemsPage() {
                     className="w-4 h-4 accent-[#145C44] rounded" />
                   <span className="text-sm text-slate-700 dark:text-slate-300">Returnable <span className="text-slate-400">(must come back, such as test books, tablets or drawing boards)</span></span>
                 </label>
+                <label className="flex items-start gap-2 cursor-pointer select-none">
+                  <input type="checkbox" checked={form.track_units}
+                    onChange={e => setForm(f => ({ ...f, track_units: e.target.checked, is_returnable: e.target.checked || f.is_returnable }))}
+                    className="w-4 h-4 mt-0.5 accent-[#145C44] rounded" />
+                  <span className="text-sm text-slate-700 dark:text-slate-300">Track each unit by tag number and IMEI <span className="text-slate-400">(tablets, laptops, calculators). Each person is recorded against the exact unit they receive. You add the units after saving.</span></span>
+                </label>
                 {/* Ownership */}
                 <div>
                   <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 font-medium">Ownership / Department</label>
@@ -444,7 +464,7 @@ export default function InventoryItemsPage() {
                     <input value={form.asset_tag} onChange={e => setForm(f => ({ ...f, asset_tag: e.target.value }))} placeholder="AST-0001" className={inputCls} />
                   </div>
                 </div>
-                {!editItem && (
+                {!editItem && !form.track_units && (
                   <div>
                     <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 font-medium">Quantity</label>
                     <input type="number" min="1" value={form.quantity} onChange={e => setForm(f => ({ ...f, quantity: e.target.value }))} className={inputCls} />
@@ -590,11 +610,18 @@ export default function InventoryItemsPage() {
                   </div>
                 )}
 
+                {issueItem.track_units ? (
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 font-medium">Unit being handed over</label>
+                    <div className="mt-1"><UnitPicker apiClient={api} itemId={issueItem.id} value={issueUnit} onChange={setIssueUnit} /></div>
+                  </div>
+                ) : (
                 <div>
                   <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 font-medium">Quantity</label>
                   <input type="number" min="1" max={issueItem.quantity_available} value={issueQty}
                     onChange={e => setIssueQty(e.target.value)} className={inputCls} />
                 </div>
+                )}
                 <div>
                   <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 font-medium">Notes</label>
                   <input value={issueNotes} onChange={e => setIssueNotes(e.target.value)} className={inputCls} />
@@ -603,7 +630,7 @@ export default function InventoryItemsPage() {
               {issueError && <p className="mt-3 text-sm text-red-500">{issueError}</p>}
               <div className="flex gap-2 mt-5">
                 <button onClick={() => setIssueItem(null)} className="flex-1 py-2 rounded-lg text-sm font-semibold border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700">Cancel</button>
-                <button onClick={submitIssue} disabled={issueSaving} className="flex-1 py-2 rounded-lg text-sm font-semibold bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40">
+                <button onClick={submitIssue} disabled={issueSaving || (!!issueItem.track_units && !issueUnit)} className="flex-1 py-2 rounded-lg text-sm font-semibold bg-[#145C44] text-white hover:bg-[#0B3D2E] disabled:opacity-40">
                   {issueSaving ? 'Issuing…' : 'Confirm Issue'}
                 </button>
               </div>
@@ -686,6 +713,7 @@ export default function InventoryItemsPage() {
           </div>
         </div>
       )}
+      {unitsFor && <UnitsManager apiClient={api} item={unitsFor} onClose={() => setUnitsFor(null)} onChanged={load} />}
     </div>
   );
 }

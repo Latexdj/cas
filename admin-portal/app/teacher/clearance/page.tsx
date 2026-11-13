@@ -1,5 +1,6 @@
 ﻿'use client';
 
+import { OutstandingItems, type OutstandingItem } from '@/components/clearance/OutstandingItems';
 import { useEffect, useState } from 'react';
 import { teacherApi } from '@/lib/teacher-api';
 import { getTeacherColors } from '@/lib/teacher-auth';
@@ -12,6 +13,7 @@ interface PendingStudent {
 interface LookupResult {
   student: { id: string; name: string; student_code: string; class_name: string; picture_url: string | null };
   items: { item_id: string; office_id: string; office_name: string; status: string; notes: string | null; actioned_at: string | null }[];
+  outstanding_items?: OutstandingItem[];
 }
 interface HistoryItem {
   name: string; student_code: string; class_name: string;
@@ -219,6 +221,7 @@ export default function TeacherClearancePage() {
                   <p className="text-xs text-slate-400">{lookupResult.student.student_code} · {lookupResult.student.class_name}</p>
                 </div>
               </div>
+              <OutstandingItems items={lookupResult.outstanding_items} />
               {lookupResult.items.length === 0 ? (
                 <div className="bg-white rounded-xl border border-slate-200 p-6 text-center text-slate-400 text-sm">
                   Clearance not initiated for this student, or no items for your office.

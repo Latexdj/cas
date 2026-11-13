@@ -10,6 +10,10 @@ export interface SlRecipient {
   department?: string;
   dept_name?: string;
   jhs_index_number?: string;
+  // Set for items tracked by unit (tablets): printed so each person signs
+  // against the exact tag and IMEI they received.
+  tag_number?: string | null;
+  imei?: string | null;
 }
 
 export interface SlSchool {
@@ -39,7 +43,10 @@ export function buildSignListHtml(opts: {
 }): string {
   const { title, itemName, issueDate, qtyPerPerson, notes, recipientType, filterLabel, recipients, school } = opts;
   const isStudents = recipientType === 'students';
-  const colCount = isStudents ? 6 : 5;
+  const units = recipients.some(r => r.tag_number);
+  // With tag/IMEI columns the residential and qty columns make way (always 1).
+  const showRes = isStudents && !units;
+  const colCount = 4 + (showRes ? 1 : 0) + (units ? 2 : 1);
 
   const bodyRows = recipients.map((r, i) => `
     <tr>
@@ -48,8 +55,10 @@ export function buildSignListHtml(opts: {
       <td>${isStudents
         ? escHtml(`${r.student_code ?? ''} / ${r.class_name ?? ''}`)
         : escHtml(`${r.teacher_code ?? ''} / ${r.dept_name ?? r.department ?? ''}`)}</td>
-      ${isStudents ? `<td>${escHtml(r.residential_status ?? '')}</td>` : ''}
-      <td style="text-align:center">${escHtml(qtyPerPerson)}</td>
+      ${showRes ? `<td>${escHtml(r.residential_status ?? '')}</td>` : ''}
+      ${units
+        ? `<td><b>${escHtml(r.tag_number ?? '')}</b></td><td style="font-family:monospace">${escHtml(r.imei ?? '')}</td>`
+        : `<td style="text-align:center">${escHtml(qtyPerPerson)}</td>`}
       <td></td>
     </tr>`).join('');
 
@@ -121,8 +130,8 @@ ${notes ? `<div class="notes-box"><b>Notes:</b> ${escHtml(notes)}</div>` : ''}
       <th class="no">#</th>
       <th>Full Name</th>
       <th>${isStudents ? 'ID / Class' : 'ID / Department'}</th>
-      ${isStudents ? '<th>Residential</th>' : ''}
-      <th style="width:50px;text-align:center">Qty</th>
+      ${showRes ? '<th>Residential</th>' : ''}
+      ${units ? '<th>Tag No.</th><th>IMEI</th>' : '<th style="width:50px;text-align:center">Qty</th>'}
       <th class="sig">Signature</th>
     </tr>
   </thead>

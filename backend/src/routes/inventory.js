@@ -1260,7 +1260,8 @@ router.get('/items/:id/units', async (req, res, next) => {
       params.push(`%${search}%`);
       where.push(`(u.tag_number ILIKE $${params.length} OR u.imei ILIKE $${params.length} OR u.serial_number ILIKE $${params.length} OR l.borrower_name ILIKE $${params.length})`);
     }
-    const limit = available === 'true' ? 'LIMIT 50' : '';
+    // The tag picker only needs the first matches; bulk issue asks for every free unit.
+    const limit = available === 'true' && req.query.all !== 'true' ? 'LIMIT 50' : '';
     const { rows } = await pool.query(
       `${UNIT_SELECT} WHERE ${where.join(' AND ')}
        ORDER BY LENGTH(u.tag_number), u.tag_number ${limit}`,

@@ -1,4 +1,5 @@
 ﻿'use client';
+import { OutstandingItems, type OutstandingItem } from '@/components/clearance/OutstandingItems';
 import { useEffect, useState } from 'react';
 import { useTheme } from 'next-themes';
 import { principalApi } from '@/lib/principal-api';
@@ -20,6 +21,7 @@ interface DetailResult {
   student: { id: string; student_code: string; name: string; class_name: string; program_name?: string };
   clearance: { is_fully_cleared: boolean; fully_cleared_at?: string; initiated_at?: string } | null;
   offices: OfficeRow[];
+  outstanding_items?: OutstandingItem[];
 }
 
 function fmt(d?: string) {
@@ -352,6 +354,7 @@ export default function ClearancePage() {
                           : 'Clearance In Progress'}
                       </span>
                     </div>
+                    <div style={{ marginBottom: 12 }}><OutstandingItems items={detail.outstanding_items} /></div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                       {detail.offices.map(o => (
                         <div key={o.office_name} style={{

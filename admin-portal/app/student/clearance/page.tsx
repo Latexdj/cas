@@ -1,5 +1,6 @@
 ﻿'use client';
 
+import { OutstandingItems, type OutstandingItem } from '@/components/clearance/OutstandingItems';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { studentApi } from '@/lib/student-api';
@@ -13,6 +14,7 @@ interface ClearanceData {
   status: 'not_initiated' | 'in_progress' | 'action_required' | 'fully_cleared';
   initiated_at: string | null; fully_cleared_at: string | null;
   items: ClearanceItem[];
+  outstanding_items?: OutstandingItem[];
 }
 
 const STATUS_STYLE = {
@@ -110,6 +112,8 @@ export default function StudentClearancePage() {
           </p>
         )}
       </div>
+
+      <OutstandingItems items={data?.outstanding_items} forStudent />
 
       {/* Synthetic fees clearance item */}
       {feeBalance !== null && (

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import type { AxiosInstance } from 'axios';
+import { UnitLookup } from '@/components/inventory/UnitLookup';
 
 const inputCls = 'w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]';
 const cardCls  = 'bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden';
@@ -11,6 +12,7 @@ interface Loan {
   borrower_type: 'student' | 'teacher'; borrower_name: string; borrower_detail: string | null;
   issued_at: string; due_date: string | null; notes: string | null;
   item_name: string; asset_tag: string | null; is_overdue: boolean;
+  tag_number?: string | null; imei?: string | null;
 }
 
 function fmtDate(d: string) {
@@ -52,6 +54,10 @@ export function InventoryLoans({
     setSubmittingId(loanId); setErrById(e => ({ ...e, [loanId]: '' }));
     try {
       const cond = condById[loanId] || '';
+      if (cond === 'Lost' && !notesById[loanId]?.trim()) {
+        setErrById(prev => ({ ...prev, [loanId]: 'Add a note saying how it was lost and any charge agreed.' }));
+        return;
+      }
       await api.post(`/api/inventory/loans/${loanId}/return`, {
         condition_on_return: cond || undefined,
         notes: notesById[loanId]?.trim() || undefined,
@@ -68,13 +74,15 @@ export function InventoryLoans({
     <div className="space-y-4">
       <div className="flex gap-2 items-center flex-wrap">
         <input value={search} onChange={e => setSearch(e.target.value)}
-          placeholder="Search borrower or item…" className={`${inputCls} flex-1 min-w-[180px]`} />
+          placeholder="Search borrower, item, tag or IMEI…" className={`${inputCls} flex-1 min-w-[180px]`} />
         <label className="flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-300 shrink-0">
           <input type="checkbox" checked={overdueOnly} onChange={e => setOverdueOnly(e.target.checked)}
             className="w-4 h-4 accent-[#145C44] rounded" />
           Overdue only
         </label>
       </div>
+
+      <UnitLookup apiClient={api} />
 
       <div className={cardCls}>
         {loading ? (
@@ -88,13 +96,14 @@ export function InventoryLoans({
                 <div className="flex items-start gap-3">
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-slate-800 dark:text-white truncate">
-                      {l.item_name}{l.asset_tag ? ` (${l.asset_tag})` : ''}
+                      {l.item_name}{l.tag_number ? `, tag ${l.tag_number}` : l.asset_tag ? ` (${l.asset_tag})` : ''}
                     </p>
+                    {l.imei && <p className="text-xs font-mono text-slate-400">IMEI {l.imei}</p>}
                     <p className="text-xs text-slate-400">
                       <span className={`inline-block px-1.5 py-0.5 rounded-md text-[10px] font-bold mr-1 bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300`}>
                         {l.borrower_type === 'teacher' ? 'Teacher' : 'Student'}
                       </span>
-                      {l.borrower_name}, qty {l.quantity}, issued {fmtDate(l.issued_at)}
+                      {l.borrower_name}{l.borrower_detail ? ` (${l.borrower_detail})` : ''}{l.tag_number ? '' : `, qty ${l.quantity}`}, issued {fmtDate(l.issued_at)}
                     </p>
                     <p className={`text-xs mt-0.5 ${l.is_overdue ? 'text-red-600 dark:text-red-400 font-semibold' : 'text-slate-400'}`}>
                       {l.due_date ? `${l.is_overdue ? 'Overdue since ' : 'Due '}${fmtDate(l.due_date)}` : 'No due date'}
@@ -115,8 +124,9 @@ export function InventoryLoans({
                         <option value="">Condition unchanged</option>
                         <option value="Good">Good</option>
                         <option value="Damaged">Damaged</option>
+                        <option value="Lost">Lost (not coming back)</option>
                       </select>
-                      <input className={inputCls} placeholder="Notes (optional)"
+                      <input className={inputCls} placeholder={condById[l.id] === 'Lost' ? 'How it was lost, any charge agreed' : 'Notes (optional)'}
                         value={notesById[l.id] ?? ''}
                         onChange={e => setNotesById(prev => ({ ...prev, [l.id]: e.target.value }))} />
                     </div>

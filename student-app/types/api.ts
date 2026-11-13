@@ -119,14 +119,21 @@ export interface FeeSummary {
 }
 
 export interface ClearanceItem {
-  office:  string;
-  status:  'cleared' | 'not_cleared' | 'action_required';
+  office_name: string;
+  status:  'cleared' | 'not_cleared' | 'pending';
   notes:   string | null;
 }
 
+// Something the student still holds; they can't be cleared until it's back.
+export interface OutstandingItem {
+  loan_id: string; source: 'inventory' | 'library'; item_name: string; quantity: number;
+  issued_at: string; due_date: string | null; tag_number: string | null; imei: string | null; is_overdue: boolean;
+}
+
 export interface ClearanceStatus {
-  overall:  'not_initiated' | 'in_progress' | 'action_required' | 'fully_cleared';
+  status:   'not_initiated' | 'in_progress' | 'action_required' | 'fully_cleared';
   items:    ClearanceItem[];
+  outstanding_items?: OutstandingItem[];
 }
 
 export interface LibraryBook {

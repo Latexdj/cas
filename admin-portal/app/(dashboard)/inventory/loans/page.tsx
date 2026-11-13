@@ -4,12 +4,13 @@ import { useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
 import { useTableControls } from '@/hooks/useTableControls';
 import { Pagination, Th } from '@/components/ui/Pagination';
+import { UnitLookup } from '@/components/inventory/UnitLookup';
 
 interface Loan {
   id: string; item_id: string; quantity: number; borrower_type: 'student' | 'teacher';
   borrower_name: string; borrower_detail: string | null; issued_at: string;
   due_date: string | null; notes: string | null; item_name: string; asset_tag: string | null;
-  is_overdue: boolean;
+  is_overdue: boolean; tag_number?: string | null; imei?: string | null;
 }
 
 const BORROWER_COLORS: Record<string, string> = {
@@ -51,6 +52,7 @@ function LoansPageInner() {
   }
 
   async function submitReturn(loanId: string) {
+    if (retCondition === 'Lost' && !retNotes.trim()) { setRetError('Add a note saying how it was lost and any charge agreed.'); return; }
     setRetSaving(true); setRetError('');
     try {
       await api.post(`/api/inventory/loans/${loanId}/return`, {
@@ -79,7 +81,7 @@ function LoansPageInner() {
       <div className="flex flex-wrap items-center gap-3">
         <input
           className="rounded-lg px-3 py-2 text-sm border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white w-64"
-          placeholder="Search borrower or item…"
+          placeholder="Search borrower, item, tag or IMEI…"
           value={search}
           onChange={e => setSearch(e.target.value)}
         />
@@ -92,6 +94,8 @@ function LoansPageInner() {
           <a href="/inventory/loans" className="text-xs text-[#145C44] dark:text-[#2ab289] hover:underline">Clear item filter</a>
         )}
       </div>
+
+      <div className="max-w-xl"><UnitLookup apiClient={api} /></div>
 
       <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-x-auto">
         {loading ? (
@@ -116,7 +120,12 @@ function LoansPageInner() {
                 <tr key={l.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50 align-top">
                   <td className="px-4 py-3">
                     <p className="font-medium text-slate-900 dark:text-white">{l.item_name}</p>
-                    {l.asset_tag && <p className="text-xs text-slate-400">{l.asset_tag}</p>}
+                    {l.tag_number ? (
+                      <>
+                        <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">Tag {l.tag_number}</p>
+                        {l.imei && <p className="text-xs font-mono text-slate-400">IMEI {l.imei}</p>}
+                      </>
+                    ) : l.asset_tag && <p className="text-xs text-slate-400">{l.asset_tag}</p>}
                   </td>
                   <td className="px-4 py-3">
                     <p className="font-medium text-slate-900 dark:text-white">{l.borrower_name}</p>
@@ -143,8 +152,9 @@ function LoansPageInner() {
                           <option value="">Condition on return…</option>
                           <option value="Good">Good</option>
                           <option value="Damaged">Damaged</option>
+                          <option value="Lost">Lost (not coming back)</option>
                         </select>
-                        <input value={retNotes} onChange={e => setRetNotes(e.target.value)} placeholder="Notes (optional)"
+                        <input value={retNotes} onChange={e => setRetNotes(e.target.value)} placeholder={retCondition === 'Lost' ? 'How it was lost, any charge agreed' : 'Notes (optional)'}
                           className="border border-slate-200 dark:border-slate-600 rounded-lg px-2 py-1 text-xs bg-white dark:bg-slate-700 text-slate-900 dark:text-white" />
                         {retError && <p className="text-[11px] text-red-500">{retError}</p>}
                         <div className="flex gap-1.5">

@@ -14,10 +14,14 @@ const STATUS_CFG = {
 };
 
 const ITEM_STATUS = {
-  cleared:          { icon: '✓', color: '#145C44', bg: '#DCFCE7' },
-  not_cleared:      { icon: '✗', color: '#DC2626', bg: '#FEE2E2' },
-  action_required:  { icon: '!', color: '#D97706', bg: '#FEF3C7' },
+  cleared:     { icon: '✓', color: '#145C44', bg: '#DCFCE7' },
+  not_cleared: { icon: '✗', color: '#B83232', bg: '#FEE2E2' },
+  pending:     { icon: '!', color: '#C8780A', bg: '#FEF3C7' },
 };
+
+function fmtDate(d: string) {
+  return new Date(d).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+}
 
 export default function ClearanceScreen() {
   const C = useTheme();
@@ -37,7 +41,8 @@ export default function ClearanceScreen() {
 
   if (loading) return <Spinner message="Loading clearance…" />;
 
-  const overall = data?.overall ?? 'not_initiated';
+  const overall = data?.status ?? 'not_initiated';
+  const owed = data?.outstanding_items ?? [];
   const sc = STATUS_CFG[overall];
   const cleared = (data?.items ?? []).filter(i => i.status === 'cleared').length;
   const total   = (data?.items ?? []).length;
@@ -63,10 +68,29 @@ export default function ClearanceScreen() {
         <Text style={[s.trackLabel, { color: C.muted }]}>{cleared} of {total} offices cleared</Text>
       </Card>
 
+      {/* Items still to be returned */}
+      {owed.length > 0 && (
+        <Card style={[s.owedCard, { borderColor: '#B83232' }]}>
+          <Text style={s.owedTitle}>{owed.length} item{owed.length === 1 ? '' : 's'} not returned</Text>
+          <Text style={[s.owedSub, { color: C.muted }]}>You cannot be cleared until these are returned to the school.</Text>
+          {owed.map(o => (
+            <View key={`${o.source}-${o.loan_id}`} style={[s.owedRow, { borderTopColor: C.border }]}>
+              <Text style={[s.officeName, { color: C.text }]}>
+                {o.item_name}{o.tag_number ? (o.source === 'library' ? `, copy ${o.tag_number}` : `, tag ${o.tag_number}`) : ''}{o.quantity > 1 ? ` × ${o.quantity}` : ''}
+              </Text>
+              <Text style={[s.itemNotes, { color: o.is_overdue ? '#B83232' : C.muted }]}>
+                {o.source === 'library' ? 'Library book' : 'From stores'}, since {fmtDate(o.issued_at)}
+                {o.imei ? `, IMEI ${o.imei}` : ''}{o.due_date ? `, due ${fmtDate(o.due_date)}` : ''}{o.is_overdue ? ' (overdue)' : ''}
+              </Text>
+            </View>
+          ))}
+        </Card>
+      )}
+
       {/* Office items */}
       <Text style={[s.sectionTitle, { color: C.textSoft }]}>Office Checklist</Text>
       {(data?.items ?? []).map((item, i) => {
-        const ic = ITEM_STATUS[item.status] ?? ITEM_STATUS.not_cleared;
+        const ic = ITEM_STATUS[item.status] ?? ITEM_STATUS.pending;
         return (
           <Card key={i} style={s.itemCard}>
             <View style={s.itemRow}>
@@ -74,12 +98,12 @@ export default function ClearanceScreen() {
                 <Text style={[s.iconText, { color: ic.color }]}>{ic.icon}</Text>
               </View>
               <View style={s.itemBody}>
-                <Text style={[s.officeName, { color: C.text }]}>{item.office}</Text>
+                <Text style={[s.officeName, { color: C.text }]}>{item.office_name}</Text>
                 {item.notes && <Text style={[s.itemNotes, { color: C.muted }]}>{item.notes}</Text>}
               </View>
               <View style={[s.statusBadge, { backgroundColor: ic.bg }]}>
                 <Text style={[s.statusText, { color: ic.color }]}>
-                  {item.status === 'cleared' ? 'Cleared' : item.status === 'action_required' ? 'Action Needed' : 'Not Cleared'}
+                  {item.status === 'cleared' ? 'Cleared' : item.status === 'pending' ? 'Pending' : 'Not Cleared'}
                 </Text>
               </View>
             </View>
@@ -88,7 +112,7 @@ export default function ClearanceScreen() {
       })}
 
       {(data?.items ?? []).length === 0 && (
-        <Text style={[s.empty, { color: C.muted }]}>No clearance items found.</Text>
+        <Text style={[s.empty, { color: C.muted }]}>Your clearance has not been started yet. The school starts it when you are leaving.</Text>
       )}
     </ScrollView>
   );
@@ -115,4 +139,8 @@ const s = StyleSheet.create({
   statusBadge:   { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
   statusText:    { fontSize: 11, fontWeight: '700' },
   empty:         { textAlign: 'center', marginTop: 32, fontSize: 14 },
+  owedCard:      { marginBottom: 20, borderWidth: 2 },
+  owedTitle:     { fontSize: 15, fontWeight: '800', color: '#B83232' },
+  owedSub:       { fontSize: 12, marginTop: 2, marginBottom: 8 },
+  owedRow:       { paddingVertical: 8, borderTopWidth: StyleSheet.hairlineWidth },
 });

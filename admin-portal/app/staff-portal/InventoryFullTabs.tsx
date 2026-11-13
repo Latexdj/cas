@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { AxiosInstance } from 'axios';
+import { UnitsManager } from '@/components/inventory/UnitsManager';
 
 const inputCls = 'w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]';
 const cardCls  = 'bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden';
@@ -13,7 +14,7 @@ interface FullItem {
   description: string | null; serial_number: string | null; asset_tag: string | null;
   quantity_total: number; quantity_available: number; condition: string; location: string | null;
   acquired_date: string | null; notes: string | null; ownership_type: 'general' | 'departmental'; department_id: string | null;
-  is_returnable: boolean;
+  is_returnable: boolean; track_units?: boolean;
 }
 interface Transaction {
   id: string; type: string; quantity: number; item_name: string; item_type: string; ownership_type: string;
@@ -47,7 +48,7 @@ const ITEM_TYPES = [
 const emptyItem = {
   name: '', item_type: 'equipment', category_id: '', description: '', serial_number: '',
   asset_tag: '', quantity: '1', condition: 'Good', location: '', acquired_date: '', notes: '',
-  ownership_value: 'general', is_returnable: false,
+  ownership_value: 'general', is_returnable: false, track_units: false,
 };
 
 const labelCls = 'text-xs font-semibold text-slate-500 dark:text-slate-400 block mb-1';
@@ -64,6 +65,7 @@ function ManageItemsTab({ api, primary, onItemsChanged }: { api: AxiosInstance; 
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const formRef = useRef<HTMLDivElement>(null);
+  const [unitsFor, setUnitsFor] = useState<{ id: string; name: string } | null>(null);
 
   function load() {
     setLoading(true);
@@ -92,7 +94,7 @@ function ManageItemsTab({ api, primary, onItemsChanged }: { api: AxiosInstance; 
       condition: i.condition, location: i.location ?? '',
       acquired_date: i.acquired_date ? i.acquired_date.slice(0, 10) : '', notes: i.notes ?? '',
       ownership_value: i.ownership_type === 'departmental' && i.department_id ? i.department_id : 'general',
-      is_returnable: i.is_returnable,
+      is_returnable: i.is_returnable, track_units: !!i.track_units,
     });
     setError('');
     scrollToForm();
@@ -101,7 +103,7 @@ function ManageItemsTab({ api, primary, onItemsChanged }: { api: AxiosInstance; 
   async function save() {
     if (!form.name.trim()) { setError('Item name is required.'); return; }
     const qty = parseInt(form.quantity);
-    if (editingId === 'new' && (!qty || qty < 1)) { setError('Quantity must be at least 1.'); return; }
+    if (editingId === 'new' && !form.track_units && (!qty || qty < 1)) { setError('Quantity must be at least 1.'); return; }
     const conditionChanged = editingOriginal && form.condition !== editingOriginal.condition;
     if (conditionChanged && form.condition === 'Written Off'
       && !confirm('Writing off this item sets its available quantity to 0. Continue?')) return;
@@ -114,16 +116,18 @@ function ManageItemsTab({ api, primary, onItemsChanged }: { api: AxiosInstance; 
       location: form.location, acquired_date: form.acquired_date || null, notes: form.notes,
       ownership_type: isGeneral ? 'general' : 'departmental',
       department_id: isGeneral ? null : form.ownership_value,
-      is_returnable: form.is_returnable,
+      is_returnable: form.is_returnable || form.track_units, track_units: form.track_units,
     };
     try {
       if (editingId === 'new') {
-        await api.post('/api/inventory/items', { ...payload, quantity: qty, condition: form.condition });
+        const { data } = await api.post<FullItem>('/api/inventory/items', { ...payload, quantity: qty, condition: form.condition });
+        // A tracked item starts with no units: go straight to adding them.
+        if (form.track_units) setUnitsFor({ id: data.id, name: data.name });
       } else {
         await api.put(`/api/inventory/items/${editingId}`, payload);
         // The edit route doesn't touch condition — it has its own route
         // because Written Off also zeroes availability and logs a transaction.
-        if (conditionChanged) {
+        if (conditionChanged && !form.track_units) {
           await api.post(`/api/inventory/items/${editingId}/condition`, { condition: form.condition });
         }
       }
@@ -181,6 +185,15 @@ function ManageItemsTab({ api, primary, onItemsChanged }: { api: AxiosInstance; 
             </span>
           </label>
 
+          <label className="flex items-start gap-2 cursor-pointer select-none">
+            <input type="checkbox" checked={form.track_units}
+              onChange={e => setForm(f => ({ ...f, track_units: e.target.checked, is_returnable: e.target.checked || f.is_returnable }))}
+              className="w-4 h-4 mt-0.5 accent-[#145C44] rounded shrink-0" />
+            <span className="text-sm text-slate-700 dark:text-slate-300">
+              Track each unit by tag number and IMEI <span className="text-slate-400">(tablets, laptops, calculators). Each person is recorded against the exact unit they receive. You add the units after saving.</span>
+            </span>
+          </label>
+
           <div>
             <label className={labelCls}>Ownership</label>
             <select className={inputCls} value={form.ownership_value} onChange={e => setForm(f => ({ ...f, ownership_value: e.target.value }))}>
@@ -189,6 +202,13 @@ function ManageItemsTab({ api, primary, onItemsChanged }: { api: AxiosInstance; 
             </select>
           </div>
 
+          {form.track_units ? (
+            <p className="text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/40 rounded-lg px-3 py-2">
+              {editingId === 'new'
+                ? 'The quantity comes from the units you register. After saving, paste or upload the list of tag numbers and IMEIs.'
+                : `${editingOriginal?.quantity_available ?? 0} in store of ${editingOriginal?.quantity_total ?? 0}. Use Units on the item list to add units or change a unit's condition.`}
+            </p>
+          ) : (
           <div className="grid grid-cols-2 gap-2">
             {editingId === 'new' ? (
               <div>
@@ -212,6 +232,7 @@ function ManageItemsTab({ api, primary, onItemsChanged }: { api: AxiosInstance; 
               </select>
             </div>
           </div>
+          )}
 
           <div className="grid grid-cols-2 gap-2">
             <div>
@@ -270,7 +291,9 @@ function ManageItemsTab({ api, primary, onItemsChanged }: { api: AxiosInstance; 
                     {i.asset_tag ? `, ${i.asset_tag}` : ''}
                   </p>
                   <div className="flex gap-1 mt-1">
-                    {i.is_returnable && (
+                    {i.track_units ? (
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-[#E8F4EE] text-[#145C44] dark:bg-[#145C44]/30 dark:text-[#7cc79d]">Tracked by tag</span>
+                    ) : i.is_returnable && (
                       <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300">Returnable</span>
                     )}
                     {i.condition !== 'Good' && (
@@ -279,6 +302,9 @@ function ManageItemsTab({ api, primary, onItemsChanged }: { api: AxiosInstance; 
                   </div>
                 </div>
                 <p className="text-sm font-bold text-slate-900 dark:text-white shrink-0">{i.quantity_available}/{i.quantity_total}</p>
+                {i.track_units && (
+                  <button onClick={() => setUnitsFor({ id: i.id, name: i.name })} className="text-xs font-semibold text-[#145C44] dark:text-[#2ab289] hover:underline shrink-0">Units</button>
+                )}
                 <button onClick={() => openEdit(i)} className="text-xs text-[#145C44] dark:text-[#2ab289] hover:underline shrink-0">Edit</button>
                 <button onClick={() => remove(i.id)} className="text-xs text-red-600 dark:text-red-400 hover:underline shrink-0">Delete</button>
               </div>
@@ -286,6 +312,9 @@ function ManageItemsTab({ api, primary, onItemsChanged }: { api: AxiosInstance; 
           </div>
         )}
       </div>
+      {unitsFor && (
+        <UnitsManager apiClient={api} item={unitsFor} onClose={() => setUnitsFor(null)} onChanged={() => { load(); onItemsChanged(); }} />
+      )}
     </div>
   );
 }

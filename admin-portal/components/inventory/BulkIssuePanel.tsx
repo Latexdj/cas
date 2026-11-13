@@ -3,10 +3,11 @@ import { useEffect, useMemo, useState } from 'react';
 import type { AxiosInstance } from 'axios';
 import { buildSignListHtml, type SlRecipient, type SlSchool } from '@/lib/sign-list-print';
 import { printHtml } from './print';
+import { UnitAssignments, type AssignResult } from './UnitAssignments';
 
 interface Item {
   id: string; name: string; asset_tag: string | null; quantity_available: number;
-  quantity_total: number; condition: string; is_returnable: boolean;
+  quantity_total: number; condition: string; is_returnable: boolean; track_units?: boolean;
 }
 interface Filters {
   classes: string[]; programs: { id: string; name: string }[];
@@ -51,6 +52,7 @@ export function BulkIssuePanel({
 
   const [error,   setError]   = useState('');
   const [issuing, setIssuing] = useState(false);
+  const [assign,  setAssign]  = useState<AssignResult | null>(null);
 
   useEffect(() => {
     apiClient.get<Item[]>('/api/inventory/items').then(r => setItems(r.data)).catch(() => {});
@@ -138,10 +140,18 @@ export function BulkIssuePanel({
     });
   }
 
-  const qtyNum = parseInt(qty) || 0;
+  const tracked = !!item?.track_units;
+  const qtyNum = tracked ? 1 : (parseInt(qty) || 0);
   const total = selected.size * qtyNum;
   const overStock = !!item && total > item.quantity_available;
   const chosen = (recipients ?? []).filter(r => selected.has(r.id));
+  const people = useMemo(() => chosen.map(r => ({
+    id: r.id, name: r.name,
+    code: (recipType === 'student' ? r.student_code : r.teacher_code) ?? '',
+    detail: recipType === 'student' ? r.class_name : (r.dept_name ?? r.department),
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  })), [recipients, selected, recipType]);
+  const tagFor = new Map((assign?.assignments ?? []).map(a => [a.recipient_id, a]));
 
   function printSheet() {
     if (!item || !chosen.length) return;
@@ -149,7 +159,8 @@ export function BulkIssuePanel({
       title: title || item.name, itemName: item.name,
       issueDate: new Date().toISOString().slice(0, 10), qtyPerPerson: String(qtyNum || 1), notes,
       recipientType: recipType === 'student' ? 'students' : 'teachers',
-      filterLabel, recipients: chosen, school,
+      filterLabel, school,
+      recipients: tracked ? chosen.map(r => ({ ...r, tag_number: tagFor.get(r.id)?.tag_number ?? '', imei: tagFor.get(r.id)?.imei ?? '' })) : chosen,
     }));
     if (!ok) setError('Pop-ups are blocked. Allow pop-ups for this site and try again.');
   }
@@ -160,7 +171,10 @@ export function BulkIssuePanel({
     if (qtyNum < 1) { setError('Quantity per person must be at least 1.'); return; }
     if (!title.trim()) { setError('Enter a title for this issue record.'); return; }
     if (overStock) { setError(`Not enough stock: ${total} needed, only ${item.quantity_available} available.`); return; }
-    if (!confirm(`Issue ${qtyNum} × ${item.name} to ${chosen.length} ${recipType === 'student' ? 'student(s)' : 'teacher(s)'} (${total} in total)?`)) return;
+    if (tracked && !assign?.complete) { setError(`Give every person a tag number first. ${assign?.problems.join('. ') ?? ''}`); return; }
+    if (!confirm(tracked
+      ? `Issue ${item.name} to ${chosen.length} ${recipType === 'student' ? 'student(s)' : 'teacher(s)'}, each with the tag number shown?`
+      : `Issue ${qtyNum} × ${item.name} to ${chosen.length} ${recipType === 'student' ? 'student(s)' : 'teacher(s)'} (${total} in total)?`)) return;
 
     setIssuing(true); setError('');
     try {
@@ -170,6 +184,7 @@ export function BulkIssuePanel({
         due_date: item.is_returnable ? (dueDate || null) : null,
         notes: notes.trim() || null, filter_label: filterLabel,
         filters: filterParams(),
+        assignments: tracked ? assign?.assignments.map(a => ({ recipient_id: a.recipient_id, unit_id: a.unit_id })) : undefined,
       }, { timeout: 60000 });
       onIssued(r.data.id);
     } catch (e: any) {
@@ -187,21 +202,25 @@ export function BulkIssuePanel({
             <option value="">Select item</option>
             {issuable.map(i => (
               <option key={i.id} value={i.id}>
-                {i.name} ({i.quantity_available} available){i.is_returnable ? ', returnable' : ''}
+                {i.name} ({i.quantity_available} available){i.track_units ? ', tracked by tag' : i.is_returnable ? ', returnable' : ''}
               </option>
             ))}
           </select>
         </div>
         {item?.is_returnable && (
           <p className="text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-lg px-3 py-2">
-            This item is returnable. Each person gets a tracked loan and stays under Loans until they return it.
+            {item.track_units
+              ? 'Each person gets one unit, recorded with its tag number and IMEI, and stays under Loans until they return it. Students cannot be cleared while they still have it.'
+              : 'This item is returnable. Each person gets a tracked loan and stays under Loans until they return it.'}
           </p>
         )}
         <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className={labelCls}>Quantity per person</label>
-            <input type="number" min="1" className={inputCls} value={qty} onChange={e => setQty(e.target.value)} />
-          </div>
+          {!tracked && (
+            <div>
+              <label className={labelCls}>Quantity per person</label>
+              <input type="number" min="1" className={inputCls} value={qty} onChange={e => setQty(e.target.value)} />
+            </div>
+          )}
           {item?.is_returnable && (
             <div>
               <label className={labelCls}>Due back (optional)</label>
@@ -300,8 +319,15 @@ export function BulkIssuePanel({
         )}
       </div>
 
+      {tracked && item && chosen.length > 0 && (
+        <div className={cardCls}>
+          <p className="text-sm font-bold text-slate-800 dark:text-white">3. Tag numbers</p>
+          <UnitAssignments apiClient={apiClient} itemId={item.id} people={people} onChange={setAssign} />
+        </div>
+      )}
+
       <div className={cardCls}>
-        <p className="text-sm font-bold text-slate-800 dark:text-white">3. Record details</p>
+        <p className="text-sm font-bold text-slate-800 dark:text-white">{tracked ? '4' : '3'}. Record details</p>
         <div>
           <label className={labelCls}>Title</label>
           <input className={inputCls} value={title}
@@ -332,7 +358,7 @@ export function BulkIssuePanel({
             className="flex-1 py-2.5 rounded-lg text-sm font-semibold border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-200 disabled:opacity-40">
             Print sign sheet
           </button>
-          <button type="button" onClick={issue} disabled={issuing || !item || !chosen.length || overStock}
+          <button type="button" onClick={issue} disabled={issuing || !item || !chosen.length || overStock || (tracked && !assign?.complete)}
             className="flex-1 py-2.5 rounded-lg text-sm font-semibold text-white disabled:opacity-40"
             style={{ background: primary }}>
             {issuing ? 'Issuing…' : `Issue to ${chosen.length || 0}`}

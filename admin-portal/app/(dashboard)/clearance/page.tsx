@@ -1,5 +1,6 @@
 ﻿'use client';
 
+import { OutstandingItems, type OutstandingItem } from '@/components/clearance/OutstandingItems';
 import { useEffect, useState, useCallback } from 'react';
 import { useTableControls } from '@/hooks/useTableControls';
 import { Pagination, Th } from '@/components/ui/Pagination';
@@ -18,6 +19,7 @@ interface ClearanceItem {
 interface StudentDetail {
   student: { id: string; name: string; student_code: string; class_name: string; picture_url: string | null };
   clearance: ClearanceItem[];
+  outstanding_items?: OutstandingItem[];
 }
 
 const STATUS_STYLE = {
@@ -244,9 +246,13 @@ export default function ClearancePage() {
             {detailLoading ? (
               <div className="flex-1 flex justify-center items-center"><div className="w-7 h-7 rounded-full border-2 border-green-600 border-t-transparent animate-spin" /></div>
             ) : !detail?.clearance.length ? (
-              <div className="p-8 text-center text-slate-400 text-sm">Clearance not initiated for this student.</div>
+              <div className="p-5 space-y-3">
+                <OutstandingItems items={detail?.outstanding_items} />
+                <p className="p-3 text-center text-slate-400 text-sm">Clearance not initiated for this student.</p>
+              </div>
             ) : (
               <div className="p-5 space-y-3">
+                <OutstandingItems items={detail.outstanding_items} />
                 {detail.clearance.map(item => {
                   const st = STATUS_STYLE[item.status];
                   return (

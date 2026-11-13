@@ -1,6 +1,9 @@
 ﻿'use client';
 
+import { OutstandingItems, type OutstandingItem } from '@/components/clearance/OutstandingItems';
 import NameOrIdSearch from '@/components/NameOrIdSearch';
+import { UnitPicker } from '@/components/inventory/UnitPicker';
+import type { InvUnit } from '@/components/inventory/units';
 import { useEffect, useRef, useState } from 'react';
 import { buildSignListHtml, type SlRecipient, type SlSchool } from '@/lib/sign-list-print';
 import { FeeReportsPanel } from '@/components/fees/FeeReportsPanel';
@@ -27,6 +30,7 @@ interface PendingStudent {
 interface LookupResult {
   student: { id: string; name: string; student_code: string; class_name: string; picture_url: string | null };
   items: { item_id: string; office_id: string; office_name: string; status: string; notes: string | null; actioned_at: string | null }[];
+  outstanding_items?: OutstandingItem[];
 }
 interface HistoryItem {
   name: string; student_code: string; class_name: string;
@@ -37,7 +41,7 @@ interface HistoryItem {
 interface InvItem {
   id: string; name: string; item_type: string; asset_tag: string | null;
   quantity_total: number; quantity_available: number; condition: string;
-  location: string | null; category_name: string | null; is_returnable: boolean;
+  location: string | null; category_name: string | null; is_returnable: boolean; track_units?: boolean;
 }
 interface InvStudent {
   id: string; name: string; student_code: string; class_name: string; picture_url: string | null;
@@ -230,6 +234,7 @@ export default function StaffPortalPage() {
   const [invIssueTLoad,   setInvIssueTLoad]   = useState(false);
   const [invIssueDueDate, setInvIssueDueDate] = useState('');
   const [invIssueQty,     setInvIssueQty]     = useState('1');
+  const [invIssueUnit,    setInvIssueUnit]    = useState<InvUnit | null>(null);
   const [invIssueNotes,   setInvIssueNotes]   = useState('');
   const [invIssuing,      setInvIssuing]      = useState(false);
   const [invIssueErr,     setInvIssueErr]     = useState('');
@@ -602,9 +607,11 @@ export default function StaffPortalPage() {
     const borrower = item.is_returnable ? invIssueBorrower : 'student';
     const recipient = borrower === 'teacher' ? invIssueTeacher : invIssueStudent;
     if (!recipient) return;
+    if (item.track_units && !invIssueUnit) { setInvIssueErr('Choose the tag number of the unit being handed over.'); return; }
     setInvIssuing(true); setInvIssueErr('');
     try {
       await api.post(`/api/inventory/items/${invIssueItem}/issue`, {
+        unit_id: item.track_units ? invIssueUnit?.id : undefined,
         issued_to_name: recipient.name,
         issued_to_type: borrower,
         student_id: borrower === 'student' ? recipient.id : undefined,
@@ -615,7 +622,7 @@ export default function StaffPortalPage() {
       });
       setInvIssueStudent(null); setInvIssueCode('');
       setInvIssueTeacher(null); setInvIssueTCode(''); setInvIssueDueDate('');
-      setInvIssueItem(''); setInvIssueQty('1'); setInvIssueNotes('');
+      setInvIssueItem(''); setInvIssueQty('1'); setInvIssueNotes(''); setInvIssueUnit(null);
       loadInvItems();
     } catch (e: any) { setInvIssueErr(e.response?.data?.error ?? 'Failed to issue'); }
     finally { setInvIssuing(false); }
@@ -1059,6 +1066,7 @@ export default function StaffPortalPage() {
                       <p className="text-xs text-slate-400">{lookupResult.student.student_code} · {lookupResult.student.class_name}</p>
                     </div>
                   </div>
+                  <OutstandingItems items={lookupResult.outstanding_items} />
                   {lookupResult.items.length === 0
                     ? <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 text-center text-slate-400 text-sm">No clearance items for your office.</div>
                     : lookupResult.items.map(item => {
@@ -1343,13 +1351,13 @@ export default function StaffPortalPage() {
                 <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-medium block mb-1.5">Select Item</label>
                 <select className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none"
                   value={invIssueItem} onChange={e => {
-                    setInvIssueItem(e.target.value); setInvIssueQty('1');
+                    setInvIssueItem(e.target.value); setInvIssueQty('1'); setInvIssueUnit(null);
                     setInvIssueStudent(null); setInvIssueCode(''); setInvIssueStudErr('');
                     setInvIssueTeacher(null); setInvIssueTCode(''); setInvIssueTErr(''); setInvIssueDueDate('');
                   }}>
                   <option value="">Select item</option>
                   {invItems.filter(i => i.quantity_available > 0 && i.condition !== 'Written Off').map(i => (
-                    <option key={i.id} value={i.id}>{i.name} ({i.quantity_available} avail.){i.is_returnable ? ', returnable' : ''}</option>
+                    <option key={i.id} value={i.id}>{i.name} ({i.quantity_available} avail.){i.track_units ? ', tracked by tag' : i.is_returnable ? ', returnable' : ''}</option>
                   ))}
                 </select>
               </div>
@@ -1416,6 +1424,12 @@ export default function StaffPortalPage() {
                           className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none" />
                       </div>
                     )}
+                    {issueItemObj?.track_units ? (
+                      <div>
+                        <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-medium block mb-1.5">Unit being handed over</label>
+                        <UnitPicker apiClient={api} itemId={issueItemObj.id} value={invIssueUnit} onChange={setInvIssueUnit} />
+                      </div>
+                    ) : (
                     <div>
                       <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-medium block mb-1.5">Quantity</label>
                       <input type="number" min="1"
@@ -1423,13 +1437,14 @@ export default function StaffPortalPage() {
                         value={invIssueQty} onChange={e => setInvIssueQty(e.target.value)}
                         className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none" />
                     </div>
+                    )}
                     <div>
                       <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-medium block mb-1.5">Notes (optional)</label>
                       <input value={invIssueNotes} onChange={e => setInvIssueNotes(e.target.value)}
                         className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none" />
                     </div>
                     {invIssueErr && <p className="text-sm text-red-500">{invIssueErr}</p>}
-                    <button onClick={submitInvIssue} disabled={!invIssueItem || invIssuing}
+                    <button onClick={submitInvIssue} disabled={!invIssueItem || invIssuing || (!!issueItemObj?.track_units && !invIssueUnit)}
                       className="w-full py-3 rounded-xl text-sm font-semibold text-white disabled:opacity-50" style={{ background: primary }}>
                       {invIssuing ? 'Issuing…' : 'Issue Item'}
                     </button>

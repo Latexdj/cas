@@ -5,6 +5,9 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getTeacherColors } from '@/lib/teacher-auth';
 import { teacherApi } from '@/lib/teacher-api';
+import { UnitsManager } from '@/components/inventory/UnitsManager';
+import { UnitPicker } from '@/components/inventory/UnitPicker';
+import type { InvUnit } from '@/components/inventory/units';
 
 type InvSubTab = 'items' | 'issue' | 'return' | 'loans';
 
@@ -18,6 +21,7 @@ interface InvItem {
   condition: string;
   location: string | null;
   is_returnable: boolean;
+  track_units?: boolean;
 }
 
 interface InvStudent {
@@ -45,6 +49,8 @@ interface Loan {
   is_overdue: boolean;
   item_name: string;
   asset_tag: string | null;
+  tag_number?: string | null;
+  imei?: string | null;
 }
 
 function condColor(c: string) {
@@ -104,6 +110,9 @@ export default function HodInventoryPage() {
   const [loanRetCondition,  setLoanRetCondition]  = useState('');
   const [loanRetSaving,     setLoanRetSaving]     = useState(false);
   const [loanRetError,      setLoanRetError]      = useState('');
+  const [loanRetNotes,      setLoanRetNotes]      = useState('');
+  const [issueUnit,         setIssueUnit]         = useState<InvUnit | null>(null);
+  const [unitsFor,          setUnitsFor]          = useState<{ id: string; name: string } | null>(null);
 
   useEffect(() => { setPrimary(getTeacherColors().primary); }, []);
 
@@ -174,6 +183,7 @@ export default function HodInventoryPage() {
       : issueToType === 'teacher' ? issueTeacher?.name
       : issueName.trim();
     if (!recipientName) { setIssueError('Recipient name is required'); return; }
+    if (selectedIssueItem?.track_units && !issueUnit) { setIssueError('Choose the tag number of the unit being handed over'); return; }
     setIssuing(true); setIssueError(''); setIssueSuccess('');
     try {
       await teacherApi.post(`/api/inventory/items/${issueItemId}/issue`, {
@@ -184,12 +194,13 @@ export default function HodInventoryPage() {
         teacher_id: issueToType === 'teacher' ? issueTeacher?.id : undefined,
         due_date: selectedIssueItem?.is_returnable ? (issueDueDate || undefined) : undefined,
         quantity: issueQty,
+        unit_id: selectedIssueItem?.track_units ? issueUnit?.id : undefined,
         notes: issueNotes.trim() || undefined,
         ...(selectedDeptId && selectedDeptId !== '__legacy__' ? { dept_id: selectedDeptId } : {}),
       });
       setIssueSuccess('Item issued successfully');
       setIssueItemId(''); setIssueName(''); setIssueRole(''); setIssueDueDate('');
-      setIssueQty(1); setIssueNotes('');
+      setIssueQty(1); setIssueNotes(''); setIssueUnit(null);
       setIssueStudent(null); setIssueStudentCode('');
       setIssueTeacher(null); setIssueTeacherCode('');
       loadItems();
@@ -213,10 +224,13 @@ export default function HodInventoryPage() {
   }
 
   async function submitLoanReturn(loanId: string) {
+    if (loanRetCondition === 'Lost' && !loanRetNotes.trim()) { setLoanRetError('Add a note saying how it was lost and any charge agreed'); return; }
     setLoanRetSaving(true); setLoanRetError('');
     try {
       await teacherApi.post(`/api/inventory/loans/${loanId}/return`, {
         condition_on_return: loanRetCondition || undefined,
+        notes: loanRetNotes.trim() || undefined,
+        ...(selectedDeptId && selectedDeptId !== '__legacy__' ? { dept_id: selectedDeptId } : {}),
       });
       setLoanReturningId('');
       setLoanBorrower(prev => prev ? { ...prev, loans: (prev.loans ?? []).filter(l => l.id !== loanId) } : prev);
@@ -358,10 +372,16 @@ export default function HodInventoryPage() {
                             )}
                           </div>
                         </div>
-                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0"
-                          style={{ color: cc.color, background: cc.bg }}>
-                          {item.condition}
-                        </span>
+                        <div className="flex flex-col items-end gap-1 shrink-0">
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                            style={{ color: cc.color, background: cc.bg }}>
+                            {item.condition}
+                          </span>
+                          {item.track_units && (
+                            <button onClick={() => setUnitsFor({ id: item.id, name: item.name })}
+                              className="text-xs font-semibold text-[#145C44] hover:underline">Units</button>
+                          )}
+                        </div>
                       </div>
                       <div className="mt-2 pt-2 border-t border-[#F4EFE6] flex gap-6">
                         <div>
@@ -402,7 +422,7 @@ export default function HodInventoryPage() {
                   setIssueToType(picked?.is_returnable ? 'student' : 'staff');
                   setIssueStudent(null); setIssueStudentCode(''); setIssueStudentError('');
                   setIssueTeacher(null); setIssueTeacherCode(''); setIssueTeacherError('');
-                  setIssueName(''); setIssueDueDate('');
+                  setIssueName(''); setIssueDueDate(''); setIssueUnit(null);
                 }}
                 className="w-full rounded-xl border border-[#E2D9CC] px-3 py-2 text-sm bg-white text-[#2C2218] focus:outline-none">
                 <option value="">Select item…</option>
@@ -534,12 +554,21 @@ export default function HodInventoryPage() {
               </div>
             )}
 
+            {invItems.find(i => i.id === issueItemId)?.track_units ? (
+              <div>
+                <label className="text-[11px] font-bold font-medium text-[#8C7E6E] block mb-1">Unit being handed over</label>
+                <UnitPicker apiClient={teacherApi} itemId={issueItemId} value={issueUnit} onChange={setIssueUnit}
+                  extraParams={selectedDeptId && selectedDeptId !== '__legacy__' ? { dept_id: selectedDeptId } : undefined}
+                  inputClassName="w-full rounded-xl border border-[#E2D9CC] px-3 py-2 text-sm bg-white text-[#2C2218] focus:outline-none" />
+              </div>
+            ) : (
             <div>
               <label className="text-[11px] font-bold font-medium text-[#8C7E6E] block mb-1">Quantity</label>
               <input type="number" min={1} value={issueQty}
                 onChange={e => setIssueQty(Math.max(1, parseInt(e.target.value) || 1))}
                 className="w-full rounded-xl border border-[#E2D9CC] px-3 py-2 text-sm focus:outline-none" />
             </div>
+            )}
 
             <div>
               <label className="text-[11px] font-bold font-medium text-[#8C7E6E] block mb-1">Notes (optional)</label>
@@ -666,9 +695,10 @@ export default function HodInventoryPage() {
                       <div key={l.id} className="border border-[#E2D9CC] rounded-xl p-3">
                         <div className="flex items-start justify-between gap-2">
                           <div>
-                            <p className="text-sm font-bold text-[#2C2218]">{l.item_name}{l.asset_tag ? ` (${l.asset_tag})` : ''}</p>
+                            <p className="text-sm font-bold text-[#2C2218]">{l.item_name}{l.tag_number ? `, tag ${l.tag_number}` : l.asset_tag ? ` (${l.asset_tag})` : ''}</p>
+                            {l.imei && <p className="text-xs font-mono text-[#8C7E6E]">IMEI {l.imei}</p>}
                             <p className="text-xs text-[#8C7E6E]">
-                              Qty {l.quantity}, issued {new Date(l.issued_at).toLocaleDateString()}
+                              {l.tag_number ? '' : `Qty ${l.quantity}, `}issued {new Date(l.issued_at).toLocaleDateString()}
                               {l.due_date && (
                                 <span className={l.is_overdue ? 'text-[#B83232] font-semibold' : ''}>
                                   {', due ' + new Date(l.due_date).toLocaleDateString()}{l.is_overdue ? ' (overdue)' : ''}
@@ -684,7 +714,11 @@ export default function HodInventoryPage() {
                               <option value="">Condition on return…</option>
                               <option value="Good">Good</option>
                               <option value="Damaged">Damaged</option>
+                              <option value="Lost">Lost (not coming back)</option>
                             </select>
+                            <input value={loanRetNotes} onChange={e => setLoanRetNotes(e.target.value)}
+                              placeholder={loanRetCondition === 'Lost' ? 'How it was lost, any charge agreed' : 'Notes (optional)'}
+                              className="rounded-xl border border-[#E2D9CC] px-3 py-2 text-sm bg-white text-[#2C2218] focus:outline-none" />
                             {loanRetError && <p className="text-xs text-[#B83232]">{loanRetError}</p>}
                             <div className="flex gap-2">
                               <button onClick={() => setLoanReturningId('')}
@@ -697,7 +731,7 @@ export default function HodInventoryPage() {
                             </div>
                           </div>
                         ) : (
-                          <button onClick={() => { setLoanReturningId(l.id); setLoanRetCondition(''); setLoanRetError(''); }}
+                          <button onClick={() => { setLoanReturningId(l.id); setLoanRetCondition(''); setLoanRetNotes(''); setLoanRetError(''); }}
                             className="mt-2 px-3 py-1.5 rounded-lg text-xs font-semibold"
                             style={{ background: '#E8F4EE', color: '#145C44' }}>
                             Return
@@ -713,6 +747,10 @@ export default function HodInventoryPage() {
         )}
 
       </div>
+      {unitsFor && (
+        <UnitsManager apiClient={teacherApi} item={unitsFor} onClose={() => setUnitsFor(null)} onChanged={loadItems}
+          extraParams={selectedDeptId && selectedDeptId !== '__legacy__' ? { dept_id: selectedDeptId } : undefined} />
+      )}
     </div>
   );
 }
