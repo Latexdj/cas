@@ -40,14 +40,15 @@ async function inventoryAccess(req, res, next) {
       }
     }
 
-    if (role === 'staff' && req.staffRoles?.includes('inventory')) {
-      req.inventoryScope = 'general'; return next();
-    }
-
     // 'stores' — full access, same scope as admin (general + departmental).
-    // Distinct from the limited 'inventory' role above (general items only).
+    // Checked before the limited 'inventory' role (general items only), so
+    // staff who hold both roles get the full access 'stores' grants.
     if (role === 'staff' && req.staffRoles?.includes('stores')) {
       req.inventoryScope = 'all'; return next();
+    }
+
+    if (role === 'staff' && req.staffRoles?.includes('inventory')) {
+      req.inventoryScope = 'general'; return next();
     }
 
     return res.status(403).json({ error: 'Inventory access denied' });

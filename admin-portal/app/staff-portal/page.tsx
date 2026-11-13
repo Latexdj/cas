@@ -964,15 +964,14 @@ export default function StaffPortalPage() {
       />
 
       <div className="flex-1 min-w-0 space-y-5 p-4 md:p-6">
-        <div className="flex items-center gap-3 md:hidden">
-          <button onClick={() => setSidebarOpen(true)}
-            className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300">
+        <button onClick={() => setSidebarOpen(true)} className="flex items-center gap-3 md:hidden">
+          <span className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-5 h-5">
               <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" />
             </svg>
-          </button>
+          </span>
           <span className="text-sm font-semibold text-slate-600 dark:text-slate-300">Menu</span>
-        </div>
+        </button>
 
         {section === 'home' && (
           <div>
