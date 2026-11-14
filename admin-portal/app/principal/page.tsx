@@ -164,7 +164,7 @@ export default function PrincipalDashboard() {
               label="Active Exeats"
               value={snap.activeExeats}
               sub="students currently out"
-              color={dark ? '#818CF8' : '#6366F1'}
+              color={dark ? '#2ab289' : '#A87C2E'}
               href="/principal/exeats"
               dark={dark}
             />
@@ -172,7 +172,7 @@ export default function PrincipalDashboard() {
               label="Active Students"
               value={snap.activeStudents.toLocaleString()}
               sub="enrolled this term"
-              color={dark ? '#38BDF8' : '#0EA5E9'}
+              color={dark ? '#2ab289' : '#145C44'}
               dark={dark}
             />
             {finance && (
@@ -199,9 +199,9 @@ export default function PrincipalDashboard() {
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
               {[
-                { label: 'Awaiting HOD Review', value: pipelineCounts['submitted'] ?? '—', color: '#1E40AF', bg: dark ? '#0A1628' : '#DBEAFE' },
+                { label: 'Awaiting HOD Review', value: pipelineCounts['submitted'] ?? '—', color: '#145C44', bg: dark ? '#0F2A20' : '#E8F4EE' },
                 { label: 'HOD Approved', value: pipelineCounts['hod_approved'] ?? '—', color: '#065F46', bg: dark ? '#011811' : '#D1FAE5' },
-                { label: 'Final Approved', value: pipelineCounts['final_approved'] ?? '—', color: '#3730A3', bg: dark ? '#0C0A2E' : '#EDE9FE' },
+                { label: 'Final Approved', value: pipelineCounts['final_approved'] ?? '—', color: '#A87C2E', bg: dark ? '#2A2110' : '#F7EDDA' },
                 { label: 'Published', value: pipelineCounts['published'] ?? '—', color: '#14532D', bg: dark ? '#021408' : '#F0FDF4' },
               ].map(kpi => (
                 <div key={kpi.label} style={{ background: kpi.bg, borderRadius: 12, padding: '14px 16px' }}>
@@ -219,7 +219,7 @@ export default function PrincipalDashboard() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px,1fr))', gap: 12 }}>
             {[
               {
-                href: '/principal/occupancy', label: 'Classroom Occupancy', color: '#6366F1',
+                href: '/principal/occupancy', label: 'Classroom Occupancy', color: '#A87C2E',
                 icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />,
               },
               {
@@ -231,11 +231,11 @@ export default function PrincipalDashboard() {
                 icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 12.75L11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 01-1.043 3.296 3.745 3.745 0 01-3.296 1.043A3.745 3.745 0 0112 21c-1.268 0-2.39-.63-3.068-1.593a3.745 3.745 0 01-3.296-1.043 3.745 3.745 0 01-1.043-3.296A3.745 3.745 0 013 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 011.043-3.296 3.746 3.746 0 013.296-1.043A3.746 3.746 0 0112 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 013.296 1.043 3.746 3.746 0 011.043 3.296A3.745 3.745 0 0121 12z" />,
               },
               {
-                href: '/principal/personnel', label: 'Export Records', color: '#0EA5E9',
+                href: '/principal/personnel', label: 'Export Records', color: '#145C44',
                 icon: <><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" /></>,
               },
               {
-                href: '/principal/reports', label: 'View Reports', color: '#8B5CF6',
+                href: '/principal/reports', label: 'View Reports', color: '#A87C2E',
                 icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />,
               },
               ...(finance ? [{

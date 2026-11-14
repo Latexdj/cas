@@ -27,7 +27,7 @@ interface MeetingRow {
 function attendanceStatus(pct: number | null): { label: string; color: string; bg: string } {
   if (pct === null) return { label: 'No Data',        color: '#94A3B8', bg: 'rgba(148,163,184,0.12)' };
   if (pct >= 90)   return { label: 'Excellent',       color: '#145C44', bg: 'rgba(16,185,129,0.12)'  };
-  if (pct >= 75)   return { label: 'Good',            color: '#3B82F6', bg: 'rgba(59,130,246,0.12)'  };
+  if (pct >= 75)   return { label: 'Good',            color: '#145C44', bg: 'rgba(20,92,68,0.12)'  };
   if (pct >= 60)   return { label: 'Needs Attention', color: '#F59E0B', bg: 'rgba(245,158,11,0.12)'  };
   return               { label: 'Critical',       color: '#EF4444', bg: 'rgba(239,68,68,0.12)'   };
 }
@@ -153,7 +153,7 @@ function ClassTable({ rows, dark, search }: { rows: ClassRow[]; dark: boolean; s
               <td style={{ padding: '11px 14px', fontFamily: 'monospace', textAlign: 'center', color: dark ? '#CBD5E1' : '#475569' }}>{r.total_scheduled}</td>
               <td style={{ padding: '11px 14px', fontFamily: 'monospace', textAlign: 'center', fontWeight: 700, color: '#145C44' }}>{r.present_periods}</td>
               <td style={{ padding: '11px 14px', fontFamily: 'monospace', textAlign: 'center', fontWeight: 700, color: r.absent_periods > 0 ? '#EF4444' : (dark ? '#475569' : '#94A3B8') }}>{r.absent_periods}</td>
-              <td style={{ padding: '11px 14px', fontFamily: 'monospace', textAlign: 'center', fontWeight: 700, color: r.excused_periods > 0 ? '#7C3AED' : (dark ? '#475569' : '#94A3B8') }}>{r.excused_periods}</td>
+              <td style={{ padding: '11px 14px', fontFamily: 'monospace', textAlign: 'center', fontWeight: 700, color: r.excused_periods > 0 ? '#A87C2E' : (dark ? '#475569' : '#94A3B8') }}>{r.excused_periods}</td>
               <PctCell pct={r.attendance_pct} dark={dark} />
               <StatusCell pct={r.attendance_pct} dark={dark} />
             </tr>
@@ -166,7 +166,7 @@ function ClassTable({ rows, dark, search }: { rows: ClassRow[]; dark: boolean; s
             <td style={{ padding: '10px 14px', fontFamily: 'monospace', textAlign: 'center', fontWeight: 700, color: dark ? '#F1F5F9' : '#1C1208' }}>{totals.s}</td>
             <td style={{ padding: '10px 14px', fontFamily: 'monospace', textAlign: 'center', fontWeight: 700, color: '#145C44' }}>{totals.p}</td>
             <td style={{ padding: '10px 14px', fontFamily: 'monospace', textAlign: 'center', fontWeight: 700, color: totals.ab > 0 ? '#EF4444' : (dark ? '#475569' : '#94A3B8') }}>{totals.ab}</td>
-            <td style={{ padding: '10px 14px', fontFamily: 'monospace', textAlign: 'center', fontWeight: 700, color: totals.ex > 0 ? '#7C3AED' : (dark ? '#475569' : '#94A3B8') }}>{totals.ex}</td>
+            <td style={{ padding: '10px 14px', fontFamily: 'monospace', textAlign: 'center', fontWeight: 700, color: totals.ex > 0 ? '#A87C2E' : (dark ? '#475569' : '#94A3B8') }}>{totals.ex}</td>
             <PctCell pct={schoolPct} dark={dark} />
             <StatusCell pct={schoolPct} dark={dark} />
           </tr>

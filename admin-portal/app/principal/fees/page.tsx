@@ -113,7 +113,7 @@ export default function PrincipalFeesPage() {
   const netLabel  = summary.net_position >= 0 ? 'Surplus' : 'Deficit';
 
   const summaryCards = [
-    { label: 'Total Billed',      value: fmt(summary.total_billed),      color: dark ? '#38BDF8' : '#0EA5E9',   bg: dark ? '#0C1E36' : '#EFF6FF' },
+    { label: 'Total Billed',      value: fmt(summary.total_billed),      color: dark ? '#2ab289' : '#145C44',   bg: dark ? '#0F2A20' : '#E8F4EE' },
     { label: 'Fees Collected',    value: fmt(summary.total_collected),   color: '#145C44',                      bg: dark ? '#052E16' : '#F0FDF4' },
     { label: 'Collection Rate',   value: `${summary.collection_rate}%`,  color: summary.collection_rate >= 80 ? '#145C44' : summary.collection_rate >= 50 ? '#F59E0B' : '#EF4444', bg: dark ? '#1C1507' : '#FFFBEB' },
     { label: 'Outstanding Fees',  value: fmt(summary.outstanding),       color: summary.outstanding > 0 ? '#F59E0B' : '#145C44', bg: dark ? '#1C0F07' : '#FFFBEB' },

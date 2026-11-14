@@ -37,8 +37,8 @@ function CallBtn({ phone, color }: { phone: string | null; color: string }) {
 const STATUS_META: Record<Slot['status'], { label: string; bg: string; bgDark: string; text: string }> = {
   confirmed:     { label: 'Confirmed',      bg: '#DCFCE7', bgDark: '#14532D44', text: '#145C44' },
   absent:        { label: 'Absent',         bg: '#FEE2E2', bgDark: '#7F1D1D44', text: '#DC2626' },
-  on_leave:      { label: 'On Leave',       bg: '#FAF5FF', bgDark: '#3B0764AA', text: '#9333EA' },
-  ongoing:       { label: 'Ongoing',        bg: '#DBEAFE', bgDark: '#1E3A5F44', text: '#1D4ED8' },
+  on_leave:      { label: 'On Leave',       bg: '#F7EDDA', bgDark: '#2A2110AA', text: '#A87C2E' },
+  ongoing:       { label: 'Ongoing',        bg: '#E8F4EE', bgDark: '#0F2A2044', text: '#145C44' },
   upcoming:      { label: 'Upcoming',       bg: '#F3F4F6', bgDark: '#1E293B88', text: '#6B7280' },
   not_submitted: { label: 'Not Submitted',  bg: '#FEF3C7', bgDark: '#78350F44', text: '#D97706' },
 };
@@ -206,8 +206,8 @@ export default function OccupancyPage() {
                           <span style={{
                             display: 'inline-block', marginLeft: 6,
                             fontSize: 10, fontWeight: 700,
-                            background: dark ? '#3B076488' : '#EDE9FE',
-                            color: '#9333EA', borderRadius: 20, padding: '1px 7px',
+                            background: dark ? '#2A211088' : '#F7EDDA',
+                            color: '#A87C2E', borderRadius: 20, padding: '1px 7px',
                           }}>
                             {slot.leaveType}
                           </span>

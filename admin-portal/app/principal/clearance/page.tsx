@@ -300,7 +300,7 @@ export default function ClearancePage() {
                       <td style={{ padding: '10px 14px' }}>
                         <button
                           onClick={() => openDetail(r.id)}
-                          style={{ fontSize: 12, fontWeight: 600, color: dark ? '#38BDF8' : '#0EA5E9', background: 'none', border: 'none', cursor: 'pointer' }}
+                          style={{ fontSize: 12, fontWeight: 600, color: dark ? '#2ab289' : '#145C44', background: 'none', border: 'none', cursor: 'pointer' }}
                         >
                           View
                         </button>

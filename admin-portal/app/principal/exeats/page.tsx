@@ -170,7 +170,7 @@ export default function ExeatsPage() {
                     </td>
                     <td style={{ padding: '10px 14px', color: dark ? '#CBD5E1' : '#374151' }}>{s.class_name}</td>
                     <td style={{ padding: '10px 14px', minWidth: 140 }}>
-                      <QuotaBar used={s.internal_used} quota={data?.internal_quota ?? 5} color="#6366F1" />
+                      <QuotaBar used={s.internal_used} quota={data?.internal_quota ?? 5} color="#A87C2E" />
                     </td>
                     <td style={{ padding: '10px 14px', minWidth: 140 }}>
                       <QuotaBar used={s.external_used} quota={data?.external_quota ?? 2} color="#145C44" />

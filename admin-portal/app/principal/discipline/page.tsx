@@ -117,7 +117,7 @@ const C = {
   danger: '#B83232', dangerBg: '#FEF2F2',
   warning: '#C8780A', warningBg: '#FFFBEB',
   success: '#2D7A4F', successBg: '#E8F4EE',
-  purple: '#6D28D9', purpleBg: '#EDE9FE',
+  purple: '#A87C2E', purpleBg: '#F7EDDA',
 };
 
 // ─── Flag chip ────────────────────────────────────────────────────────────────
@@ -376,7 +376,7 @@ export default function PrincipalDisciplinePage() {
                   key={l.id}
                   onClick={() => { setSelected(l); setApproveErr(''); setApproveOk(false); setShowReturnForm(false); setReturnReason(''); setReturnErr(''); setReturnOk(false); }}
                   style={{
-                    textAlign: 'left', width: '100%', background: selected?.id === l.id ? '#EDE9FE' : C.card,
+                    textAlign: 'left', width: '100%', background: selected?.id === l.id ? '#F7EDDA' : C.card,
                     border: `1px solid ${selected?.id === l.id ? C.purple : C.border}`,
                     borderRadius: 12, padding: '14px 18px', cursor: 'pointer',
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
@@ -466,7 +466,7 @@ export default function PrincipalDisciplinePage() {
 
                   {/* PDF preview */}
                   {selected.pdf_url ? (
-                    <div style={{ background: C.purpleBg, border: `1px solid #C4B5FD`, borderRadius: 10, padding: '12px 16px' }}>
+                    <div style={{ background: C.purpleBg, border: `1px solid #E0B65C`, borderRadius: 10, padding: '12px 16px' }}>
                       <p style={{ fontSize: 12, fontWeight: 700, color: C.purple, margin: '0 0 8px' }}>Draft PDF (Watermarked)</p>
                       <a
                         href={selected.pdf_url}
@@ -493,9 +493,9 @@ export default function PrincipalDisciplinePage() {
                       <p style={{ fontWeight: 700, color: C.danger, margin: 0 }}>Letter returned for correction.</p>
                     </div>
                   ) : (
-                    <div style={{ background: C.purpleBg, border: `1px solid #C4B5FD`, borderRadius: 12, padding: '16px 18px' }}>
+                    <div style={{ background: C.purpleBg, border: `1px solid #E0B65C`, borderRadius: 12, padding: '16px 18px' }}>
                       <p style={{ fontSize: 13, color: C.purple, fontWeight: 700, marginBottom: 6 }}>Headmaster Approval Required</p>
-                      <p style={{ fontSize: 12, color: '#7C3AED', marginBottom: 14 }}>
+                      <p style={{ fontSize: 12, color: '#A87C2E', marginBottom: 14 }}>
                         Approving this letter will set its status to <strong>Issued</strong> and generate the final signed PDF. This action cannot be undone.
                       </p>
                       {approveErr && (
@@ -526,7 +526,7 @@ export default function PrincipalDisciplinePage() {
                           Return for Correction
                         </button>
                       ) : (
-                        <div style={{ marginTop: 12, borderTop: `1px solid #C4B5FD`, paddingTop: 12 }}>
+                        <div style={{ marginTop: 12, borderTop: `1px solid #E0B65C`, paddingTop: 12 }}>
                           <p style={{ fontSize: 12, fontWeight: 700, color: C.danger, marginBottom: 6 }}>Reason for return (required)</p>
                           <textarea
                             value={returnReason}
@@ -629,7 +629,7 @@ export default function PrincipalDisciplinePage() {
                 return (
                   <button key={q.id} onClick={() => setSelectedQuery(q)}
                     style={{
-                      textAlign: 'left', width: '100%', background: selectedQuery?.id === q.id ? '#EDE9FE' : C.card,
+                      textAlign: 'left', width: '100%', background: selectedQuery?.id === q.id ? '#F7EDDA' : C.card,
                       border: `1px solid ${selectedQuery?.id === q.id ? C.purple : C.border}`,
                       borderRadius: 12, padding: '14px 18px', cursor: 'pointer',
                       display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,

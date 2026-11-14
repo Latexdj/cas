@@ -16,7 +16,7 @@ interface Leave {
 
 const STATUS_STYLES: Record<string, { bg: string; bgD: string; text: string }> = {
   Pending:            { bg: '#FEF3C7', bgD: '#78350F33', text: '#D97706' },
-  'Pending Acceptance': { bg: '#DBEAFE', bgD: '#1E3A5F33', text: '#1D4ED8' },
+  'Pending Acceptance': { bg: '#E8F4EE', bgD: '#0F2A2033', text: '#145C44' },
   Approved:           { bg: '#DCFCE7', bgD: '#14532D33', text: '#145C44' },
   Rejected:           { bg: '#FEE2E2', bgD: '#7F1D1D33', text: '#DC2626' },
 };
@@ -169,8 +169,8 @@ export default function LeavesPage() {
                   )}
                   {l.approval_note && (
                     <>
-                      <span style={{ color: l.status === 'Pending Acceptance' ? '#1D4ED8' : '#D97706' }}>Condition</span>
-                      <span style={{ color: l.status === 'Pending Acceptance' ? '#1D4ED8' : '#D97706' }}>
+                      <span style={{ color: l.status === 'Pending Acceptance' ? '#145C44' : '#D97706' }}>Condition</span>
+                      <span style={{ color: l.status === 'Pending Acceptance' ? '#145C44' : '#D97706' }}>
                         {l.approval_note}
                         {l.status === 'Pending Acceptance' && ' — awaiting the teacher\'s response'}
                       </span>
@@ -195,9 +195,9 @@ export default function LeavesPage() {
                     style={{
                       display: 'inline-flex', alignItems: 'center', gap: 6,
                       marginTop: 12, padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600,
-                      background: dark ? '#1E3A5F' : '#EFF6FF',
-                      color: dark ? '#93C5FD' : '#1D4ED8',
-                      border: `1px solid ${dark ? '#2563EB44' : '#BFDBFE'}`,
+                      background: dark ? '#0F2A20' : '#E8F4EE',
+                      color: dark ? '#2ab289' : '#145C44',
+                      border: `1px solid ${dark ? '#145C4444' : '#B8D9C8'}`,
                       cursor: 'pointer',
                     }}
                   >
@@ -236,7 +236,7 @@ export default function LeavesPage() {
                       disabled={saving}
                       style={{
                         padding: '7px 18px', borderRadius: 8, fontSize: 13, fontWeight: 600,
-                        background: dark ? '#1E3A5F33' : '#DBEAFE', color: '#1D4ED8', border: 'none',
+                        background: dark ? '#0F2A2033' : '#E8F4EE', color: '#145C44', border: 'none',
                         cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1,
                       }}
                     >
@@ -339,7 +339,7 @@ export default function LeavesPage() {
                 disabled={saving}
                 style={{
                   flex: 1, padding: 10, borderRadius: 8, fontSize: 13, fontWeight: 600,
-                  background: action === 'condition' ? '#1D4ED8' : '#DC2626',
+                  background: action === 'condition' ? '#145C44' : '#DC2626',
                   color: '#FFFFFF', border: 'none', cursor: saving ? 'not-allowed' : 'pointer',
                   opacity: saving ? 0.7 : 1,
                 }}
@@ -375,7 +375,7 @@ export default function LeavesPage() {
               flexShrink: 0,
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <svg viewBox="0 0 24 24" fill="none" stroke={dark ? '#93C5FD' : '#1D4ED8'} strokeWidth={2}
+                <svg viewBox="0 0 24 24" fill="none" stroke={dark ? '#2ab289' : '#145C44'} strokeWidth={2}
                   strokeLinecap="round" strokeLinejoin="round" style={{ width: 18, height: 18 }}>
                   <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
                   <polyline points="14 2 14 8 20 8" />
