@@ -63,7 +63,7 @@ export function LettersSection({ api, primary }: { api: AxiosInstance; primary: 
     try {
       const r = await api.post<{ pdf_url: string }>(`/api/general-letters/${id}/pdf`);
       window.open(r.data.pdf_url, '_blank');
-    } catch (e: any) { alert(e?.response?.data?.error ?? 'Failed to generate PDF.'); }
+    } catch (e: any) { setError(e?.response?.data?.error ?? 'Could not create the PDF. Try again.'); }
     finally { setPdfBusy(null); }
   }
 
@@ -119,7 +119,7 @@ export function LettersSection({ api, primary }: { api: AxiosInstance; primary: 
                 </span>
                 {l.status === 'issued' && (
                   <button onClick={() => downloadPdf(l.id)} disabled={pdfBusy === l.id}
-                    className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline shrink-0 disabled:opacity-50">
+                    className="text-xs font-semibold text-[#145C44] dark:text-[#2ab289] hover:underline shrink-0 disabled:opacity-50">
                     {pdfBusy === l.id ? '…' : 'PDF'}
                   </button>
                 )}

@@ -67,6 +67,8 @@ function FeeItemsTab({ api, primary }: { api: AxiosInstance; primary: string }) 
   const [form, setForm] = useState({ name: '', description: '', is_active: true });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [listErr, setListErr] = useState('');                    // shown above the list
+  const [confirmDel, setConfirmDel] = useState<string | null>(null); // first tap on Delete
 
   function load() {
     setLoading(true);
@@ -89,9 +91,10 @@ function FeeItemsTab({ api, primary }: { api: AxiosInstance; primary: string }) 
   }
 
   async function remove(id: string) {
-    if (!confirm('Delete this fee item?')) return;
+    if (confirmDel !== id) { setConfirmDel(id); return; }
+    setConfirmDel(null); setListErr('');
     try { await api.delete(`/api/fees/items/${id}`); load(); }
-    catch (e: any) { alert(e?.response?.data?.error ?? 'Failed to delete.'); }
+    catch (e: any) { setListErr(e?.response?.data?.error ?? 'Could not delete. Try again.'); }
   }
 
   return (
@@ -115,6 +118,7 @@ function FeeItemsTab({ api, primary }: { api: AxiosInstance; primary: string }) 
         </div>
       )}
 
+      {listErr && <p role="alert" className="text-sm text-[#B83232] bg-[#FBEDED] dark:bg-[#B83232]/10 border border-[#B83232]/20 rounded-xl px-4 py-2">{listErr}</p>}
       <div className={cardCls}>
         {loading ? <p className="p-5 text-center text-slate-400 text-sm">Loading…</p> : items.length === 0 ? (
           <p className="p-5 text-center text-slate-400 text-sm">No fee items yet.</p>
@@ -126,8 +130,8 @@ function FeeItemsTab({ api, primary }: { api: AxiosInstance; primary: string }) 
                   <p className="text-sm font-semibold text-slate-800 dark:text-white">{i.name}{!i.is_active && <span className="ml-2 text-xs text-slate-400">(inactive)</span>}</p>
                   {i.description && <p className="text-xs text-slate-400">{i.description}</p>}
                 </div>
-                <button onClick={() => openEdit(i)} className="text-xs text-blue-600 dark:text-blue-400 hover:underline shrink-0">Edit</button>
-                <button onClick={() => remove(i.id)} className="text-xs text-red-600 dark:text-red-400 hover:underline shrink-0">Delete</button>
+                <button onClick={() => openEdit(i)} className="text-xs font-semibold text-[#145C44] dark:text-[#2ab289] hover:underline shrink-0">Edit</button>
+                <button onClick={() => remove(i.id)} onBlur={() => setConfirmDel(null)} className="text-xs font-semibold text-[#B83232] dark:text-red-400 hover:underline shrink-0">{confirmDel === i.id ? 'Tap again to delete' : 'Delete'}</button>
               </div>
             ))}
           </div>
@@ -146,6 +150,8 @@ function SchedulesTab({ api, primary }: { api: AxiosInstance; primary: string })
   const [adding, setAdding] = useState(false);
   const [form, setForm] = useState({ fee_item_id: '', academic_year_id: '', semester: '', class_name: '', amount: '', due_date: '' });
   const [error, setError] = useState('');
+  const [listErr, setListErr] = useState('');                    // shown above the list
+  const [confirmDel, setConfirmDel] = useState<string | null>(null); // first tap on Delete
   const [conflict, setConflict] = useState<any[] | null>(null);
   const [saving, setSaving] = useState(false);
   const [genMsg, setGenMsg] = useState<Record<string, string>>({});
@@ -181,9 +187,10 @@ function SchedulesTab({ api, primary }: { api: AxiosInstance; primary: string })
   }
 
   async function remove(id: string) {
-    if (!confirm('Delete this schedule?')) return;
+    if (confirmDel !== id) { setConfirmDel(id); return; }
+    setConfirmDel(null); setListErr('');
     try { await api.delete(`/api/fees/schedules/${id}`); load(); }
-    catch (e: any) { alert(e?.response?.data?.error ?? 'Failed to delete.'); }
+    catch (e: any) { setListErr(e?.response?.data?.error ?? 'Could not delete. Try again.'); }
   }
 
   async function generate(id: string) {
@@ -231,6 +238,7 @@ function SchedulesTab({ api, primary }: { api: AxiosInstance; primary: string })
         </div>
       )}
 
+      {listErr && <p role="alert" className="text-sm text-[#B83232] bg-[#FBEDED] dark:bg-[#B83232]/10 border border-[#B83232]/20 rounded-xl px-4 py-2">{listErr}</p>}
       <div className={cardCls}>
         {loading ? <p className="p-5 text-center text-slate-400 text-sm">Loading…</p> : schedules.length === 0 ? (
           <p className="p-5 text-center text-slate-400 text-sm">No schedules yet.</p>
@@ -251,7 +259,7 @@ function SchedulesTab({ api, primary }: { api: AxiosInstance; primary: string })
                     className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white shrink-0 disabled:opacity-50" style={{ background: primary }}>
                     {generating === s.id ? '…' : 'Generate Bills'}
                   </button>
-                  <button onClick={() => remove(s.id)} className="text-xs text-red-600 dark:text-red-400 hover:underline shrink-0">Delete</button>
+                  <button onClick={() => remove(s.id)} onBlur={() => setConfirmDel(null)} className="text-xs font-semibold text-[#B83232] dark:text-red-400 hover:underline shrink-0">{confirmDel === s.id ? 'Tap again to delete' : 'Delete'}</button>
                 </div>
                 {genMsg[s.id] && <p className="text-xs text-slate-500 dark:text-slate-400">{genMsg[s.id]}</p>}
               </div>
@@ -271,6 +279,8 @@ function ExpenditureTab({ api, primary }: { api: AxiosInstance; primary: string 
   const empty = { category: EXPENSE_CATEGORIES[0], description: '', amount: '', expense_date: new Date().toISOString().slice(0, 10), payment_method: 'Cash', paid_to: '', reference: '', notes: '' };
   const [form, setForm] = useState(empty);
   const [error, setError] = useState('');
+  const [listErr, setListErr] = useState('');                    // shown above the list
+  const [confirmDel, setConfirmDel] = useState<string | null>(null); // first tap on Delete
   const [saving, setSaving] = useState(false);
 
   function load() {
@@ -291,9 +301,10 @@ function ExpenditureTab({ api, primary }: { api: AxiosInstance; primary: string 
   }
 
   async function remove(id: string) {
-    if (!confirm('Delete this expense?')) return;
+    if (confirmDel !== id) { setConfirmDel(id); return; }
+    setConfirmDel(null); setListErr('');
     try { await api.delete(`/api/fees/expenses/${id}`); load(); }
-    catch { alert('Failed to delete.'); }
+    catch { setListErr('Could not delete. Try again.'); }
   }
 
   return (
@@ -318,6 +329,7 @@ function ExpenditureTab({ api, primary }: { api: AxiosInstance; primary: string 
         </div>
       )}
 
+      {listErr && <p role="alert" className="text-sm text-[#B83232] bg-[#FBEDED] dark:bg-[#B83232]/10 border border-[#B83232]/20 rounded-xl px-4 py-2">{listErr}</p>}
       <div className={cardCls}>
         {loading ? <p className="p-5 text-center text-slate-400 text-sm">Loading…</p> : expenses.length === 0 ? (
           <p className="p-5 text-center text-slate-400 text-sm">No expenses recorded yet.</p>
@@ -330,7 +342,7 @@ function ExpenditureTab({ api, primary }: { api: AxiosInstance; primary: string 
                   <p className="text-xs text-slate-400">{e.category} · {e.expense_date?.slice(0, 10)}{e.paid_to ? ` · ${e.paid_to}` : ''}</p>
                 </div>
                 <span className="text-sm font-bold text-red-600 dark:text-red-400 shrink-0">{fmtGHS(e.amount)}</span>
-                <button onClick={() => remove(e.id)} className="text-xs text-red-600 dark:text-red-400 hover:underline shrink-0">Delete</button>
+                <button onClick={() => remove(e.id)} onBlur={() => setConfirmDel(null)} className="text-xs font-semibold text-[#B83232] dark:text-red-400 hover:underline shrink-0">{confirmDel === e.id ? 'Tap again to delete' : 'Delete'}</button>
               </div>
             ))}
           </div>
@@ -408,6 +420,8 @@ function MaintenanceTab({ api, primary }: { api: AxiosInstance; primary: string 
   const [needsReview, setNeedsReview] = useState<NeedsReviewRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
+  const [mErr, setMErr] = useState('');
+  const [confirmClean, setConfirmClean] = useState<string | null>(null); // first tap on Clean up
 
   function load() {
     setLoading(true);
@@ -423,24 +437,26 @@ function MaintenanceTab({ api, primary }: { api: AxiosInstance; primary: string 
   async function generateMissing(scheduleId: string) {
     setBusy(scheduleId);
     try { await api.post(`/api/fees/schedules/${scheduleId}/generate`); load(); }
-    catch (e: any) { alert(e?.response?.data?.error ?? 'Failed to generate.'); }
+    catch (e: any) { setMErr(e?.response?.data?.error ?? 'Could not generate the bills. Try again.'); }
     finally { setBusy(null); }
   }
 
   async function cleanupGroup(g: UnscheduledGroup) {
-    if (!confirm(`Delete ${g.unpaid_count} unpaid bill(s) for "${g.description}"?`)) return;
+    const key = g.fee_item_id + g.description;
+    if (confirmClean !== key) { setConfirmClean(key); return; }
+    setConfirmClean(null); setMErr('');
     setBusy(g.fee_item_id + g.description);
     try {
       await api.delete('/api/fees/bills/unscheduled-groups', { data: { fee_item_id: g.fee_item_id, description: g.description, amount: g.amount, due_date: g.due_date } });
       load();
-    } catch (e: any) { alert(e?.response?.data?.error ?? 'Failed to clean up.'); }
+    } catch (e: any) { setMErr(e?.response?.data?.error ?? 'Could not clean up these bills. Try again.'); }
     finally { setBusy(null); }
   }
 
   async function syncBill(billId: string) {
     setBusy(billId);
     try { await api.put(`/api/fees/bills/${billId}/sync-to-schedule`); load(); }
-    catch (e: any) { alert(e?.response?.data?.error ?? 'Failed to sync.'); }
+    catch (e: any) { setMErr(e?.response?.data?.error ?? 'Could not update this bill. Try again.'); }
     finally { setBusy(null); }
   }
 
@@ -448,6 +464,7 @@ function MaintenanceTab({ api, primary }: { api: AxiosInstance; primary: string 
 
   return (
     <div className="space-y-6">
+      {mErr && <p role="alert" className="text-sm text-[#B83232] bg-[#FBEDED] dark:bg-[#B83232]/10 border border-[#B83232]/20 rounded-xl px-4 py-2">{mErr}</p>}
       <div>
         <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200 mb-2">Missing Bills</h3>
         <div className={cardCls}>
@@ -481,9 +498,9 @@ function MaintenanceTab({ api, primary }: { api: AxiosInstance; primary: string 
                     <p className="text-sm font-semibold text-slate-800 dark:text-white">{g.description}</p>
                     <p className="text-xs text-slate-400">{g.student_count} student(s) · {g.unpaid_count} unpaid ({fmtGHS(g.unpaid_total)})</p>
                   </div>
-                  <button onClick={() => cleanupGroup(g)} disabled={busy === g.fee_item_id + g.description || g.unpaid_count === 0}
+                  <button onClick={() => cleanupGroup(g)} onBlur={() => setConfirmClean(null)} disabled={busy === g.fee_item_id + g.description || g.unpaid_count === 0}
                     className="text-xs font-semibold px-3 py-1.5 rounded-lg text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 shrink-0 disabled:opacity-50">
-                    {busy === g.fee_item_id + g.description ? '…' : 'Delete Unpaid'}
+                    {busy === g.fee_item_id + g.description ? '…' : confirmClean === g.fee_item_id + g.description ? `Tap again to delete ${g.unpaid_count}` : 'Delete Unpaid'}
                   </button>
                 </div>
               ))}

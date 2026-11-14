@@ -20,6 +20,7 @@ import { StaffSidebar, type StaffSidebarGroup } from './StaffSidebar';
 import { StaffDashboard, type DashTarget } from './StaffDashboard';
 import { SchoolReports } from './SchoolReports';
 import BudgetsHub from '@/components/department-budgets/BudgetsHub';
+import { InlineConfirm } from '@/components/ui/InlineConfirm';
 import { ClinicVisitDetail } from '@/components/clinic/ClinicVisitDetail';
 import { HealthProfiles } from '@/components/clinic/HealthProfiles';
 import { ClinicReports } from '@/components/clinic/ClinicReports';
@@ -287,6 +288,9 @@ export default function StaffPortalPage() {
   const [acctSearching,  setAcctSearching]  = useState(false);
   const [acctSelected,   setAcctSelected]   = useState<AcctStudentSummary | null>(null);
   const [acctLoadingSum, setAcctLoadingSum] = useState(false);
+  const [acctErr, setAcctErr] = useState('');                       // shown in the page instead of alert()
+  const [voidId, setVoidId] = useState<string | null>(null);         // payment awaiting void confirmation
+  const [voiding, setVoiding] = useState(false);
 
   // Dashboard tab
   const [acctYears,        setAcctYears]        = useState<AcctYear[]>([]);
@@ -425,7 +429,7 @@ export default function StaffPortalPage() {
     try {
       const r = await api.get<AcctStudentSummary>(`/api/fees/student/${id}/summary`);
       setAcctSelected(r.data);
-    } catch { alert('Could not load student fee account.'); }
+    } catch { setAcctErr('Could not load this student’s fee account. Try again.'); }
     finally { setAcctLoadingSum(false); }
   }
 
@@ -453,11 +457,12 @@ export default function StaffPortalPage() {
   }
 
   async function voidAcctPayment(id: string) {
-    if (!confirm('Void this payment? This cannot be undone.')) return;
+    setVoiding(true); setAcctErr('');
     try {
       await api.delete(`/api/fees/payments/${id}`);
+      setVoidId(null);
       await refreshAcctSelected();
-    } catch { alert('Failed to void payment.'); }
+    } catch { setAcctErr('Could not void this payment. Try again.'); } finally { setVoiding(false); }
   }
 
   // ── Clearance helpers ─────────────────────────────────────────────────────────
@@ -1724,6 +1729,7 @@ export default function StaffPortalPage() {
 
           {acctTab === 'collect' && (
             <>
+          {acctErr && <p role="alert" className="text-sm text-[#B83232] bg-[#FBEDED] dark:bg-[#B83232]/10 border border-[#B83232]/20 rounded-xl px-4 py-2">{acctErr}</p>}
           {acctLoadingSum && <div className="flex justify-center py-10"><div className="w-7 h-7 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: primary, borderTopColor: 'transparent' }} /></div>}
 
           {!acctSelected && !acctLoadingSum && (
@@ -1740,7 +1746,7 @@ export default function StaffPortalPage() {
                   <p className="text-xs text-slate-500 dark:text-slate-400">{acctSelected.student.student_code} · {acctSelected.student.class_name}</p>
                 </div>
                 {[
-                  { label: 'Total Billed', value: fmtGHS(acctSelected.total_billed), color: '#1e40af' },
+                  { label: 'Total Billed', value: fmtGHS(acctSelected.total_billed), color: '#C8973A' },
                   { label: 'Total Paid', value: fmtGHS(acctSelected.total_paid), color: '#145C44' },
                   { label: 'Outstanding', value: fmtGHS(acctSelected.outstanding), color: acctSelected.outstanding > 0 ? '#dc2626' : '#145C44' },
                 ].map(card => (
@@ -1790,14 +1796,25 @@ export default function StaffPortalPage() {
                   ) : (
                     <div className="divide-y divide-slate-100 dark:divide-slate-700">
                       {acctSelected.payments.map(p => (
-                        <div key={p.id} className="flex items-center gap-3 px-4 py-3">
+                        <div key={p.id}>
+                        <div className="flex items-center gap-3 px-4 py-3">
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-semibold text-[#145C44] dark:text-[#2ab289]">{fmtGHS(p.amount)}</p>
                             <p className="text-xs text-slate-400">
                               {p.payment_date.slice(0, 10)} · {p.payment_method}{p.receipt_no ? ` · ${p.receipt_no}` : ''}{p.recorded_by ? ` · by ${p.recorded_by}` : ''}
                             </p>
                           </div>
-                          <button onClick={() => voidAcctPayment(p.id)} className="text-xs font-semibold text-red-600 dark:text-red-400 hover:underline shrink-0">Void</button>
+                          {voidId !== p.id && <button onClick={() => setVoidId(p.id)} className="text-xs font-semibold text-[#B83232] dark:text-red-400 hover:underline shrink-0">Void</button>}
+                        </div>
+                        {voidId === p.id && (
+                          <div className="px-4 pb-3">
+                            <InlineConfirm danger busy={voiding} busyLabel="Voiding…"
+                              title={`Void this payment of ${fmtGHS(p.amount)}?`}
+                              detail="The amount goes back onto the student's balance. This cannot be undone."
+                              confirmLabel="Yes, void it"
+                              onConfirm={() => voidAcctPayment(p.id)} onCancel={() => setVoidId(null)} />
+                          </div>
+                        )}
                         </div>
                       ))}
                     </div>

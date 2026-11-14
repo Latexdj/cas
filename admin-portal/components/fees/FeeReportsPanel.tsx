@@ -51,6 +51,7 @@ export function FeeReportsPanel({ apiClient, years: yearsProp, levels: levelsPro
   apiClient: AxiosInstance; years?: AcademicYear[]; levels?: ClassLevel[];
 }) {
   const [subTab, setSubTab] = useState<'schedule' | 'student' | 'billed-items'>('schedule');
+  const [printErr, setPrintErr] = useState('');   // shown in the page instead of alert()
   const [years, setYears] = useState<AcademicYear[]>(yearsProp ?? []);
   const [levels, setLevels] = useState<ClassLevel[]>(levelsProp ?? []);
 
@@ -151,7 +152,7 @@ export function FeeReportsPanel({ apiClient, years: yearsProp, levels: levelsPro
       school: biSchool,
     });
     const w = window.open('', '_blank');
-    if (!w) { alert('Pop-ups are blocked. Please allow pop-ups for this site and try again.'); return; }
+    if (!w) { setPrintErr('Your browser blocked the print window. Allow pop-ups for this site, then try again.'); return; }
     w.document.write(html);
     w.document.close();
     w.focus();
@@ -180,7 +181,7 @@ export function FeeReportsPanel({ apiClient, years: yearsProp, levels: levelsPro
       school,
     });
     const w = window.open('', '_blank');
-    if (!w) { alert('Pop-ups are blocked. Please allow pop-ups for this site and try again.'); return; }
+    if (!w) { setPrintErr('Your browser blocked the print window. Allow pop-ups for this site, then try again.'); return; }
     w.document.write(html);
     w.document.close();
     w.focus();
@@ -189,6 +190,7 @@ export function FeeReportsPanel({ apiClient, years: yearsProp, levels: levelsPro
 
   return (
     <div className="space-y-4">
+      {printErr && <p role="alert" className="text-sm text-[#B83232] bg-[#FBEDED] dark:bg-[#B83232]/10 border border-[#B83232]/20 rounded-xl px-4 py-2">{printErr}</p>}
       <div className="flex gap-2">
         {(['schedule', 'student', 'billed-items'] as const).map(t => (
           <button key={t} onClick={() => setSubTab(t)}

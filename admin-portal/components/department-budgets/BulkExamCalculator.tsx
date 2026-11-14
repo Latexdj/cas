@@ -168,7 +168,7 @@ export default function BulkExamCalculator({ apiClient, onApply, onClose }: {
               <input className={inputCls} type="number" min="1" step="1" placeholder="Fill all with N pages"
                 value={fillPages} onChange={e => setFillPages(e.target.value)} />
               <button onClick={applyFillPages} type="button"
-                className="px-3 py-2 rounded-lg text-xs font-semibold whitespace-nowrap" style={{ backgroundColor: '#EFF6FF', color: '#1D4ED8' }}>
+                className="px-3 py-2 rounded-lg text-xs font-semibold whitespace-nowrap" style={{ backgroundColor: '#E8F4EE', color: '#145C44' }}>
                 Apply to all
               </button>
             </div>
