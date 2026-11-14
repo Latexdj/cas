@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useTheme } from 'next-themes';
 import { principalApi } from '@/lib/principal-api';
+import { InlineConfirm } from '@/components/ui/InlineConfirm';
 import { useTableControls } from '@/hooks/useTableControls';
 import { Pagination } from '@/components/ui/Pagination';
 
@@ -80,14 +81,18 @@ export default function LeavesPage() {
     } finally { setSaving(false); }
   }
 
+  // Approve is confirmed in the card itself (not a browser pop-up)
+  const [approveId, setApproveId] = useState<string | null>(null);
+  const [approveErr, setApproveErr] = useState('');
+
   async function quickApprove(id: string) {
-    if (!window.confirm('Approve this leave request? The teacher will be notified immediately.')) return;
-    setSaving(true);
+    setSaving(true); setApproveErr('');
     try {
       await principalApi.patch(`/api/principal/leaves/${id}/approve`, {});
+      setApproveId(null);
       load();
     } catch (e: unknown) {
-      alert((e as { response?: { data?: { error?: string } } })?.response?.data?.error || 'Failed to approve.');
+      setApproveErr((e as { response?: { data?: { error?: string } } })?.response?.data?.error || 'Could not approve this request. Try again.');
     } finally { setSaving(false); }
   }
 
@@ -218,10 +223,20 @@ export default function LeavesPage() {
                   </div>
                 ) : null}
 
-                {l.status === 'Pending' && (
+                {l.status === 'Pending' && approveId === l.id && (
+                  <div style={{ marginTop: 14 }}>
+                    <InlineConfirm busy={saving} busyLabel="Approving…"
+                      title={`Approve ${l.teacher_name}'s leave request?`}
+                      detail="The teacher is notified straight away, and their lessons in these dates are excused."
+                      confirmLabel="Yes, approve"
+                      onConfirm={() => quickApprove(l.id)} onCancel={() => { setApproveId(null); setApproveErr(''); }} />
+                    {approveErr && <p style={{ marginTop: 8, fontSize: 12, color: '#B83232' }}>{approveErr}</p>}
+                  </div>
+                )}
+                {l.status === 'Pending' && approveId !== l.id && (
                   <div style={{ marginTop: 14, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                     <button
-                      onClick={() => quickApprove(l.id)}
+                      onClick={() => { setApproveId(l.id); setApproveErr(''); }}
                       disabled={saving}
                       style={{
                         padding: '7px 18px', borderRadius: 8, fontSize: 13, fontWeight: 600,

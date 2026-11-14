@@ -106,6 +106,8 @@ export default function RollCallPage() {
   const [rollCalls, setRollCalls]       = useState<RollCall[]>([]);
   const [loading, setLoading]           = useState(true);
   const [selectedId, setSelectedId]     = useState<string | null>(null);
+  const [pageErr, setPageErr]           = useState('');
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);  // first tap on delete
   const [entries, setEntries]           = useState<Entry[]>([]);
   const [entriesLoading, setEntriesLoading] = useState(false);
   const [localEntries, setLocalEntries] = useState<Map<string, { status: 'Present' | 'Absent' | 'Break Bounds'; notes: string }>>(new Map());
@@ -169,12 +171,13 @@ export default function RollCallPage() {
   }
 
   async function deleteRollCall(id: string) {
-    if (!confirm('Delete this roll call and all its entries?')) return;
+    if (confirmDeleteId !== id) { setConfirmDeleteId(id); return; }
+    setConfirmDeleteId(null);
     try {
       await api.delete(`/api/roll-call/${id}`);
       setRollCalls(prev => prev.filter(r => r.id !== id));
       if (selectedId === id) { setSelectedId(null); setEntries([]); setMobileView('list'); }
-    } catch { alert('Failed to delete'); }
+    } catch { setPageErr('Could not delete this roll call. Try again.'); }
   }
 
   async function addStudentsToRollCall() {
@@ -183,14 +186,14 @@ export default function RollCallPage() {
     const toAdd = allStudents
       .filter(s => !existing.has(s.id) && (!classFilter || s.class_name === classFilter))
       .map(s => ({ student_id: s.id, status: 'Present' as const }));
-    if (!toAdd.length) { alert('No new students to add.'); return; }
+    if (!toAdd.length) { setSaveMsg('Everyone in this list is already on the roll call.'); setTimeout(() => setSaveMsg(''), 3000); return; }
     setSaving(true);
     try {
       await api.put(`/api/roll-call/${selectedId}/entries`, { entries: toAdd });
       await loadDetail(selectedId);
       setSaveMsg(`Added ${toAdd.length} students.`);
       setTimeout(() => setSaveMsg(''), 3000);
-    } catch { alert('Failed to add students'); } finally { setSaving(false); }
+    } catch { setPageErr('Could not add these students. Try again.'); } finally { setSaving(false); }
   }
 
   async function saveEntries() {
@@ -204,7 +207,7 @@ export default function RollCallPage() {
       setSaveMsg('Saved.');
       setTimeout(() => setSaveMsg(''), 2000);
       await loadRollCalls();
-    } catch { alert('Failed to save'); } finally { setSaving(false); }
+    } catch { setPageErr('Could not save the roll call. Try again.'); } finally { setSaving(false); }
   }
 
   function setEntryStatus(studentId: string, status: 'Present' | 'Absent' | 'Break Bounds') {
@@ -322,8 +325,11 @@ export default function RollCallPage() {
                       </div>
                       <button className="rc-icon-btn"
                         onClick={e => { e.stopPropagation(); deleteRollCall(rc.id); }}
-                        aria-label="Delete roll call"
+                        onBlur={() => setConfirmDeleteId(null)}
+                        aria-label={confirmDeleteId === rc.id ? 'Tap again to delete this roll call' : 'Delete roll call'}
+                        style={confirmDeleteId === rc.id ? { color: '#B83232', background: '#FBEDED', borderRadius: 8, padding: '4px 8px', fontSize: 12, fontWeight: 600 } : undefined}
                       >
+                        {confirmDeleteId === rc.id && <span style={{ marginRight: 4 }}>Tap again to delete</span>}
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <polyline points="3,6 5,6 21,6"/><path d="M19,6l-1,14H6L5,6"/><path d="M10,11v6M14,11v6"/><path d="M9,6V4h6v2"/>
                         </svg>
@@ -377,6 +383,7 @@ export default function RollCallPage() {
                 </div>
 
                 {saveMsg && <p style={{ color: '#2D7A4F', fontSize: 13, marginBottom: 12 }}>{saveMsg}</p>}
+                {pageErr && <p role="alert" style={{ color: '#B83232', fontSize: 13, marginBottom: 12 }}>{pageErr}</p>}
 
                 {entriesLoading ? (
                   <p style={{ color: '#9CA3AF', fontSize: 13 }}>Loading entries…</p>

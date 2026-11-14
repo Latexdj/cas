@@ -4,7 +4,7 @@ import type { AxiosInstance } from 'axios';
 import { buildSignListHtml, type SlRecipient, type SlSchool } from '@/lib/sign-list-print';
 import { printHtml } from './print';
 import { UnitAssignments, type AssignResult } from './UnitAssignments';
-import { InlineConfirm } from './InlineConfirm';
+import { InlineConfirm } from '@/components/ui/InlineConfirm';
 
 interface Item {
   id: string; name: string; asset_tag: string | null; quantity_available: number;

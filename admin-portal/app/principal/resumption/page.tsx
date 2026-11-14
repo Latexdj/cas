@@ -151,6 +151,11 @@ export default function ResumptionPage() {
   const [flags, setFlags]                 = useState<Flag[]>([]);
   const [flagsLoading, setFlagsLoading]   = useState(false);
   const [resolvingFlag, setResolvingFlag] = useState<string | null>(null);
+  // In-page replacements for browser pop-ups
+  const [pageErr, setPageErr]                 = useState('');
+  const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null);  // first tap on Remove
+  const [noteFor, setNoteFor]                 = useState<string | null>(null);  // flag being resolved
+  const [noteText, setNoteText]               = useState('');
 
   const [kitchen, setKitchen]               = useState<KitchenCount | null>(null);
   const [kitchenLoading, setKitchenLoading] = useState(false);
@@ -271,12 +276,14 @@ export default function ResumptionPage() {
     } finally { setConfigSaving(false); }
   }
 
+  // First tap asks "Tap again to remove"; the second removes the record
   async function deleteArrival(id: string) {
-    if (!confirm('Remove this arrival record?')) return;
+    if (confirmRemoveId !== id) { setConfirmRemoveId(id); return; }
+    setConfirmRemoveId(null);
     try {
       await api.delete(`/api/resumption/arrivals/${id}`);
       setArrivals(prev => prev.filter(a => a.id !== id));
-    } catch { alert('Failed to remove arrival'); }
+    } catch { setPageErr('Could not remove that arrival record. Try again.'); }
   }
 
   async function addArrivalsFromMissing() {
@@ -287,17 +294,34 @@ export default function ResumptionPage() {
       setSelectedMissing(new Set());
       await loadMissing();
       setTab('arrivals');
-    } catch { alert('Failed to record arrivals'); } finally { setAddingArrivals(false); }
+    } catch { setPageErr('Could not record these arrivals. Try again.'); } finally { setAddingArrivals(false); }
   }
 
+  // First tap opens a note box under the flag; Resolve there saves it
   async function resolveFlag(id: string) {
-    const note = prompt('Resolution note (optional):');
-    if (note === null) return;
+    if (noteFor !== id) { setNoteFor(id); setNoteText(''); return; }
     setResolvingFlag(id);
     try {
-      await api.post(`/api/resumption/flags/${id}/resolve`, { resolution_note: note });
+      await api.post(`/api/resumption/flags/${id}/resolve`, { resolution_note: noteText.trim() });
+      setNoteFor(null);
       await loadFlags();
-    } catch { alert('Failed to resolve flag'); } finally { setResolvingFlag(null); }
+    } catch { setPageErr('Could not resolve this flag. Try again.'); } finally { setResolvingFlag(null); }
+  }
+
+  function noteBox(id: string) {
+    if (noteFor !== id) return null;
+    return (
+      <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6, minWidth: 200 }}>
+        <input value={noteText} onChange={e => setNoteText(e.target.value)} placeholder="Resolution note (optional)"
+          style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #D9CDBB', fontSize: 13 }} />
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button onClick={() => resolveFlag(id)} disabled={resolvingFlag === id} className="res-btn res-btn-primary res-btn-sm">
+            {resolvingFlag === id ? 'Saving…' : 'Save'}
+          </button>
+          <button onClick={() => setNoteFor(null)} className="res-btn res-btn-sm">Cancel</button>
+        </div>
+      </div>
+    );
   }
 
   function toggleMissing(id: string) {
@@ -347,6 +371,12 @@ export default function ResumptionPage() {
     <>
       <style>{STYLES}</style>
       <div className="res-wrap">
+        {pageErr && (
+          <p role="alert" style={{ margin: '0 0 14px', padding: '10px 14px', borderRadius: 10, fontSize: 13, color: '#B83232', background: '#FBEDED', border: '1px solid #B8323233', display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+            <span>{pageErr}</span>
+            <button onClick={() => setPageErr('')} style={{ background: 'none', border: 'none', color: '#B83232', fontWeight: 700, cursor: 'pointer' }}>×</button>
+          </p>
+        )}
 
         {/* Header */}
         <div className="res-print-hide" style={{ marginBottom: 20 }}>
@@ -446,7 +476,7 @@ export default function ResumptionPage() {
                           <td className="res-td">{new Date(a.arrival_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
                           <td className="res-td">{a.recorded_by_name || '—'}</td>
                           <td className="res-td">
-                            <button onClick={() => deleteArrival(a.id)} className="res-btn res-btn-danger res-btn-sm">Remove</button>
+                            <button onClick={() => deleteArrival(a.id)} onBlur={() => setConfirmRemoveId(null)} className="res-btn res-btn-danger res-btn-sm">{confirmRemoveId === a.id ? 'Tap again to remove' : 'Remove'}</button>
                           </td>
                         </tr>
                       ))}
@@ -468,8 +498,8 @@ export default function ResumptionPage() {
                           {a.recorded_by_name ? ` — ${a.recorded_by_name}` : ''}
                         </p>
                       </div>
-                      <button onClick={() => deleteArrival(a.id)} className="res-btn res-btn-danger res-btn-sm" style={{ flexShrink: 0 }}>
-                        Remove
+                      <button onClick={() => deleteArrival(a.id)} onBlur={() => setConfirmRemoveId(null)} className="res-btn res-btn-danger res-btn-sm" style={{ flexShrink: 0 }}>
+                        {confirmRemoveId === a.id ? 'Tap again to remove' : 'Remove'}
                       </button>
                     </div>
                   ))}
@@ -744,11 +774,12 @@ export default function ResumptionPage() {
                             }
                           </td>
                           <td className="res-td">
-                            {!f.resolved_at && (
+                            {!f.resolved_at && noteFor !== f.id && (
                               <button onClick={() => resolveFlag(f.id)} disabled={resolvingFlag === f.id} className="res-btn res-btn-primary res-btn-sm">
                                 Resolve
                               </button>
                             )}
+                            {!f.resolved_at && noteBox(f.id)}
                           </td>
                         </tr>
                       ))}
@@ -772,9 +803,12 @@ export default function ResumptionPage() {
                           : (
                             <>
                               <span style={{ color: '#C8780A', fontWeight: 600, fontSize: 13 }}>Active</span>
-                              <button onClick={() => resolveFlag(f.id)} disabled={resolvingFlag === f.id} className="res-btn res-btn-primary res-btn-sm">
-                                Resolve
-                              </button>
+                              {noteFor !== f.id && (
+                                <button onClick={() => resolveFlag(f.id)} disabled={resolvingFlag === f.id} className="res-btn res-btn-primary res-btn-sm">
+                                  Resolve
+                                </button>
+                              )}
+                              {noteBox(f.id)}
                             </>
                           )
                         }

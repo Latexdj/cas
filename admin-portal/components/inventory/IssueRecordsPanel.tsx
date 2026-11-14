@@ -5,7 +5,7 @@ import { buildSignListHtml, type SlRecipient, type SlSchool } from '@/lib/sign-l
 import { printHtml, printUploadedFile } from './print';
 import { exportIssueRecordExcel, exportIssueRecordPdf } from './exportIssueRecord';
 import { UnitAssignments, type AssignResult } from './UnitAssignments';
-import { InlineConfirm } from './InlineConfirm';
+import { InlineConfirm } from '@/components/ui/InlineConfirm';
 
 interface BatchSummary {
   id: string; title: string; recipient_type: 'student' | 'teacher';

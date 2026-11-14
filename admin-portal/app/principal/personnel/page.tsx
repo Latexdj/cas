@@ -19,6 +19,7 @@ interface Teacher {
 
 export default function PersonnelPage() {
   const { theme }               = useTheme();
+  const [exportErr, setExportErr] = useState('');
   const [mounted, setMounted]   = useState(false);
   const [scope,   setScope]     = useState<Scope>('students');
   const [cls,     setCls]       = useState('');
@@ -73,7 +74,7 @@ export default function PersonnelPage() {
       a.download = `${scope}_${status || 'all'}_${new Date().toISOString().slice(0, 10)}.xlsx`;
       a.click();
       URL.revokeObjectURL(url);
-    } catch { alert('Export failed.'); }
+    } catch { setExportErr('The export failed. Try again.'); }
     finally { setExporting(false); }
   }
 
@@ -204,6 +205,7 @@ export default function PersonnelPage() {
         </button>
       </div>
 
+      {exportErr && <p role="alert" style={{ fontSize: 13, color: '#B83232', marginBottom: 10 }}>{exportErr}</p>}
       <div style={{ fontSize: 12, color: dark ? '#475569' : '#94A3B8', marginBottom: 12 }}>
         Showing {filtered.length} of {data.length} records
       </div>

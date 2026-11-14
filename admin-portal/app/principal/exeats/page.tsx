@@ -29,6 +29,7 @@ function QuotaBar({ used, quota, color }: { used: number; quota: number; color: 
 
 export default function ExeatsPage() {
   const { theme }             = useTheme();
+  const [quotaErr, setQuotaErr] = useState('');
   const [mounted, setMounted] = useState(false);
   const [cls,     setCls]     = useState('');
   const [classes, setClasses] = useState<string[]>([]);
@@ -79,7 +80,7 @@ export default function ExeatsPage() {
       });
       setData(prev => prev ? { ...prev, internal_quota: r.data.max_internal, external_quota: r.data.max_external } : prev);
       setEditQuota(false);
-    } catch { alert('Failed to update quota.'); }
+    } catch { setQuotaErr('Could not save the new quota. Try again.'); }
     finally { setSaving(false); }
   }
 
@@ -257,6 +258,7 @@ export default function ExeatsPage() {
                 {saving ? 'Saving…' : 'Save Quota'}
               </button>
             </div>
+            {quotaErr && <p role="alert" style={{ marginTop: 10, fontSize: 12, color: '#B83232' }}>{quotaErr}</p>}
           </div>
         </div>
       )}
