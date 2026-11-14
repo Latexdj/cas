@@ -3,10 +3,13 @@ const router = require('express').Router();
 const pool   = require('../config/db');
 const { authenticate, requireActiveSubscription, adminOnly } = require('../middleware/auth');
 const { checkModuleAccess } = require('../middleware/moduleAccess');
+const { clinicStaffOnly } = require('./clinic');
 
-router.use(authenticate, requireActiveSubscription, adminOnly, checkModuleAccess('clinic'));
+// Settings (when parents get an SMS) stay with the admin; the reports are
+// open to clinic staff too, so the nurse can see them in the staff portal.
+router.use(authenticate, requireActiveSubscription, checkModuleAccess('clinic'));
 
-router.get('/settings', async (req, res, next) => {
+router.get('/settings', adminOnly, async (req, res, next) => {
   try {
     const { rows } = await pool.query(
       `SELECT sms_on_every_visit, sms_on_serious_only FROM clinic_settings WHERE school_id = $1`,
@@ -16,7 +19,7 @@ router.get('/settings', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.put('/settings', async (req, res, next) => {
+router.put('/settings', adminOnly, async (req, res, next) => {
   try {
     const { sms_on_every_visit, sms_on_serious_only } = req.body;
     const { rows } = await pool.query(
@@ -31,7 +34,7 @@ router.put('/settings', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.get('/reports/summary', async (req, res, next) => {
+router.get('/reports/summary', clinicStaffOnly, async (req, res, next) => {
   try {
     const { date_from, date_to } = req.query;
     const conditions = ['school_id = $1'];
@@ -54,7 +57,7 @@ router.get('/reports/summary', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.get('/reports/export', async (req, res, next) => {
+router.get('/reports/export', clinicStaffOnly, async (req, res, next) => {
   try {
     const { date_from, date_to } = req.query;
     const conditions = ['v.school_id = $1'];

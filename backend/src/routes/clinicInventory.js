@@ -261,7 +261,7 @@ router.get('/expiring', clinicStaffOnly, async (req, res, next) => {
 
 // ── Admin reports ──────────────────────────────────────────────────────────────
 
-router.get('/report', adminOnly, async (req, res, next) => {
+router.get('/report', clinicStaffOnly, async (req, res, next) => {
   try {
     const { date_from, date_to } = req.query;
     const conditions = ['t.school_id = $1'];
@@ -281,7 +281,7 @@ router.get('/report', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.get('/report/export', adminOnly, async (req, res, next) => {
+router.get('/report/export', clinicStaffOnly, async (req, res, next) => {
   try {
     const { date_from, date_to } = req.query;
     const conditions = ['t.school_id = $1'];

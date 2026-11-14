@@ -10,6 +10,7 @@ export function Card({ children, className = '' }: { children: ReactNode; classN
 
 const statConfig: Record<string, { color: string; bg: string }> = {
   green:  { color: '#2D7A4F', bg: '#E4F4EB' },
+  forest: { color: '#145C44', bg: '#E8F4EE' },
   red:    { color: '#B83232', bg: '#FBEAEA' },
   blue:   { color: '#1D4ED8', bg: '#DBEAFE' },
   purple: { color: '#6D28D9', bg: '#EDE9FE' },

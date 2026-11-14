@@ -20,6 +20,11 @@ import { StaffSidebar, type StaffSidebarGroup } from './StaffSidebar';
 import { StaffDashboard, type DashTarget } from './StaffDashboard';
 import { SchoolReports } from './SchoolReports';
 import BudgetsHub from '@/components/department-budgets/BudgetsHub';
+import { ClinicVisitDetail } from '@/components/clinic/ClinicVisitDetail';
+import { HealthProfiles } from '@/components/clinic/HealthProfiles';
+import { ClinicReports } from '@/components/clinic/ClinicReports';
+import { ClinicInventoryReport } from '@/components/clinic/ClinicInventoryReport';
+import { ClinicInventory } from '@/components/clinic/ClinicInventory';
 
 // ─── Clearance types ──────────────────────────────────────────────────────────
 interface Office { id: string; name: string; office_type: string; sort_order: number; }
@@ -128,7 +133,7 @@ type ClTab       = 'pending' | 'lookup' | 'history';
 type LibTab      = 'issue' | 'return' | 'overdue';
 type AcctTab     = 'dashboard' | 'collect' | 'reports' | 'fee-items' | 'schedules' | 'expenditure' | 'arrears' | 'maintenance';
 type InvTab      = 'items' | 'issue' | 'bulk-issue' | 'records' | 'return' | 'loans' | 'sign-list' | 'categories' | 'manage-items' | 'log' | 'report';
-type ClinicTab   = 'new-visit' | 'open' | 'history' | 'inventory';
+type ClinicTab   = 'new-visit' | 'open' | 'history' | 'profiles' | 'inventory' | 'inv-report' | 'reports';
 
 interface SlFilters {
   classes: string[];
@@ -301,6 +306,8 @@ export default function StaffPortalPage() {
 
   // ── Clinic state ─────────────────────────────────────────────────────────────
   const [clinicTab,       setClinicTab]       = useState<ClinicTab>('open');
+  // A visit opened for its full record (vitals, diagnosis, treatment, print slip)
+  const [clinicVisitId,   setClinicVisitId]   = useState<string | null>(null);
   const [clinicDash,      setClinicDash]      = useState<ClinicDashboard | null>(null);
   const [clinicDashLoad,  setClinicDashLoad]  = useState(false);
 
@@ -325,14 +332,8 @@ export default function StaffPortalPage() {
 
   const [clinicInvItems,   setClinicInvItems]   = useState<ClinicInvItem[]>([]);
   const [clinicInvLoading, setClinicInvLoading] = useState(false);
-  const [ciNewName,        setCiNewName]        = useState('');
-  const [ciNewCategory,    setCiNewCategory]    = useState('medication');
-  const [ciNewUnit,        setCiNewUnit]        = useState('unit');
-  const [ciNewReorder,     setCiNewReorder]     = useState('0');
-  const [ciAdding,         setCiAdding]         = useState(false);
-  const [ciRestockQty,     setCiRestockQty]     = useState<Record<string, string>>({});
-  const [ciRestocking,     setCiRestocking]     = useState<string | null>(null);
-  const [ciError,          setCiError]          = useState('');
+  // Shown under a visit when giving an item fails (instead of a browser alert)
+  const [cvError,          setCvError]          = useState<Record<string, string>>({});
 
   // ── Initial load ─────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -797,7 +798,7 @@ export default function StaffPortalPage() {
       await api.post(`/api/clinic/visits/${visitId}/close`, { outcome });
       loadClinicDashboard();
     } catch (e: any) {
-      alert(e?.response?.data?.error ?? 'Could not close the visit.');
+      setCvError(p => ({ ...p, [visitId]: e?.response?.data?.error ?? 'Could not close the visit. Try again.' }));
     } finally {
       setCvClosing(null);
     }
@@ -813,49 +814,19 @@ export default function StaffPortalPage() {
   async function dispenseToVisit(visitId: string) {
     const itemId = cvDispenseItem[visitId];
     const qty = Number(cvDispenseQty[visitId] ?? '1');
-    if (!itemId) { alert('Select an item to dispense.'); return; }
-    if (!qty || qty <= 0) { alert('Enter a valid quantity.'); return; }
+    if (!itemId) { setCvError(p => ({ ...p, [visitId]: 'Choose an item to give.' })); return; }
+    if (!qty || qty <= 0) { setCvError(p => ({ ...p, [visitId]: 'Enter a quantity of 1 or more.' })); return; }
     setCvDispensing(visitId);
     try {
+      setCvError(p => ({ ...p, [visitId]: '' }));
       await api.post(`/api/clinic-inventory/items/${itemId}/dispense`, { quantity: qty, clinic_visit_id: visitId });
       setCvDispenseItem(p => ({ ...p, [visitId]: '' }));
       setCvDispenseQty(p => ({ ...p, [visitId]: '1' }));
       loadClinicInvItems();
     } catch (e: any) {
-      alert(e?.response?.data?.error ?? 'Could not dispense this item.');
+      setCvError(p => ({ ...p, [visitId]: e?.response?.data?.error ?? 'Could not give this item. Try again.' }));
     } finally {
       setCvDispensing(null);
-    }
-  }
-
-  async function addClinicInvItem() {
-    if (!ciNewName.trim()) { setCiError('Enter an item name.'); return; }
-    setCiAdding(true); setCiError('');
-    try {
-      await api.post('/api/clinic-inventory/items', {
-        name: ciNewName.trim(), category: ciNewCategory, unit: ciNewUnit, reorder_level: Number(ciNewReorder) || 0,
-      });
-      setCiNewName(''); setCiNewCategory('medication'); setCiNewUnit('unit'); setCiNewReorder('0');
-      loadClinicInvItems();
-    } catch (e: any) {
-      setCiError(e?.response?.data?.error ?? 'Could not add item.');
-    } finally {
-      setCiAdding(false);
-    }
-  }
-
-  async function restockClinicInvItem(itemId: string) {
-    const qty = Number(ciRestockQty[itemId] ?? '');
-    if (!qty || qty <= 0) { alert('Enter a valid quantity.'); return; }
-    setCiRestocking(itemId);
-    try {
-      await api.post(`/api/clinic-inventory/items/${itemId}/restock`, { quantity: qty });
-      setCiRestockQty(p => ({ ...p, [itemId]: '' }));
-      loadClinicInvItems();
-    } catch (e: any) {
-      alert(e?.response?.data?.error ?? 'Could not restock this item.');
-    } finally {
-      setCiRestocking(null);
     }
   }
 
@@ -945,10 +916,13 @@ export default function StaffPortalPage() {
         ['open',       `Open${clinicDash && clinicDash.open_visits.length > 0 ? ` (${clinicDash.open_visits.length})` : ''}`],
         ['new-visit',  'New Visit'],
         ['history',    'History'],
+        ['profiles',   'Health Profiles'],
         ['inventory',  'Inventory'],
+        ['inv-report', 'Inventory Report'],
+        ['reports',    'Reports'],
       ] as const).map(([key, label]) => ({
         key, label, active: section === 'clinic' && clinicTab === key,
-        onClick: () => { setSection('clinic'); setClinicTab(key); },
+        onClick: () => { setSection('clinic'); setClinicTab(key); setClinicVisitId(null); },
       })),
     },
     hasLetters && {
@@ -1846,7 +1820,7 @@ export default function StaffPortalPage() {
       {/* ── Clinic Section ────────────────────────────────────────────────── */}
       {hasClinic && section === 'clinic' && (
         <div className="space-y-4">
-          {clinicTab === 'new-visit' && (
+          {!clinicVisitId && clinicTab === 'new-visit' && (
             <div className="space-y-4">
               <div className="flex gap-2">
                 {(['student', 'teacher'] as const).map(t => (
@@ -1911,7 +1885,12 @@ export default function StaffPortalPage() {
             </div>
           )}
 
-          {clinicTab === 'open' && (
+          {clinicVisitId && (
+            <ClinicVisitDetail apiClient={api} visitId={clinicVisitId}
+              onBack={() => { setClinicVisitId(null); if (clinicTab === 'history') loadClinicHistory(); else loadClinicDashboard(); }} />
+          )}
+
+          {!clinicVisitId && clinicTab === 'open' && (
             <div className="space-y-3">
               {clinicDashLoad ? <p className="text-sm text-slate-500">Loading…</p> : !clinicDash || clinicDash.open_visits.length === 0 ? (
                 <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-10 text-center text-slate-400 text-sm">Nobody is currently in the clinic.</div>
@@ -1930,6 +1909,10 @@ export default function StaffPortalPage() {
                           'bg-[#E8F4EE] text-[#145C44] dark:bg-green-900/30 dark:text-[#2ab289]'
                         }`}>{v.severity}</span>
                       </div>
+                      <button onClick={() => setClinicVisitId(v.id)}
+                        className="w-full text-xs font-semibold py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 text-[#145C44] dark:text-[#2ab289]">
+                        Open visit: vitals, diagnosis, treatment
+                      </button>
                       <div className="flex gap-2">
                         <select value={cvDispenseItem[v.id] ?? ''} onChange={e => setCvDispenseItem(p => ({ ...p, [v.id]: e.target.value }))}
                           className="flex-1 border border-slate-200 dark:border-slate-600 rounded-lg px-2 py-1.5 text-xs bg-white dark:bg-slate-700 text-slate-900 dark:text-white">
@@ -1953,6 +1936,7 @@ export default function StaffPortalPage() {
                           {cvClosing === v.id ? 'Closing…' : 'Close'}
                         </button>
                       </div>
+                      {cvError[v.id] && <p className="text-xs text-[#B83232]">{cvError[v.id]}</p>}
                     </div>
                   ))}
                 </div>
@@ -1960,76 +1944,32 @@ export default function StaffPortalPage() {
             </div>
           )}
 
-          {clinicTab === 'history' && (
+          {!clinicVisitId && clinicTab === 'history' && (
             <div className="space-y-3">
               {clinicHistoryLoad ? <p className="text-sm text-slate-500">Loading…</p> : clinicHistory.length === 0 ? (
                 <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-10 text-center text-slate-400 text-sm">No closed visits yet.</div>
               ) : (
                 <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 divide-y divide-slate-100 dark:divide-slate-700 overflow-hidden">
                   {clinicHistory.map(v => (
-                    <div key={v.id} className="flex items-center justify-between px-4 py-3">
+                    <button key={v.id} onClick={() => setClinicVisitId(v.id)} className="w-full text-left flex items-center justify-between gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-700/40">
                       <div className="min-w-0">
                         <p className="text-sm font-semibold text-slate-800 dark:text-white truncate">{v.patient_name}{v.class_name ? <span className="text-slate-400 font-normal"> · {v.class_name}</span> : null}</p>
                         <p className="text-xs text-slate-500 dark:text-slate-400">{v.complaint}</p>
                         <p className="text-xs text-slate-400 dark:text-slate-500">{v.visit_date}</p>
                       </div>
                       <span className="text-xs text-slate-500 dark:text-slate-400 capitalize shrink-0">{CLINIC_OUTCOMES.find(o => o.value === v.outcome)?.label ?? v.outcome}</span>
-                    </div>
+                    </button>
                   ))}
                 </div>
               )}
             </div>
           )}
 
-          {clinicTab === 'inventory' && (
-            <div className="space-y-4">
-              <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 space-y-2">
-                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Add new item</p>
-                <div className="flex flex-wrap gap-2">
-                  <input value={ciNewName} onChange={e => setCiNewName(e.target.value)} placeholder="Item name…"
-                    className="flex-1 min-w-[140px] border border-slate-200 dark:border-slate-600 rounded-lg px-2 py-1.5 text-xs bg-white dark:bg-slate-700 text-slate-900 dark:text-white" />
-                  <select value={ciNewCategory} onChange={e => setCiNewCategory(e.target.value)}
-                    className="border border-slate-200 dark:border-slate-600 rounded-lg px-2 py-1.5 text-xs bg-white dark:bg-slate-700 text-slate-900 dark:text-white">
-                    <option value="medication">Medication</option>
-                    <option value="consumable">Consumable</option>
-                  </select>
-                  <input value={ciNewUnit} onChange={e => setCiNewUnit(e.target.value)} placeholder="unit" className="w-20 border border-slate-200 dark:border-slate-600 rounded-lg px-2 py-1.5 text-xs bg-white dark:bg-slate-700 text-slate-900 dark:text-white" />
-                  <input type="number" min="0" value={ciNewReorder} onChange={e => setCiNewReorder(e.target.value)} placeholder="Reorder lvl" className="w-24 border border-slate-200 dark:border-slate-600 rounded-lg px-2 py-1.5 text-xs bg-white dark:bg-slate-700 text-slate-900 dark:text-white" />
-                  <button onClick={addClinicInvItem} disabled={ciAdding}
-                    className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white disabled:opacity-50" style={{ background: primary }}>
-                    {ciAdding ? 'Adding…' : 'Add'}
-                  </button>
-                </div>
-                {ciError && <p className="text-xs text-red-500">{ciError}</p>}
-              </div>
+          {!clinicVisitId && clinicTab === 'profiles' && <HealthProfiles apiClient={api} />}
+          {!clinicVisitId && clinicTab === 'reports' && <ClinicReports apiClient={api} />}
+          {!clinicVisitId && clinicTab === 'inv-report' && <ClinicInventoryReport apiClient={api} />}
 
-              {clinicInvLoading ? <p className="text-sm text-slate-500">Loading…</p> : clinicInvItems.length === 0 ? (
-                <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-10 text-center text-slate-400 text-sm">No items in the catalog yet.</div>
-              ) : (
-                <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 divide-y divide-slate-100 dark:divide-slate-700 overflow-hidden">
-                  {clinicInvItems.map(it => (
-                    <div key={it.id} className="p-4 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-semibold text-slate-800 dark:text-white">{it.name}</p>
-                          <p className="text-xs text-slate-500 dark:text-slate-400">{it.quantity_on_hand} {it.unit} on hand{it.batch_number ? ` · batch ${it.batch_number}` : ''}{it.expiry_date ? ` · exp. ${it.expiry_date}` : ''}</p>
-                        </div>
-                        {it.is_low_stock && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">Low stock</span>}
-                      </div>
-                      <div className="flex gap-2">
-                        <input type="number" min="1" value={ciRestockQty[it.id] ?? ''} onChange={e => setCiRestockQty(p => ({ ...p, [it.id]: e.target.value }))}
-                          placeholder="Qty received" className="flex-1 border border-slate-200 dark:border-slate-600 rounded-lg px-2 py-1.5 text-xs bg-white dark:bg-slate-700 text-slate-900 dark:text-white" />
-                        <button onClick={() => restockClinicInvItem(it.id)} disabled={ciRestocking === it.id}
-                          className="text-xs font-semibold px-3 py-1.5 rounded-lg shrink-0 disabled:opacity-50 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200">
-                          {ciRestocking === it.id ? 'Restocking…' : 'Restock'}
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
+          {!clinicVisitId && clinicTab === 'inventory' && <ClinicInventory apiClient={api} />}
         </div>
       )}
 

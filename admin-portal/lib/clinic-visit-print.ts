@@ -100,15 +100,15 @@ ${visit.closed_at ? `<div class="row"><span class="lbl">Closed</span><span>${esc
 </html>`;
 }
 
-export function printClinicVisit(visit: ClinicVisitPrintable) {
+// Returns false when the browser blocks the print window, so the caller can
+// say so in the page.
+export function printClinicVisit(visit: ClinicVisitPrintable): boolean {
   const html = buildClinicVisitHtml(visit);
   const w = window.open('', '_blank');
-  if (!w) {
-    alert('Pop-ups are blocked. Please allow pop-ups for this site and try again.');
-    return;
-  }
+  if (!w) return false;
   w.document.write(html);
   w.document.close();
   w.focus();
   setTimeout(() => w.print(), 300);
+  return true;
 }
