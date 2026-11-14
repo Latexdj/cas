@@ -4,6 +4,7 @@ import type { AxiosInstance } from 'axios';
 import { buildSignListHtml, type SlRecipient, type SlSchool } from '@/lib/sign-list-print';
 import { printHtml } from './print';
 import { UnitAssignments, type AssignResult } from './UnitAssignments';
+import { InlineConfirm } from './InlineConfirm';
 
 interface Item {
   id: string; name: string; asset_tag: string | null; quantity_available: number;
@@ -165,6 +166,13 @@ export function BulkIssuePanel({
     if (!ok) setError('Pop-ups are blocked. Allow pop-ups for this site and try again.');
   }
 
+  // In-page confirmation (replaces the browser's confirm pop-up); any change
+  // to what is being issued, or to whom, cancels it so it never goes stale.
+  const [confirming, setConfirming] = useState(false);
+  useEffect(() => { setConfirming(false); }, [item?.id, chosen.length, qtyNum, recipType]);
+
+  const who = (n: number) => recipType === 'student' ? (n === 1 ? 'student' : 'students') : (n === 1 ? 'teacher' : 'teachers');
+
   async function issue() {
     if (!item) { setError('Select an item.'); return; }
     if (!chosen.length) { setError('Select at least one person.'); return; }
@@ -172,10 +180,12 @@ export function BulkIssuePanel({
     if (!title.trim()) { setError('Enter a title for this issue record.'); return; }
     if (overStock) { setError(`Not enough stock: ${total} needed, only ${item.quantity_available} available.`); return; }
     if (tracked && !assign?.complete) { setError(`Give every person a tag number first. ${assign?.problems.join('. ') ?? ''}`); return; }
-    if (!confirm(tracked
-      ? `Issue ${item.name} to ${chosen.length} ${recipType === 'student' ? 'student(s)' : 'teacher(s)'}, each with the tag number shown?`
-      : `Issue ${qtyNum} × ${item.name} to ${chosen.length} ${recipType === 'student' ? 'student(s)' : 'teacher(s)'} (${total} in total)?`)) return;
+    setError('');
+    setConfirming(true);
+  }
 
+  async function doIssue() {
+    if (!item) return;
     setIssuing(true); setError('');
     try {
       const r = await apiClient.post<{ id: string }>('/api/inventory/batches', {
@@ -189,7 +199,7 @@ export function BulkIssuePanel({
       onIssued(r.data.id);
     } catch (e: any) {
       setError(e?.response?.data?.error ?? 'Could not issue the item. Check your connection and try again.');
-    } finally { setIssuing(false); }
+    } finally { setIssuing(false); setConfirming(false); }
   }
 
   return (
@@ -353,6 +363,15 @@ export function BulkIssuePanel({
 
         {error && <p className="text-sm text-red-600">{error}</p>}
 
+        {confirming && item ? (
+          <InlineConfirm primary={primary} busy={issuing} busyLabel="Issuing…"
+            title={tracked
+              ? `Issue ${item.name} to ${chosen.length} ${who(chosen.length)}, each with the tag number shown?`
+              : `Issue ${qtyNum} × ${item.name} to ${chosen.length} ${who(chosen.length)}?`}
+            detail={`${total} in total. ${item.quantity_available - total} will be left in stock.${item.is_returnable ? ' Each person is tracked under Loans until it comes back.' : ''}`}
+            confirmLabel={`Yes, issue to ${chosen.length}`}
+            onConfirm={doIssue} onCancel={() => setConfirming(false)} />
+        ) : (
         <div className="flex gap-2">
           <button type="button" onClick={printSheet} disabled={!item || !chosen.length}
             className="flex-1 py-2.5 rounded-lg text-sm font-semibold border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-200 disabled:opacity-40">
@@ -364,6 +383,7 @@ export function BulkIssuePanel({
             {issuing ? 'Issuing…' : `Issue to ${chosen.length || 0}`}
           </button>
         </div>
+        )}
         <p className="text-xs text-slate-400">
           After issuing, open the record to upload the signed sheet.
         </p>

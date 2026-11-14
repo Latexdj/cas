@@ -5,6 +5,7 @@ import { buildSignListHtml, type SlRecipient, type SlSchool } from '@/lib/sign-l
 import { printHtml, printUploadedFile } from './print';
 import { exportIssueRecordExcel, exportIssueRecordPdf } from './exportIssueRecord';
 import { UnitAssignments, type AssignResult } from './UnitAssignments';
+import { InlineConfirm } from './InlineConfirm';
 
 interface BatchSummary {
   id: string; title: string; recipient_type: 'student' | 'teacher';
@@ -125,6 +126,8 @@ function BatchDetailView({
   const [loadError, setLoadError] = useState('');
   const [busy, setBusy] = useState<'' | 'upload' | 'remove' | 'print'>('');
   const [sheetError, setSheetError] = useState('');
+  const [pendingFile, setPendingFile] = useState<File | null>(null);   // chosen to replace the attached sheet, awaiting confirmation
+  const [confirmRemove, setConfirmRemove] = useState(false);
   const [showLate, setShowLate] = useState(false);
   const [exporting, setExporting] = useState<'' | 'pdf' | 'excel'>('');
   const fileRef = useRef<HTMLInputElement>(null);
@@ -179,8 +182,14 @@ function BatchDetailView({
       setSheetError('Use a PDF or a photo (JPG, PNG or WebP) of the signed sheet.'); return;
     }
     if (file.size > MAX_UPLOAD_BYTES) { setSheetError('File is too large (max 15 MB).'); return; }
-    if (batch.signed_list_url && !confirm('Replace the signed sheet currently attached to this record?')) return;
+    // Replacing an attached sheet is confirmed in the page first
+    if (batch.signed_list_url) { setPendingFile(file); return; }
+    await uploadSheet(file);
+  }
 
+  async function uploadSheet(file: File) {
+    if (!batch) return;
+    setPendingFile(null);
     setBusy('upload');
     try {
       const dataUri = await new Promise<string>((resolve, reject) => {
@@ -198,7 +207,8 @@ function BatchDetailView({
   }
 
   async function removeSheet() {
-    if (!batch || !confirm('Remove the signed sheet from this record? You can upload a new one afterwards.')) return;
+    if (!batch) return;
+    setConfirmRemove(false);
     setBusy('remove'); setSheetError('');
     try {
       await apiClient.delete(`/api/inventory/batches/${batch.id}/signed-list`);
@@ -280,6 +290,19 @@ function BatchDetailView({
                 {addedSinceUpload} {addedSinceUpload === 1 ? 'person was' : 'people were'} added after this sheet was uploaded. Upload an updated signed sheet so it matches the record.
               </p>
             )}
+            {pendingFile ? (
+              <InlineConfirm primary={primary}
+                title="Replace the signed sheet attached to this record?"
+                detail={`${pendingFile.name} will replace ${batch.signed_list_filename ?? 'the current sheet'}.`}
+                confirmLabel="Yes, replace it"
+                onConfirm={() => uploadSheet(pendingFile)} onCancel={() => setPendingFile(null)} />
+            ) : confirmRemove ? (
+              <InlineConfirm danger
+                title="Remove the signed sheet from this record?"
+                detail="You can upload a new one afterwards."
+                confirmLabel="Yes, remove it"
+                onConfirm={removeSheet} onCancel={() => setConfirmRemove(false)} />
+            ) : (
             <div className="flex flex-wrap gap-2">
               <a href={batch.signed_list_url} target="_blank" rel="noopener noreferrer" className={btnGhost}>View</a>
               <button type="button" onClick={printUploaded} disabled={!!busy} className={btnGhost}>
@@ -288,11 +311,12 @@ function BatchDetailView({
               <button type="button" onClick={() => fileRef.current?.click()} disabled={!!busy} className={btnGhost}>
                 {busy === 'upload' ? 'Uploading…' : 'Replace'}
               </button>
-              <button type="button" onClick={removeSheet} disabled={!!busy}
+              <button type="button" onClick={() => setConfirmRemove(true)} disabled={!!busy}
                 className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-40">
                 {busy === 'remove' ? 'Removing…' : 'Remove'}
               </button>
             </div>
+            )}
           </>
         ) : (
           <button type="button" onClick={() => fileRef.current?.click()} disabled={!!busy}
@@ -371,6 +395,7 @@ function LateCollectors({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState('');
   const [saving, setSaving] = useState(false);
+  const [confirmingAdd, setConfirmingAdd] = useState(false);
   const [error, setError] = useState('');
   const [assign, setAssign] = useState<AssignResult | null>(null);
   const tracked = !!batch.track_units;
@@ -395,9 +420,11 @@ function LateCollectors({
     if (!selected.size) return;
     const n = selected.size;
     if (tracked && !assign?.complete) { setError('Give each late collector a tag number first.'); return; }
-    if (!confirm(tracked
-      ? `Issue ${batch.item_name} to ${n} more ${n === 1 ? 'person' : 'people'}, each with the tag number shown?`
-      : `Issue ${batch.qty_per_person} × ${batch.item_name} to ${n} more ${n === 1 ? 'person' : 'people'} (${n * batch.qty_per_person} in total)?`)) return;
+    setError('');
+    setConfirmingAdd(true);
+  }
+
+  async function doAdd() {
     setSaving(true); setError('');
     try {
       await apiClient.post(`/api/inventory/batches/${batch.id}/recipients`, {
@@ -406,7 +433,7 @@ function LateCollectors({
       }, { timeout: 60000 });
       onAdded();
     } catch (e) { setError(errMsg(e, 'Could not add these people. Check your connection and try again.')); }
-    finally { setSaving(false); }
+    finally { setSaving(false); setConfirmingAdd(false); }
   }
 
   return (
@@ -448,10 +475,20 @@ function LateCollectors({
               }))} />
           )}
           {error && <p className="text-sm text-red-600">{error}</p>}
+          {confirmingAdd ? (
+            <InlineConfirm primary={primary} busy={saving} busyLabel="Issuing…"
+              title={tracked
+                ? `Issue ${batch.item_name} to ${selected.size} more ${selected.size === 1 ? 'person' : 'people'}, each with the tag number shown?`
+                : `Issue ${batch.qty_per_person} × ${batch.item_name} to ${selected.size} more ${selected.size === 1 ? 'person' : 'people'}?`}
+              detail={tracked ? undefined : `${selected.size * batch.qty_per_person} in total. They are added to this record.`}
+              confirmLabel={`Yes, issue to ${selected.size}`}
+              onConfirm={doAdd} onCancel={() => setConfirmingAdd(false)} />
+          ) : (
           <button type="button" onClick={add} disabled={saving || !selected.size || (tracked && !assign?.complete)}
             className="w-full py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-40" style={{ background: primary }}>
             {saving ? 'Issuing…' : `Issue to ${selected.size} late collector${selected.size === 1 ? '' : 's'}`}
           </button>
+          )}
         </>
       )}
     </div>
