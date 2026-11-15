@@ -422,7 +422,10 @@ router.get('/class-subjects', async (req, res, next) => {
     const { class_name } = req.query;
     let q = `
       SELECT cs.id, cs.class_name, cs.subject_id, cs.periods_per_week, cs.is_elective,
-             s.name AS subject_name, s.code AS subject_code
+             s.name AS subject_name, s.code AS subject_code,
+             (SELECT COUNT(*)::int FROM student_electives se JOIN students st ON st.id = se.student_id
+               WHERE se.subject_id = cs.subject_id AND st.school_id = cs.school_id
+                 AND LOWER(st.class_name) = LOWER(cs.class_name) AND st.status = 'Active') AS chosen_count
       FROM class_subjects cs
       JOIN subjects s ON s.id = cs.subject_id
       WHERE cs.school_id = $1`;

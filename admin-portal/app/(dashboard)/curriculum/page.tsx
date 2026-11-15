@@ -1059,6 +1059,7 @@ interface ClassSubjectRow {
   id: string; class_name: string; subject_id: string;
   subject_name: string; subject_code: string | null; periods_per_week: number;
   is_elective: boolean;
+  chosen_count?: number;
 }
 
 interface ElectiveStudent {
@@ -1079,6 +1080,8 @@ function ElectiveEnrollmentModal({ allocation, onClose }: { allocation: ClassSub
   function toggle(id: string) {
     setStudents(prev => prev.map(s => s.id === id ? { ...s, enrolled: !s.enrolled } : s));
   }
+  const chosen = students.filter(s => s.enrolled).length;
+  const setAll = (v: boolean) => setStudents(prev => prev.map(s => ({ ...s, enrolled: v })));
 
   async function save() {
     setSaving(true);
@@ -1091,21 +1094,40 @@ function ElectiveEnrollmentModal({ allocation, onClose }: { allocation: ClassSub
   }
 
   return (
-    <Modal open onClose={onClose} title={`${allocation.subject_name} — enrolled students`} maxWidth="max-w-md">
+    <Modal open onClose={onClose} title={`${allocation.subject_name} in ${allocation.class_name}: who takes it`} maxWidth="max-w-md">
       {loading ? (
         <div className="text-center py-4 text-sm text-slate-400">Loading…</div>
       ) : (
         <div className="space-y-3">
-          <p className="text-xs text-slate-400">
-            Check every student in {allocation.class_name} taking this elective. Only checked students will see this subject when a teacher marks attendance, enters CA/exam scores, or compiles results.
+          <p className="text-sm text-slate-600">
+            Tick the students in {allocation.class_name} who take {allocation.subject_name}. Only they appear on its attendance register, CA and exam score sheets, and results. Students who join the class later must be ticked here too.
           </p>
+          {students.length > 0 && (
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-sm font-semibold text-slate-800">{chosen} of {students.length} chosen</span>
+              <span className="flex gap-4">
+                <button type="button" className="text-sm font-semibold text-[#145C44]" onClick={() => setAll(true)}>Select all</button>
+                <button type="button" className="text-sm font-semibold text-[#145C44]" onClick={() => setAll(false)}>Clear all</button>
+              </span>
+            </div>
+          )}
+          {students.length > 0 && chosen === students.length && (
+            <p className="text-sm text-[#4A3F32] rounded-lg bg-[#FBF6EC] border border-[#C8973A]/40 px-3 py-2">
+              Everyone is ticked. If the whole class takes this subject, set Taken by to Whole class instead, so new students are included automatically.
+            </p>
+          )}
+          {students.length > 0 && chosen === 0 && (
+            <p className="text-sm text-[#4A3F32] rounded-lg bg-[#FBF6EC] border border-[#C8973A]/40 px-3 py-2">
+              No one is ticked, so nobody in {allocation.class_name} will appear for {allocation.subject_name}.
+            </p>
+          )}
           {students.length === 0 ? (
             <div className="text-center py-4 text-sm text-slate-400">No active students in {allocation.class_name}.</div>
           ) : (
             <div className="max-h-72 overflow-y-auto border border-slate-200 rounded-lg divide-y divide-slate-100">
               {students.map(s => (
                 <label key={s.id} className="flex items-center gap-2.5 px-3 py-2 hover:bg-slate-50 cursor-pointer select-none">
-                  <input type="checkbox" checked={s.enrolled} className="rounded border-slate-300" onChange={() => toggle(s.id)} />
+                  <input type="checkbox" checked={s.enrolled} className="rounded border-slate-300 accent-[#145C44]" onChange={() => toggle(s.id)} />
                   <span className="text-sm flex-1 text-slate-800">{s.name}</span>
                   <span className="text-xs font-mono text-slate-400">{s.student_code}</span>
                 </label>
@@ -1114,7 +1136,7 @@ function ElectiveEnrollmentModal({ allocation, onClose }: { allocation: ClassSub
           )}
           <div className="flex justify-end gap-2 pt-1">
             <Button variant="secondary" onClick={onClose}>Cancel</Button>
-            <Button loading={saving} onClick={save}>Save</Button>
+            <Button loading={saving} onClick={save}>Save students</Button>
           </div>
         </div>
       )}
@@ -1219,11 +1241,13 @@ function AllocationsTab({ onGapChange }: { onGapChange: (n: number) => void }) {
     await loadClass(selectedClass);
   }
 
-  async function toggleElective(a: ClassSubjectRow) {
+  async function setTakenBy(a: ClassSubjectRow, some: boolean) {
+    if (some === a.is_elective) return;
     setTogglingId(a.id);
     try {
-      await api.patch(`/api/timetable/class-subjects/${a.id}`, { is_elective: !a.is_elective });
+      await api.patch(`/api/timetable/class-subjects/${a.id}`, { is_elective: some });
       await loadClass(selectedClass);
+      if (some) setEnrollFor({ ...a, is_elective: true });
     } finally { setTogglingId(null); }
   }
 
@@ -1270,7 +1294,7 @@ function AllocationsTab({ onGapChange }: { onGapChange: (n: number) => void }) {
             <table className="w-full text-sm">
               <thead className="bg-slate-50 border-b border-slate-100">
                 <tr>
-                  {['Subject', 'Periods/Week', 'Scheduled', 'Duration/Week', 'Status', 'Elective', ''].map(h => (
+                  {['Subject', 'Periods/Week', 'Scheduled', 'Duration/Week', 'Status', 'Taken by', ''].map(h => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold font-medium text-slate-400">{h}</th>
                   ))}
                 </tr>
@@ -1309,13 +1333,17 @@ function AllocationsTab({ onGapChange }: { onGapChange: (n: number) => void }) {
                         ) : <span className="text-xs text-slate-400">No timetable data</span>}
                       </td>
                       <td className="px-4 py-3">
-                        <label className="inline-flex items-center gap-1.5 cursor-pointer select-none">
-                          <input type="checkbox" checked={a.is_elective} disabled={togglingId === a.id}
-                            onChange={() => toggleElective(a)} className="rounded border-slate-300" />
-                        </label>
+                        <select aria-label={`Who takes ${a.subject_name}`} value={a.is_elective ? 'some' : 'all'} disabled={togglingId === a.id}
+                          onChange={e => setTakenBy(a, e.target.value === 'some')}
+                          className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm text-slate-900">
+                          <option value="all">Whole class</option>
+                          <option value="some">Some students</option>
+                        </select>
                         {a.is_elective && (
-                          <button className="block mt-1 text-xs underline text-[#145C44] font-medium"
-                            onClick={() => setEnrollFor(a)}>Manage students</button>
+                          <button className={`block mt-1 text-sm font-semibold ${a.chosen_count ? 'text-[#145C44]' : 'text-[#B45309]'}`}
+                            onClick={() => setEnrollFor(a)}>
+                            {a.chosen_count ? `${a.chosen_count} chosen, change` : 'None chosen, choose'}
+                          </button>
                         )}
                       </td>
                       <td className="px-4 py-3">
@@ -1354,7 +1382,7 @@ function AllocationsTab({ onGapChange }: { onGapChange: (n: number) => void }) {
       )}
 
       {enrollFor && (
-        <ElectiveEnrollmentModal allocation={enrollFor} onClose={() => setEnrollFor(null)} />
+        <ElectiveEnrollmentModal allocation={enrollFor} onClose={() => { setEnrollFor(null); loadClass(selectedClass); }} />
       )}
     </div>
   );
