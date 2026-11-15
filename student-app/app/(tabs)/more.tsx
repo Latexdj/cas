@@ -5,6 +5,7 @@ import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
+import { createThemedStyles } from '@/lib/themedStyles';
 
 interface MenuItem {
   label: string;
@@ -62,7 +63,7 @@ export default function MoreScreen() {
   );
 }
 
-const s = StyleSheet.create({
+const s = createThemedStyles({
   flex:        { flex: 1 },
   header:      { paddingHorizontal: 20, paddingBottom: 28, borderBottomLeftRadius: 28, borderBottomRightRadius: 28, marginBottom: 20 },
   headerTitle: { fontSize: 26, fontWeight: '800', color: '#fff', letterSpacing: -0.5 },

@@ -5,6 +5,7 @@ import {
 import { useFocusEffect } from 'expo-router';
 import { api } from '@/lib/api';
 import { useTheme } from '@/context/ThemeContext';
+import { createThemedStyles } from '@/lib/themedStyles';
 
 interface Notification {
   id: string;
@@ -64,7 +65,7 @@ export default function NotificationsScreen() {
         </View>
         {unread > 0 && (
           <TouchableOpacity style={styles.markAllBtn} onPress={markAllRead}>
-            <Text style={[styles.markAllText, { color: Colors.primary }]}>Mark all read</Text>
+            <Text style={[styles.markAllText, { color: Colors.primaryText }]}>Mark all read</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -111,7 +112,7 @@ export default function NotificationsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles({
   container:   { flex: 1, backgroundColor: '#F4EFE6' },
   content:     { padding: 16, paddingBottom: 40 },
   headerRow:   { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20 },

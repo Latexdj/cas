@@ -5,6 +5,7 @@ import { api } from '@/lib/api';
 import { Card } from '@/components/ui/Card';
 import { Spinner } from '@/components/ui/Spinner';
 import type { ClinicVisit, ClinicHealthProfile } from '@/types/api';
+import { createThemedStyles } from '@/lib/themedStyles';
 
 const OUTCOME_LABELS: Record<string, string> = {
   returned_to_class:  'Returned to class',
@@ -103,7 +104,7 @@ function formatDate(d: string) {
   return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-const s = StyleSheet.create({
+const s = createThemedStyles({
   flex:           { flex: 1 },
   sectionTitle:   { fontSize: 13, fontWeight: '700', marginBottom: 10 },
   profileCard:    { marginBottom: 20 },

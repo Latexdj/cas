@@ -4,11 +4,12 @@ import {
   TouchableWithoutFeedback, View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { createThemedStyles } from '@/lib/themedStyles';
 
 export interface DropdownOption { label: string; value: string }
 
 interface Colors {
-  bg: string; border: string; text: string; muted: string; primary: string; surface: string;
+  bg: string; border: string; text: string; muted: string; primary: string; primaryText?: string; surface: string;
 }
 
 interface Props {
@@ -57,7 +58,7 @@ export function DropdownSelect({ value, options, onChange, placeholder, colors, 
                       <Text style={[styles.optionText, { color: active ? colors.primary : colors.text }]}>
                         {opt.label}
                       </Text>
-                      {active && <Ionicons name="checkmark" size={16} color={colors.primary} />}
+                      {active && <Ionicons name="checkmark" size={16} color={colors.primaryText ?? colors.primary} />}
                     </TouchableOpacity>
                   );
                 })}
@@ -70,7 +71,7 @@ export function DropdownSelect({ value, options, onChange, placeholder, colors, 
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles({
   trigger:     { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, gap: 6 },
   triggerText: { flex: 1, fontSize: 13, fontWeight: '600' },
   backdrop:    { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'center', alignItems: 'center', padding: 32 },

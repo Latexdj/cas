@@ -4,6 +4,7 @@ import { Badge } from './ui/Badge';
 import { Card } from './ui/Card';
 import { Colors } from '@/constants/colors';
 import { AbsenceRecord } from '@/types/api';
+import { createThemedStyles } from '@/lib/themedStyles';
 
 interface Props {
   absence: AbsenceRecord;
@@ -39,7 +40,7 @@ export function AbsenceCard({ absence, onAddReason, onScheduleRemedial }: Props)
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles({
   header:        { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   info:          { flex: 1, marginRight: 8 },
   subject:       { fontSize: 15, fontWeight: '600', color: Colors.text },

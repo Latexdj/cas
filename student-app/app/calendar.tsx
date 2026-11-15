@@ -5,6 +5,7 @@ import { api } from '@/lib/api';
 import { Card } from '@/components/ui/Card';
 import { Spinner } from '@/components/ui/Spinner';
 import type { CalendarEvent } from '@/types/api';
+import { createThemedStyles } from '@/lib/themedStyles';
 
 const TYPE_COLOR: Record<string, { color: string; bg: string }> = {
   holiday:    { color: '#145C44', bg: '#DCFCE7' },
@@ -87,7 +88,7 @@ export default function CalendarScreen() {
   );
 }
 
-const s = StyleSheet.create({
+const s = createThemedStyles({
   flex:        { flex: 1 },
   monthBlock:  { marginBottom: 20 },
   monthTitle:  { fontSize: 13, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },

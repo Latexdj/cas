@@ -8,6 +8,7 @@ import { Spinner } from '@/components/ui/Spinner';
 import { storage } from '@/lib/storage';
 import { offlineQueue } from '@/lib/offlineQueue';
 import { api } from '@/lib/api';
+import { createThemedStyles } from '@/lib/themedStyles';
 
 function InitialLayout() {
   const { user, isLoading } = useAuth();
@@ -76,7 +77,7 @@ export default function RootLayout() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles({
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: '#FAFAF8',

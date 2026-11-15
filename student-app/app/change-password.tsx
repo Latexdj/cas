@@ -5,6 +5,7 @@ import { useTheme } from '@/context/ThemeContext';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { createThemedStyles } from '@/lib/themedStyles';
 
 export default function ChangePasswordScreen() {
   const C = useTheme();
@@ -81,7 +82,7 @@ export default function ChangePasswordScreen() {
   );
 }
 
-const s = StyleSheet.create({
+const s = createThemedStyles({
   flex:        { flex: 1 },
   container:   { flexGrow: 1, paddingBottom: 40 },
   topBand:     { paddingTop: 72, paddingBottom: 40, paddingHorizontal: 28, borderBottomLeftRadius: 32, borderBottomRightRadius: 32, marginBottom: 28 },

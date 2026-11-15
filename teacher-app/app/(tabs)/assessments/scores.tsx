@@ -4,6 +4,7 @@ import { useFocusEffect, router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '@/lib/api';
 import { useTheme } from '@/context/ThemeContext';
+import { createThemedStyles, tc } from '@/lib/themedStyles';
 
 interface ScoreRow {
   student_id: string;
@@ -82,7 +83,7 @@ export default function ScoresScreen() {
 
   if (loading) return (
     <View style={[styles.container, { backgroundColor: Colors.bg, justifyContent: 'center', alignItems: 'center' }]}>
-      <ActivityIndicator size="large" color={Colors.primary} />
+      <ActivityIndicator size="large" color={Colors.primaryText} />
     </View>
   );
 
@@ -99,7 +100,7 @@ export default function ScoresScreen() {
       </View>
 
       {error ? <Text style={[styles.errBanner, { backgroundColor: Colors.dangerLight, color: Colors.danger }]}>{error}</Text> : null}
-      {saved ? <Text style={[styles.errBanner, { backgroundColor: '#DCFCE7', color: '#145C44' }]}>Scores saved.</Text> : null}
+      {saved ? <Text style={[styles.errBanner, { backgroundColor: tc('#DCFCE7', 'bg'), color: tc('#145C44', 'text') }]}>Scores saved.</Text> : null}
 
       <FlatList
         data={rows}
@@ -152,14 +153,14 @@ export default function ScoresScreen() {
           onPress={save}
           disabled={saving}
         >
-          {saving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.saveBtnText}>{rows.some(r => r.score_id !== null) ? 'Save Changes' : 'Save Scores'}</Text>}
+          {saving ? <ActivityIndicator size="small" color={tc('#fff')} /> : <Text style={styles.saveBtnText}>{rows.some(r => r.score_id !== null) ? 'Save Changes' : 'Save Scores'}</Text>}
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles({
   container:    { flex: 1 },
   infoCard:     { margin: 16, marginBottom: 8, borderRadius: 14, padding: 14, borderWidth: 1 },
   infoTitle:    { fontSize: 16, fontWeight: '800' },

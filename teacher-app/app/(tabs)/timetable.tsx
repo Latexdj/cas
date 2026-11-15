@@ -9,6 +9,7 @@ import { useTheme } from '@/context/ThemeContext';
 import { api } from '@/lib/api';
 import { Spinner } from '@/components/ui/Spinner';
 import { TimetableSlot } from '@/types/api';
+import { createThemedStyles, tc } from '@/lib/themedStyles';
 
 type SlotWithType = TimetableSlot & { type?: 'lesson' | 'plc' };
 
@@ -51,7 +52,7 @@ export default function TimetableScreen() {
       >
         {slots.length === 0 ? (
           <View style={styles.emptyWrap}>
-            <Ionicons name="calendar-outline" size={48} color={Colors.primary} style={{ opacity: 0.4 }} />
+            <Ionicons name="calendar-outline" size={48} color={Colors.primaryText} style={{ opacity: 0.4 }} />
             <Text style={styles.emptyTitle}>No timetable entries</Text>
             <Text style={styles.emptySub}>Your school admin hasn't added any timetable entries for you yet.</Text>
           </View>
@@ -62,7 +63,7 @@ export default function TimetableScreen() {
             return (
               <View key={day} style={styles.daySection}>
                 <View style={[styles.dayHeader, isToday && { backgroundColor: Colors.primary + '18' }]}>
-                  <Text style={[styles.dayName, isToday && { color: Colors.primary }]}>
+                  <Text style={[styles.dayName, isToday && { color: Colors.primaryText }]}>
                     {DAY_NAMES[day]}
                   </Text>
                   {isToday && (
@@ -105,7 +106,7 @@ export default function TimetableScreen() {
                         </View>
                         <View style={styles.slotBody}>
                           <View style={styles.slotTitleRow}>
-                            <Text style={[styles.slotSubject, isPlc && { color: '#1A4D2E' }]}>{slot.subject}</Text>
+                            <Text style={[styles.slotSubject, isPlc && { color: tc('#1A4D2E', 'text') }]}>{slot.subject}</Text>
                             {isPlc && (
                               <View style={styles.plcBadge}>
                                 <Text style={styles.plcBadgeText}>PLC</Text>
@@ -113,7 +114,7 @@ export default function TimetableScreen() {
                             )}
                           </View>
                           <View style={styles.slotMeta}>
-                            <Ionicons name={isPlc ? 'location-outline' : 'people-outline'} size={12} color="#8C7E6E" />
+                            <Ionicons name={isPlc ? 'location-outline' : 'people-outline'} size={12} color={tc('#8C7E6E')} />
                             <Text style={styles.slotClass}>{slot.class_names}</Text>
                           </View>
                           {!isPlc && slot.periods && slot.periods > 1 && (
@@ -133,7 +134,7 @@ export default function TimetableScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles({
   root:          { flex: 1, backgroundColor: '#F4EFE6' },
   content:       { padding: 16, paddingBottom: 40 },
   // Empty state

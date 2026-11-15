@@ -3,6 +3,7 @@ import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native
 import { useFocusEffect } from 'expo-router';
 import { api } from '@/lib/api';
 import { useTheme } from '@/context/ThemeContext';
+import { createThemedStyles } from '@/lib/themedStyles';
 
 interface MeetingAbsence {
   id: string;
@@ -83,7 +84,7 @@ export default function MeetingAbsencesScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles({
   container:       { flex: 1, backgroundColor: '#F4EFE6' },
   content:         { padding: 16, paddingBottom: 40 },
   skeleton:        { backgroundColor: '#E5DDD5', borderRadius: 16, height: 88, marginBottom: 12 },

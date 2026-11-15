@@ -1,6 +1,7 @@
 import React from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { useTheme } from '@/context/ThemeContext';
+import { createThemedStyles } from '@/lib/themedStyles';
 
 export function Spinner({ message }: { message?: string }) {
   const Colors = useTheme();
@@ -12,7 +13,7 @@ export function Spinner({ message }: { message?: string }) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles({
   container: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F4EFE6' },
   msg:       { marginTop: 14, color: '#8C7E6E', fontSize: 14, fontWeight: '500' },
 });

@@ -6,6 +6,7 @@ import { api } from '@/lib/api';
 import { useTheme } from '@/context/ThemeContext';
 import { DropdownSelect } from '@/components/DropdownSelect';
 import type { AcademicYear } from '@/types/api';
+import { createThemedStyles } from '@/lib/themedStyles';
 
 interface SubjectSlot { subject: string; class_name: string }
 
@@ -85,7 +86,7 @@ export default function AssessmentsIndexScreen() {
       </View>
 
       {loading ? (
-        <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 40 }} />
+        <ActivityIndicator size="large" color={Colors.primaryText} style={{ marginTop: 40 }} />
       ) : error ? (
         <View style={styles.center}>
           <Text style={{ color: Colors.danger, fontSize: 14 }}>{error}</Text>
@@ -120,7 +121,7 @@ export default function AssessmentsIndexScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles({
   container:    { flex: 1 },
   selectorCard: { margin: 16, borderRadius: 14, padding: 14, borderWidth: 1 },
   selectorRow:  { flexDirection: 'row', alignItems: 'center', gap: 10 },

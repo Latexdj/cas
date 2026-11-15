@@ -8,6 +8,7 @@ import * as IntentLauncher from 'expo-intent-launcher';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useTheme } from '@/context/ThemeContext';
+import { createThemedStyles, tc } from '@/lib/themedStyles';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 // App-specific external dir: always readable without any permission (Android 11+)
@@ -256,7 +257,7 @@ export default function FileBrowser({ showBackAsClose }: Props) {
   if (loading) {
     return (
       <View style={[s.center, { backgroundColor: C.bg }]}>
-        <ActivityIndicator size="large" color={C.primary} />
+        <ActivityIndicator size="large" color={C.primaryText} />
         <Text style={[s.stateText, { color: C.muted }]}>Reading materials folder…</Text>
       </View>
     );
@@ -372,7 +373,7 @@ export default function FileBrowser({ showBackAsClose }: Props) {
       )}
 
       {docsHidden && (
-        <View style={[s.banner, { backgroundColor: '#FEF3DC', borderColor: '#C8780A' }]}>
+        <View style={[s.banner, { backgroundColor: tc('#FEF3DC', 'bg'), borderColor: tc('#C8780A', 'border') }]}>
           <Text style={s.bannerText}>
             Some materials are hidden. Android only lets this app see videos and pictures until you allow access to all files, so PDFs and documents won&apos;t show.
           </Text>
@@ -429,7 +430,7 @@ export default function FileBrowser({ showBackAsClose }: Props) {
   );
 }
 
-const s = StyleSheet.create({
+const s = createThemedStyles({
   flex:        { flex: 1 },
   center:      { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
   stateTitle:  { fontSize: 18, fontWeight: '800', textAlign: 'center', marginTop: 8 },

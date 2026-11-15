@@ -1,6 +1,7 @@
 import React from 'react';
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, TouchableOpacityProps } from 'react-native';
 import { useTheme } from '@/context/ThemeContext';
+import { createThemedStyles } from '@/lib/themedStyles';
 
 type Variant = 'primary' | 'secondary' | 'danger' | 'ghost' | 'accent';
 type Size    = 'sm' | 'md' | 'lg';
@@ -43,7 +44,7 @@ export function Button({ label, variant = 'primary', size = 'md', loading, disab
   );
 }
 
-const s = StyleSheet.create({
+const s = createThemedStyles({
   base:    { borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   disabled:{ opacity: 0.45 },
   label:   { fontWeight: '700', letterSpacing: 0.2 },

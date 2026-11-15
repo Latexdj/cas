@@ -8,6 +8,7 @@ import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
 import { useTheme } from '@/context/ThemeContext';
 import { AbsenceRecord } from '@/types/api';
+import { createThemedStyles, tc } from '@/lib/themedStyles';
 
 function fmt(iso: string) {
   const [y, m, d] = iso.slice(0, 10).split('-').map(Number);
@@ -130,7 +131,7 @@ export default function AbsenceListScreen() {
                 <TextInput
                   style={styles.reasonInput}
                   placeholder="Explain why you were absent…"
-                  placeholderTextColor="#8C7E6E"
+                  placeholderTextColor={tc('#8C7E6E')}
                   value={reasonText}
                   onChangeText={setReasonText}
                   multiline
@@ -153,7 +154,7 @@ export default function AbsenceListScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles({
   container:       { flex: 1, backgroundColor: '#F4EFE6' },
   content:         { padding: 16, paddingBottom: 40 },
   skeleton:        { backgroundColor: '#E5DDD5', borderRadius: 16, height: 96, marginBottom: 12 },

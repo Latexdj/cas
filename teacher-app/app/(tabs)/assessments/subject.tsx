@@ -4,6 +4,7 @@ import { useFocusEffect, router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '@/lib/api';
 import { useTheme } from '@/context/ThemeContext';
+import { createThemedStyles, tc } from '@/lib/themedStyles';
 
 interface AssessmentMode { id: string; name: string; ca_contribution: number }
 interface Assessment {
@@ -101,7 +102,7 @@ export default function SubjectAssessmentsScreen() {
       </View>
 
       {loading ? (
-        <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 40 }} />
+        <ActivityIndicator size="large" color={Colors.primaryText} style={{ marginTop: 40 }} />
       ) : (
         <FlatList
           data={assessments}
@@ -132,7 +133,7 @@ export default function SubjectAssessmentsScreen() {
                   onPress={() => router.push({ pathname: '/(tabs)/assessments/scores', params: { assessment_id: item.id, subject, class_name, year_id, semester, assessment_label: label } })}>
                   <View style={styles.cardRow}>
                     <View style={[styles.modeBadge, { backgroundColor: Colors.primaryLight }]}>
-                      <Text style={[styles.modeBadgeText, { color: Colors.primary }]}>{item.mode_name}</Text>
+                      <Text style={[styles.modeBadgeText, { color: Colors.primaryText }]}>{item.mode_name}</Text>
                     </View>
                     {dateStr && <Text style={[styles.dateText, { color: Colors.muted }]}>{dateStr}</Text>}
                   </View>
@@ -153,7 +154,7 @@ export default function SubjectAssessmentsScreen() {
         style={[styles.fab, { backgroundColor: Colors.primary }]}
         onPress={() => setShowModal(true)}
       >
-        <Ionicons name="add" size={28} color="#fff" />
+        <Ionicons name="add" size={28} color={tc('#fff')} />
       </TouchableOpacity>
 
       {/* Create modal */}
@@ -190,7 +191,7 @@ export default function SubjectAssessmentsScreen() {
                 <Text style={{ color: Colors.text, fontWeight: '600' }}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.btn, { backgroundColor: Colors.primary, flex: 1 }]} onPress={createAssessment} disabled={creating}>
-                <Text style={{ color: '#fff', fontWeight: '700' }}>{creating ? 'Creating...' : 'Create'}</Text>
+                <Text style={{ color: tc('#fff', 'text'), fontWeight: '700' }}>{creating ? 'Creating...' : 'Create'}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -200,7 +201,7 @@ export default function SubjectAssessmentsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles({
   container:    { flex: 1 },
   headerCard:   { margin: 16, marginBottom: 0, borderRadius: 14, padding: 14, borderWidth: 1 },
   headerSubject:{ fontSize: 17, fontWeight: '800' },

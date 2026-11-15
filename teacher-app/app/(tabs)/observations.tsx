@@ -8,6 +8,7 @@ import { api } from '@/lib/api';
 import { useTheme } from '@/context/ThemeContext';
 import { Button } from '@/components/ui/Button';
 import { LessonObservation, LessonObservationDetail } from '@/types/api';
+import { createThemedStyles, tc } from '@/lib/themedStyles';
 
 function fmt(iso: string | null) {
   if (!iso) return '—';
@@ -118,7 +119,7 @@ export default function ObservationsScreen() {
                     <Text style={styles.cardTitle}>{o.subject || 'Lesson Observation'} {o.class_names ? `· ${o.class_names}` : ''}</Text>
                     <Text style={styles.meta}>Observed by {o.observer_name}</Text>
                     <Text style={styles.meta}>{fmt(o.observed_at || o.scheduled_at)}</Text>
-                    {o.open_actions > 0 && <Text style={[styles.meta, { color: '#C8780A', fontWeight: '600' }]}>{o.open_actions} open action{o.open_actions !== 1 ? 's' : ''}</Text>}
+                    {o.open_actions > 0 && <Text style={[styles.meta, { color: tc('#C8780A', 'text'), fontWeight: '600' }]}>{o.open_actions} open action{o.open_actions !== 1 ? 's' : ''}</Text>}
                   </View>
                   <View style={[styles.badge, { backgroundColor: s.bg }]}>
                     <Text style={[styles.badgeText, { color: s.color }]}>{o.status}</Text>
@@ -176,7 +177,7 @@ export default function ObservationsScreen() {
                             {a.status === 'Done' && <Text style={styles.checkmark}>✓</Text>}
                           </View>
                           <View style={styles.flex1}>
-                            <Text style={[styles.actionText, a.status === 'Done' && { textDecorationLine: 'line-through', color: '#8C7E6E' }]}>{a.description}</Text>
+                            <Text style={[styles.actionText, a.status === 'Done' && { textDecorationLine: 'line-through', color: tc('#8C7E6E', 'text') }]}>{a.description}</Text>
                             {a.due_date && <Text style={styles.meta}>Due {fmtDate(a.due_date)}</Text>}
                           </View>
                         </TouchableOpacity>
@@ -195,7 +196,7 @@ export default function ObservationsScreen() {
                       <TextInput
                         style={styles.textArea}
                         placeholder="Optional comment — add context or push back if needed…"
-                        placeholderTextColor="#8C7E6E"
+                        placeholderTextColor={tc('#8C7E6E')}
                         value={comment}
                         onChangeText={setComment}
                         multiline
@@ -218,7 +219,7 @@ export default function ObservationsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles({
   container:   { flex: 1, backgroundColor: '#F4EFE6' },
   content:     { padding: 16, paddingBottom: 40 },
   skeleton:    { backgroundColor: '#E5DDD5', borderRadius: 16, height: 96, marginBottom: 12 },

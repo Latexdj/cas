@@ -9,6 +9,7 @@ import { storage } from '@/lib/storage';
 import { useTheme, useUpdateTheme } from '@/context/ThemeContext';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { createThemedStyles } from '@/lib/themedStyles';
 
 export default function SetupScreen() {
   const Colors      = useTheme();
@@ -90,7 +91,7 @@ export default function SetupScreen() {
                 {schoolData.logo_url ? (
                   <Image source={{ uri: schoolData.logo_url }} style={styles.schoolLogo} resizeMode="contain" />
                 ) : null}
-                <Text style={[styles.schoolNameText, { color: Colors.primary }]}>{schoolData.name}</Text>
+                <Text style={[styles.schoolNameText, { color: Colors.primaryText }]}>{schoolData.name}</Text>
               </View>
               <Text style={styles.cardSub}>Is this the correct school?</Text>
               <Button
@@ -141,7 +142,7 @@ export default function SetupScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles({
   flex:           { flex: 1, backgroundColor: '#F4EFE6' },
   container:      { flexGrow: 1, paddingBottom: 40 },
   topBand:        { paddingTop: 80, paddingBottom: 48, alignItems: 'center', borderBottomLeftRadius: 32, borderBottomRightRadius: 32, marginBottom: 32 },

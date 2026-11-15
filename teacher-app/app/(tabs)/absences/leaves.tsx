@@ -11,6 +11,7 @@ import { api } from '@/lib/api';
 import { useTheme } from '@/context/ThemeContext';
 import { Button } from '@/components/ui/Button';
 import { TeacherExcuse } from '@/types/api';
+import { createThemedStyles, tc } from '@/lib/themedStyles';
 
 const LEAVE_TYPES = ['Sick Leave', 'Official Duty', 'Permission', 'Other'] as const;
 type LeaveType = typeof LEAVE_TYPES[number];
@@ -173,7 +174,7 @@ export default function LeavesScreen() {
                     {lv.reason ? <Text style={styles.italicText}>"{lv.reason}"</Text> : null}
                     {lv.document_url ? (
                       <Text
-                        style={[styles.meta, { color: Colors.primary, fontWeight: '600' }]}
+                        style={[styles.meta, { color: Colors.primaryText, fontWeight: '600' }]}
                         onPress={() => { if (lv.document_url) require('react-native').Linking.openURL(lv.document_url); }}
                       >
                         📄 View Document
@@ -185,7 +186,7 @@ export default function LeavesScreen() {
                       </Text>
                     ) : null}
                     {lv.status === 'Approved' && lv.approval_note ? (
-                      <Text style={[styles.meta, { color: '#C8780A' }]}>Condition: {lv.approval_note}</Text>
+                      <Text style={[styles.meta, { color: tc('#C8780A', 'text') }]}>Condition: {lv.approval_note}</Text>
                     ) : null}
                   </View>
                   <View style={[styles.badge, { backgroundColor: s.bg }]}>
@@ -193,9 +194,9 @@ export default function LeavesScreen() {
                   </View>
                 </View>
                 {lv.status === 'Pending Acceptance' ? (
-                  <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#E2D9CC' }}>
-                    <View style={{ backgroundColor: '#EFF6FF', borderRadius: 8, padding: 8 }}>
-                      <Text style={{ fontSize: 12, color: '#1D4ED8' }}>
+                  <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: tc('#E2D9CC', 'border') }}>
+                    <View style={{ backgroundColor: tc('#EFF6FF', 'bg'), borderRadius: 8, padding: 8 }}>
+                      <Text style={{ fontSize: 12, color: tc('#1D4ED8', 'text') }}>
                         Your leave was approved subject to a condition:{' '}
                         <Text style={{ fontWeight: '600' }}>{lv.approval_note}</Text>
                       </Text>
@@ -207,18 +208,18 @@ export default function LeavesScreen() {
                       <TouchableOpacity
                         onPress={() => respondToCondition(lv.id, 'accept')}
                         disabled={respondingId === lv.id}
-                        style={{ flex: 1, backgroundColor: '#145C44', borderRadius: 8, paddingVertical: 8, alignItems: 'center', opacity: respondingId === lv.id ? 0.6 : 1 }}
+                        style={{ flex: 1, backgroundColor: tc('#145C44', 'bg'), borderRadius: 8, paddingVertical: 8, alignItems: 'center', opacity: respondingId === lv.id ? 0.6 : 1 }}
                       >
-                        <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>
+                        <Text style={{ color: tc('#fff', 'text'), fontSize: 12, fontWeight: '600' }}>
                           {respondingId === lv.id ? '…' : 'Accept'}
                         </Text>
                       </TouchableOpacity>
                       <TouchableOpacity
                         onPress={() => respondToCondition(lv.id, 'decline')}
                         disabled={respondingId === lv.id}
-                        style={{ flex: 1, backgroundColor: '#FEE2E2', borderRadius: 8, paddingVertical: 8, alignItems: 'center', opacity: respondingId === lv.id ? 0.6 : 1 }}
+                        style={{ flex: 1, backgroundColor: tc('#FEE2E2', 'bg'), borderRadius: 8, paddingVertical: 8, alignItems: 'center', opacity: respondingId === lv.id ? 0.6 : 1 }}
                       >
-                        <Text style={{ color: '#B83232', fontSize: 12, fontWeight: '600' }}>
+                        <Text style={{ color: tc('#B83232', 'text'), fontSize: 12, fontWeight: '600' }}>
                           {respondingId === lv.id ? '…' : 'Decline'}
                         </Text>
                       </TouchableOpacity>
@@ -246,7 +247,7 @@ export default function LeavesScreen() {
                     style={[styles.chip, leaveType === t && { backgroundColor: Colors.primary, borderColor: Colors.primary }]}
                     onPress={() => setLeaveType(t)}
                   >
-                    <Text style={[styles.chipText, leaveType === t && { color: '#fff' }]}>{t}</Text>
+                    <Text style={[styles.chipText, leaveType === t && { color: tc('#fff', 'text') }]}>{t}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -257,7 +258,7 @@ export default function LeavesScreen() {
                   <TextInput
                     style={styles.dateInput}
                     placeholder="YYYY-MM-DD"
-                    placeholderTextColor="#B5A898"
+                    placeholderTextColor={tc('#B5A898')}
                     value={dateFrom}
                     onChangeText={setDateFrom}
                     keyboardType="numbers-and-punctuation"
@@ -269,7 +270,7 @@ export default function LeavesScreen() {
                   <TextInput
                     style={styles.dateInput}
                     placeholder="YYYY-MM-DD"
-                    placeholderTextColor="#B5A898"
+                    placeholderTextColor={tc('#B5A898')}
                     value={dateTo}
                     onChangeText={setDateTo}
                     keyboardType="numbers-and-punctuation"
@@ -282,7 +283,7 @@ export default function LeavesScreen() {
               <TextInput
                 style={styles.textArea}
                 placeholder="Describe the reason for your leave…"
-                placeholderTextColor="#8C7E6E"
+                placeholderTextColor={tc('#8C7E6E')}
                 value={reason}
                 onChangeText={setReason}
                 multiline
@@ -292,7 +293,7 @@ export default function LeavesScreen() {
               {docRequired && (
                 <View>
                   <Text style={styles.fieldLabel}>
-                    Supporting Document <Text style={{ color: '#B83232' }}>*</Text>
+                    Supporting Document <Text style={{ color: tc('#B83232', 'text') }}>*</Text>
                   </Text>
                   <Text style={styles.fieldHint}>PDF or Word file required for this leave type</Text>
                   <TouchableOpacity
@@ -300,7 +301,7 @@ export default function LeavesScreen() {
                     onPress={pickDocument}
                     activeOpacity={0.7}
                   >
-                    <Text style={[styles.docBtnText, docUri && { color: Colors.primary }]}>
+                    <Text style={[styles.docBtnText, docUri && { color: Colors.primaryText }]}>
                       {docUri ? `Attached: ${docName}` : '📎  Attach Document'}
                     </Text>
                   </TouchableOpacity>
@@ -324,7 +325,7 @@ export default function LeavesScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles({
   container:   { flex: 1, backgroundColor: '#F4EFE6' },
   content:     { padding: 16, paddingBottom: 40 },
   newBtn:      { borderRadius: 12, paddingVertical: 12, alignItems: 'center', marginBottom: 16 },

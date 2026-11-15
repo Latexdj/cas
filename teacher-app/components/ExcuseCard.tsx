@@ -4,6 +4,7 @@ import { Badge } from './ui/Badge';
 import { Card } from './ui/Card';
 import { Colors } from '@/constants/colors';
 import { TeacherExcuse } from '@/types/api';
+import { createThemedStyles } from '@/lib/themedStyles';
 
 interface Props {
   excuse: TeacherExcuse;
@@ -38,7 +39,7 @@ export function ExcuseCard({ excuse }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles({
   header:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 },
   type:     { fontSize: 15, fontWeight: '700', color: Colors.text, flex: 1, marginRight: 8 },
   dates:    { fontSize: 13, color: Colors.muted, marginBottom: 4 },

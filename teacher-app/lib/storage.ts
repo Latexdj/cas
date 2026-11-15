@@ -28,7 +28,11 @@ export const storage = {
     else await AsyncStorage.removeItem(KEYS.schoolLogo);
   },
   async getDarkMode()     { return AsyncStorage.getItem(KEYS.darkMode); },
-  async saveDarkMode(isDark: boolean) { await AsyncStorage.setItem(KEYS.darkMode, isDark ? '1' : '0'); },
+  async saveDarkMode(isDark: boolean | null) {
+    // null = follow the device's appearance setting
+    if (isDark === null) await AsyncStorage.removeItem(KEYS.darkMode);
+    else await AsyncStorage.setItem(KEYS.darkMode, isDark ? '1' : '0');
+  },
 
   async saveSchoolCode(code: string) {
     await AsyncStorage.setItem(KEYS.schoolCode, code.toUpperCase().trim());

@@ -3,6 +3,7 @@ import { ActivityIndicator, FlatList, KeyboardAvoidingView, Platform, StyleSheet
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { api } from '@/lib/api';
 import { useTheme } from '@/context/ThemeContext';
+import { createThemedStyles, tc } from '@/lib/themedStyles';
 
 interface ExamRow {
   student_id: string;
@@ -78,7 +79,7 @@ export default function ExamScoresScreen() {
 
   if (loading) return (
     <View style={[styles.container, { backgroundColor: Colors.bg, justifyContent: 'center', alignItems: 'center' }]}>
-      <ActivityIndicator size="large" color={Colors.primary} />
+      <ActivityIndicator size="large" color={Colors.primaryText} />
     </View>
   );
 
@@ -101,7 +102,7 @@ export default function ExamScoresScreen() {
       </View>
 
       {error ? <Text style={[styles.banner, { backgroundColor: Colors.dangerLight, color: Colors.danger }]}>{error}</Text> : null}
-      {saved ? <Text style={[styles.banner, { backgroundColor: '#DCFCE7', color: '#145C44' }]}>Exam scores saved.</Text> : null}
+      {saved ? <Text style={[styles.banner, { backgroundColor: tc('#DCFCE7', 'bg'), color: tc('#145C44', 'text') }]}>Exam scores saved.</Text> : null}
 
       <FlatList
         data={rows}
@@ -134,14 +135,14 @@ export default function ExamScoresScreen() {
       <View style={[styles.footer, { backgroundColor: Colors.surface, borderTopColor: Colors.border }]}>
         <Text style={[styles.footerMeta, { color: Colors.muted }]}>{rows.length} student{rows.length !== 1 ? 's' : ''}{lastSaved ? `\nSaved ${lastSaved.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : ''}</Text>
         <TouchableOpacity style={[styles.saveBtn, { backgroundColor: Colors.primary }]} onPress={save} disabled={saving}>
-          {saving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.saveBtnText}>{rows.some(r => r.score !== null) ? 'Save Changes' : 'Save Scores'}</Text>}
+          {saving ? <ActivityIndicator size="small" color={tc('#fff')} /> : <Text style={styles.saveBtnText}>{rows.some(r => r.score !== null) ? 'Save Changes' : 'Save Scores'}</Text>}
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles({
   container:  { flex: 1 },
   infoCard:   { margin: 16, marginBottom: 8, borderRadius: 14, padding: 14, borderWidth: 1 },
   infoTitle:  { fontSize: 16, fontWeight: '800' },

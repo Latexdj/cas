@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/Card';
 import { Spinner } from '@/components/ui/Spinner';
 import { Button } from '@/components/ui/Button';
 import type { DisciplinaryLetter } from '@/types/api';
+import { createThemedStyles } from '@/lib/themedStyles';
 
 const OFFENSE_CAT_LABELS: Record<string, string> = {
   lateness_absenteeism: 'Lateness / Absenteeism',
@@ -172,7 +173,7 @@ function letterTypeBadge(type: string, C: any) {
 function letterStatusBadge(status: string, C: any) {
   const map: Record<string, { label: string; color: string; bg: string }> = {
     issued:       { label: 'Issued',       color: C.warning, bg: C.warningLight },
-    acknowledged: { label: 'Acknowledged', color: C.primary, bg: C.primaryLight },
+    acknowledged: { label: 'Acknowledged', color: C.primaryText, bg: C.primaryLight },
     resolved:     { label: 'Resolved',     color: C.success, bg: C.successLight },
   };
   return map[status] ?? { label: status, color: C.muted, bg: C.bg };
@@ -183,7 +184,7 @@ function formatDate(d?: string) {
   return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
-const s = StyleSheet.create({
+const s = createThemedStyles({
   flex:         { flex: 1 },
   statRow:      { flexDirection: 'row', gap: 10, marginBottom: 16 },
   statCard:     { flex: 1 },

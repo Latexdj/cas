@@ -4,6 +4,7 @@ import { useFocusEffect, router } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
 import { useTheme } from '@/context/ThemeContext';
+import { createThemedStyles } from '@/lib/themedStyles';
 
 export default function AbsencesScreen() {
   const Colors = useTheme();
@@ -108,7 +109,7 @@ export default function AbsencesScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles({
   container:   { flex: 1, backgroundColor: '#F4EFE6' },
   content:     { padding: 16, paddingBottom: 40 },
   header:      { marginBottom: 20 },

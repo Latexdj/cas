@@ -51,8 +51,10 @@ export const storage = {
     await AsyncStorage.setItem(K.mustChangePwd, v ? '1' : '0');
   },
 
-  async saveDarkMode(isDark: boolean) {
-    await AsyncStorage.setItem(K.darkMode, isDark ? '1' : '0');
+  async saveDarkMode(isDark: boolean | null) {
+    // null = follow the device's appearance setting
+    if (isDark === null) await AsyncStorage.removeItem(K.darkMode);
+    else await AsyncStorage.setItem(K.darkMode, isDark ? '1' : '0');
   },
 
   async clearSession() {

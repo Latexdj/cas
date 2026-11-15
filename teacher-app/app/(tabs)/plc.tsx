@@ -17,6 +17,7 @@ import { api } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { useTheme } from '@/context/ThemeContext';
+import { createThemedStyles, tc } from '@/lib/themedStyles';
 
 interface PlcSession {
   id: string;
@@ -286,7 +287,7 @@ export default function PlcScreen() {
             ? <Text style={styles.qrStatusText}>Verifying…</Text>
             : qrError
               ? <>
-                  <Text style={[styles.qrStatusText, { color: '#FCA5A5' }]}>{qrError}</Text>
+                  <Text style={[styles.qrStatusText, { color: tc('#FCA5A5', 'text') }]}>{qrError}</Text>
                   <TouchableOpacity onPress={() => { qrScannedRef.current = false; setQrError(''); }}>
                     <Text style={styles.qrRetryText}>Tap to retry</Text>
                   </TouchableOpacity>
@@ -327,8 +328,8 @@ export default function PlcScreen() {
   // ── Loading ───────────────────────────────────────────────────
   if (loading) {
     return (
-      <View style={[styles.emptyRoot, { backgroundColor: '#F4EFE6' }]}>
-        <Text style={{ color: '#8C7E6E', fontSize: 15 }}>Loading…</Text>
+      <View style={[styles.emptyRoot, { backgroundColor: tc('#F4EFE6', 'bg') }]}>
+        <Text style={{ color: tc('#8C7E6E', 'text'), fontSize: 15 }}>Loading…</Text>
       </View>
     );
   }
@@ -338,7 +339,7 @@ export default function PlcScreen() {
     return (
       <View style={styles.emptyRoot}>
         <View style={[styles.emptyIconWrap, { backgroundColor: Colors.accentLight }]}>
-          <Ionicons name="people-outline" size={44} color={Colors.primary} />
+          <Ionicons name="people-outline" size={44} color={Colors.primaryText} />
         </View>
         <Text style={styles.emptyTitle}>No PLC Today</Text>
         <Text style={styles.emptySub}>There is no PLC session scheduled for today. Check back on your scheduled PLC day.</Text>
@@ -356,16 +357,16 @@ export default function PlcScreen() {
         {/* Session card */}
         <View style={[styles.sessionCard, { borderColor: Colors.primary }]}>
           <View style={styles.sessionCardLeft}>
-            <Text style={[styles.sessionTime, { color: Colors.primary }]}>{session.start_time?.slice(0, 5)} – {session.end_time?.slice(0, 5)}</Text>
+            <Text style={[styles.sessionTime, { color: Colors.primaryText }]}>{session.start_time?.slice(0, 5)} – {session.end_time?.slice(0, 5)}</Text>
             <Text style={styles.sessionTitle}>{session.title}</Text>
             <Text style={styles.sessionLocation}>{session.location_name}</Text>
           </View>
-          <Ionicons name="people" size={28} color={Colors.primary} />
+          <Ionicons name="people" size={28} color={Colors.primaryText} />
         </View>
 
         {/* Done banner */}
         <View style={styles.doneBanner}>
-          <Ionicons name="checkmark-circle" size={28} color="#2D7A4F" />
+          <Ionicons name="checkmark-circle" size={28} color={tc('#2D7A4F')} />
           <View style={{ flex: 1, marginLeft: 12 }}>
             <Text style={styles.doneTitle}>Attendance Submitted</Text>
             <Text style={styles.doneSub}>Submitted at {submittedAt}</Text>
@@ -382,11 +383,11 @@ export default function PlcScreen() {
       <Text style={styles.sectionTitle}>Today's PLC Session</Text>
       <View style={[styles.sessionCard, { borderColor: Colors.primary }]}>
         <View style={styles.sessionCardLeft}>
-          <Text style={[styles.sessionTime, { color: Colors.primary }]}>{session.start_time?.slice(0, 5)} – {session.end_time?.slice(0, 5)}</Text>
+          <Text style={[styles.sessionTime, { color: Colors.primaryText }]}>{session.start_time?.slice(0, 5)} – {session.end_time?.slice(0, 5)}</Text>
           <Text style={styles.sessionTitle}>{session.title}</Text>
           <Text style={styles.sessionLocation}>{session.location_name}</Text>
         </View>
-        <Ionicons name="people" size={28} color={Colors.primary} />
+        <Ionicons name="people" size={28} color={Colors.primaryText} />
       </View>
 
       {/* GPS */}
@@ -398,12 +399,12 @@ export default function PlcScreen() {
       ) : gpsError ? (
         <View style={[styles.gpsRow, styles.gpsRowError]}>
           <Text style={styles.gpsErrorText}>{gpsError}</Text>
-          <TouchableOpacity onPress={grabGps}><Text style={[styles.gpsRefresh, { color: Colors.primary }]}>Refresh</Text></TouchableOpacity>
+          <TouchableOpacity onPress={grabGps}><Text style={[styles.gpsRefresh, { color: Colors.primaryText }]}>Refresh</Text></TouchableOpacity>
         </View>
       ) : (
         <View style={styles.gpsRow}>
           <Text style={styles.gpsValue}>{gps}</Text>
-          <TouchableOpacity onPress={grabGps}><Text style={[styles.gpsRefresh, { color: Colors.primary }]}>Refresh</Text></TouchableOpacity>
+          <TouchableOpacity onPress={grabGps}><Text style={[styles.gpsRefresh, { color: Colors.primaryText }]}>Refresh</Text></TouchableOpacity>
         </View>
       )}
 
@@ -425,7 +426,7 @@ export default function PlcScreen() {
           <Image source={{ uri: photoUri }} style={styles.photoPreview} resizeMode="cover" />
           {photoSizeKb != null && <Text style={styles.photoSize}>{photoSizeKb} KB</Text>}
           <TouchableOpacity style={styles.retakeBtn} onPress={openCamera}>
-            <Text style={[styles.retakeBtnText, { color: Colors.primary }]}>Retake Photo</Text>
+            <Text style={[styles.retakeBtnText, { color: Colors.primaryText }]}>Retake Photo</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -441,25 +442,25 @@ export default function PlcScreen() {
           <Text style={styles.sectionTitle}>Venue QR Code *</Text>
           {qrVerified ? (
             <View style={styles.qrVerifiedCard}>
-              <Ionicons name="checkmark-circle" size={22} color="#2D7A4F" />
+              <Ionicons name="checkmark-circle" size={22} color={tc('#2D7A4F')} />
               <View style={{ flex: 1, marginLeft: 10 }}>
                 <Text style={styles.qrVerifiedTitle}>Venue Verified</Text>
                 <Text style={styles.qrVerifiedSub}>{qrLocation}</Text>
               </View>
               <TouchableOpacity onPress={() => { setQrVerified(false); setQrLocation(''); }}>
-                <Text style={[styles.qrRescanText, { color: Colors.primary }]}>Rescan</Text>
+                <Text style={[styles.qrRescanText, { color: Colors.primaryText }]}>Rescan</Text>
               </TouchableOpacity>
             </View>
           ) : (
             <TouchableOpacity style={styles.qrScanCard} onPress={openQrScanner}>
               <View style={[styles.qrScanIconWrap, { backgroundColor: Colors.accentLight }]}>
-                <Ionicons name="qr-code-outline" size={24} color={Colors.primary} />
+                <Ionicons name="qr-code-outline" size={24} color={Colors.primaryText} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={[styles.qrScanTitle, { color: Colors.primary }]}>Scan PLC Venue QR Code</Text>
+                <Text style={[styles.qrScanTitle, { color: Colors.primaryText }]}>Scan PLC Venue QR Code</Text>
                 <Text style={styles.qrScanSub}>Scan the QR code posted at the PLC room</Text>
               </View>
-              <Ionicons name="chevron-forward" size={18} color="#C0B8AF" />
+              <Ionicons name="chevron-forward" size={18} color={tc('#C0B8AF')} />
             </TouchableOpacity>
           )}
         </>
@@ -499,7 +500,7 @@ export default function PlcScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles({
   container:             { flex: 1, backgroundColor: '#F4EFE6' },
   content:               { padding: 16, paddingBottom: 48 },
   sectionTitle:          { fontSize: 13, fontWeight: '700', color: '#8C7E6E', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10, marginTop: 16 },

@@ -4,6 +4,7 @@ import { Badge } from './ui/Badge';
 import { Card } from './ui/Card';
 import { Colors } from '@/constants/colors';
 import { RemedialLesson } from '@/types/api';
+import { createThemedStyles } from '@/lib/themedStyles';
 
 export function RemedialCard({ lesson }: { lesson: RemedialLesson }) {
   const absenceDate  = new Date(lesson.original_absence_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
@@ -46,7 +47,7 @@ export function RemedialCard({ lesson }: { lesson: RemedialLesson }) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles({
   header:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 },
   info:        { flex: 1, marginRight: 8 },
   subject:     { fontSize: 15, fontWeight: '600', color: Colors.text },

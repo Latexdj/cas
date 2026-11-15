@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { FlatList, Modal, StyleSheet, Text, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
+import { createThemedStyles } from '@/lib/themedStyles';
 
 export interface DropdownOption { label: string; value: string; }
 
@@ -51,7 +52,7 @@ export function Dropdown({ label, options, value, onChange, style, placeholder =
                       <Text style={[s.optionText, { color: item.value === value ? C.primary : C.text }]}>
                         {item.label}
                       </Text>
-                      {item.value === value && <Ionicons name="checkmark" size={18} color={C.primary} />}
+                      {item.value === value && <Ionicons name="checkmark" size={18} color={C.primaryText} />}
                     </TouchableOpacity>
                   )}
                 />
@@ -64,7 +65,7 @@ export function Dropdown({ label, options, value, onChange, style, placeholder =
   );
 }
 
-const s = StyleSheet.create({
+const s = createThemedStyles({
   wrapper:    {},
   label:      { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 },
   trigger:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, gap: 8 },

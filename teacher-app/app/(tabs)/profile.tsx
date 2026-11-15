@@ -14,6 +14,7 @@ import { useTheme } from '@/context/ThemeContext';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { createThemedStyles, tc } from '@/lib/themedStyles';
 
 const GENDERS   = ['Male', 'Female'];
 const RELIGIONS = ['Christianity', 'Islam', 'Traditional', 'Other'];
@@ -138,7 +139,7 @@ function OptionPicker({
             onChangeText={(v) => { onOtherChange(v); onBlur?.(); }}
             onBlur={onBlur}
             placeholder={`Specify ${label.toLowerCase()}`}
-            placeholderTextColor="#B5A898"
+            placeholderTextColor={tc('#B5A898')}
           />
           {getFieldAppearance(otherValue ?? '', undefined, touched ?? false, true).hint ? (
             <Text style={styles.fieldErrorText}>{getFieldAppearance(otherValue ?? '', undefined, touched ?? false, true).hint}</Text>
@@ -544,7 +545,7 @@ export default function ProfileScreen() {
             )}
             <View style={[styles.cameraBadge, { backgroundColor: Colors.accent }]}>
               {uploading
-                ? <ActivityIndicator size="small" color="#fff" />
+                ? <ActivityIndicator size="small" color={tc('#fff')} />
                 : <Text style={styles.cameraBadgeIcon}>📷</Text>}
             </View>
           </TouchableOpacity>
@@ -565,11 +566,11 @@ export default function ProfileScreen() {
             <Text style={styles.sectionLabel}>Official Profile</Text>
             {!pendingRequest ? (
               <TouchableOpacity onPress={openOfficialRequestModal} style={[styles.editBtn, { borderColor: Colors.primary }]}>
-                <Text style={[styles.editBtnText, { color: Colors.primary }]}>Request Update</Text>
+                <Text style={[styles.editBtnText, { color: Colors.primaryText }]}>Request Update</Text>
               </TouchableOpacity>
             ) : (
-              <View style={[styles.editBtn, { borderColor: '#D5B14A' }]}>
-                <Text style={[styles.editBtnText, { color: '#D5B14A' }]}>Under Review</Text>
+              <View style={[styles.editBtn, { borderColor: tc('#D5B14A', 'border') }]}>
+                <Text style={[styles.editBtnText, { color: tc('#D5B14A', 'text') }]}>Under Review</Text>
               </View>
             )}
           </View>
@@ -580,7 +581,7 @@ export default function ProfileScreen() {
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionLabel}>Personal Information</Text>
             <TouchableOpacity onPress={openEditModal} style={[styles.editBtn, { borderColor: Colors.primary }]}>
-              <Text style={[styles.editBtnText, { color: Colors.primary }]}>Edit</Text>
+              <Text style={[styles.editBtnText, { color: Colors.primaryText }]}>Edit</Text>
             </TouchableOpacity>
           </View>
           <View style={styles.infoCard}>
@@ -640,7 +641,7 @@ export default function ProfileScreen() {
               <View style={styles.flex1}>
                 <Text style={styles.docLabel}>Academic Certificate</Text>
                 {profile?.certificate_filename
-                  ? <Text style={[styles.docFile, { color: Colors.primary }]} numberOfLines={1}>📄 {profile.certificate_filename}</Text>
+                  ? <Text style={[styles.docFile, { color: Colors.primaryText }]} numberOfLines={1}>📄 {profile.certificate_filename}</Text>
                   : <Text style={styles.docNone}>No certificate uploaded</Text>
                 }
               </View>
@@ -650,19 +651,19 @@ export default function ProfileScreen() {
                 disabled={certUploading}
               >
                 {certUploading
-                  ? <ActivityIndicator size="small" color={Colors.primary} />
-                  : <Text style={[styles.uploadDocBtnText, { color: Colors.primary }]}>
+                  ? <ActivityIndicator size="small" color={Colors.primaryText} />
+                  : <Text style={[styles.uploadDocBtnText, { color: Colors.primaryText }]}>
                       {profile?.certificate_url ? 'Replace' : 'Upload'}
                     </Text>
                 }
               </TouchableOpacity>
             </View>
 
-            <View style={[styles.docRow, { borderTopWidth: 1, borderTopColor: '#F4EFE6' }]}>
+            <View style={[styles.docRow, { borderTopWidth: 1, borderTopColor: tc('#F4EFE6', 'border') }]}>
               <View style={styles.flex1}>
                 <Text style={styles.docLabel}>Current Promotion Letter</Text>
                 {profile?.promotion_letter_filename
-                  ? <Text style={[styles.docFile, { color: Colors.primary }]} numberOfLines={1}>📄 {profile.promotion_letter_filename}</Text>
+                  ? <Text style={[styles.docFile, { color: Colors.primaryText }]} numberOfLines={1}>📄 {profile.promotion_letter_filename}</Text>
                   : <Text style={styles.docNone}>No promotion letter uploaded</Text>
                 }
               </View>
@@ -672,15 +673,15 @@ export default function ProfileScreen() {
                 disabled={promoUploading}
               >
                 {promoUploading
-                  ? <ActivityIndicator size="small" color={Colors.primary} />
-                  : <Text style={[styles.uploadDocBtnText, { color: Colors.primary }]}>
+                  ? <ActivityIndicator size="small" color={Colors.primaryText} />
+                  : <Text style={[styles.uploadDocBtnText, { color: Colors.primaryText }]}>
                       {profile?.promotion_letter_url ? 'Replace' : 'Upload'}
                     </Text>
                 }
               </TouchableOpacity>
             </View>
 
-            <View style={[styles.otherDocsBlock, { borderTopWidth: 1, borderTopColor: '#F4EFE6' }]}>
+            <View style={[styles.otherDocsBlock, { borderTopWidth: 1, borderTopColor: tc('#F4EFE6', 'border') }]}>
               <Text style={styles.docLabel}>Other Documents</Text>
               {otherDocs.length === 0 && <Text style={[styles.docNone, { marginTop: 4 }]}>No other documents uploaded.</Text>}
               {otherDocs.map((doc) => (
@@ -688,7 +689,7 @@ export default function ProfileScreen() {
                   <View style={styles.flex1}>
                     <Text style={styles.otherDocRowLabel} numberOfLines={1}>{doc.label}</Text>
                     <TouchableOpacity onPress={() => Linking.openURL(doc.file_url)}>
-                      <Text style={[styles.docFile, { color: Colors.primary }]} numberOfLines={1}>📄 {doc.filename ?? 'View document'}</Text>
+                      <Text style={[styles.docFile, { color: Colors.primaryText }]} numberOfLines={1}>📄 {doc.filename ?? 'View document'}</Text>
                     </TouchableOpacity>
                   </View>
                   <TouchableOpacity onPress={() => deleteOtherDoc(doc.id)}>
@@ -701,7 +702,7 @@ export default function ProfileScreen() {
                   value={otherDocLabel}
                   onChangeText={setOtherDocLabel}
                   placeholder="Document label (e.g. NSS Certificate)"
-                  placeholderTextColor="#C0B5A5"
+                  placeholderTextColor={tc('#C0B5A5')}
                   style={styles.otherDocInput}
                 />
                 <TouchableOpacity
@@ -710,8 +711,8 @@ export default function ProfileScreen() {
                   disabled={otherDocUploading}
                 >
                   {otherDocUploading
-                    ? <ActivityIndicator size="small" color={Colors.primary} />
-                    : <Text style={[styles.uploadDocBtnText, { color: Colors.primary }]}>Add</Text>
+                    ? <ActivityIndicator size="small" color={Colors.primaryText} />
+                    : <Text style={[styles.uploadDocBtnText, { color: Colors.primaryText }]}>Add</Text>
                   }
                 </TouchableOpacity>
               </View>
@@ -750,7 +751,7 @@ export default function ProfileScreen() {
                     {request.review_note ? <Text style={styles.requestNote}>{request.review_note}</Text> : null}
                     {request.supporting_document_url ? (
                       <TouchableOpacity onPress={() => Linking.openURL(request.supporting_document_url)}>
-                        <Text style={[styles.docFile, { color: Colors.primary, marginTop: 4 }]} numberOfLines={1}>
+                        <Text style={[styles.docFile, { color: Colors.primaryText, marginTop: 4 }]} numberOfLines={1}>
                           📄 {request.supporting_document_filename || 'View submitted document'}
                         </Text>
                       </TouchableOpacity>
@@ -939,7 +940,7 @@ export default function ProfileScreen() {
                 value={editForm.phone ?? ''}
                 onChangeText={v => { setEditForm(f => ({ ...f, phone: v })); setTouchedFields(prev => ({ ...prev, phone: true })); }}
                 onBlur={() => setTouchedFields(prev => ({ ...prev, phone: true }))}
-                placeholder="+233..." placeholderTextColor="#B5A898" keyboardType="phone-pad"
+                placeholder="+233..." placeholderTextColor={tc('#B5A898')} keyboardType="phone-pad"
               />
               {getFieldAppearance(editForm.phone ?? '', (v) => /^0\d{9}$/.test(v) ? null : 'Phone must be 10 digits starting with 0', touchedFields.phone ?? false, true).hint ? (
                 <Text style={styles.fieldErrorText}>{getFieldAppearance(editForm.phone ?? '', (v) => /^0\d{9}$/.test(v) ? null : 'Phone must be 10 digits starting with 0', touchedFields.phone ?? false, true).hint}</Text>
@@ -948,17 +949,17 @@ export default function ProfileScreen() {
               <OptionPicker label="Gender" value={editForm.gender ?? ''} options={GENDERS} placeholder="Select gender" onSelect={v => setEditForm(f => ({ ...f, gender: v }))} />
 
               <Text style={styles.fieldLabel}>Hometown</Text>
-              <TextInput style={styles.fieldInput} value={editForm.hometown ?? ''} onChangeText={v => setEditForm(f => ({ ...f, hometown: v }))} placeholder="Hometown" placeholderTextColor="#B5A898" />
+              <TextInput style={styles.fieldInput} value={editForm.hometown ?? ''} onChangeText={v => setEditForm(f => ({ ...f, hometown: v }))} placeholder="Hometown" placeholderTextColor={tc('#B5A898')} />
 
               <Text style={styles.fieldLabel}>Residential Address</Text>
-              <TextInput style={[styles.fieldInput, { minHeight: 60, textAlignVertical: 'top' }]} value={editForm.residential_address ?? ''} onChangeText={v => setEditForm(f => ({ ...f, residential_address: v }))} placeholder="Your home address" placeholderTextColor="#B5A898" multiline />
+              <TextInput style={[styles.fieldInput, { minHeight: 60, textAlignVertical: 'top' }]} value={editForm.residential_address ?? ''} onChangeText={v => setEditForm(f => ({ ...f, residential_address: v }))} placeholder="Your home address" placeholderTextColor={tc('#B5A898')} multiline />
 
               <OptionPicker label="Religion" value={editForm.religion ?? ''} options={RELIGIONS} placeholder="Select religion" onSelect={v => setEditForm(f => ({ ...f, religion: v, religion_other: v === 'Other' ? f.religion_other ?? '' : '' }))} otherValue={editForm.religion_other ?? ''} onOtherChange={v => setEditForm(f => ({ ...f, religion_other: v }))} touched={touchedFields.religion_other ?? false} onBlur={() => setTouchedFields(prev => ({ ...prev, religion_other: true }))} />
 
               <OptionPicker label="Religious Denomination" value={editForm.religious_denomination ?? ''} options={RELIGIOUS_DENOMINATION_OPTIONS} placeholder="Select denomination" onSelect={v => setEditForm(f => ({ ...f, religious_denomination: v, religious_denomination_other: v === 'Other' ? f.religious_denomination_other ?? '' : '' }))} otherValue={editForm.religious_denomination_other ?? ''} onOtherChange={v => setEditForm(f => ({ ...f, religious_denomination_other: v }))} touched={touchedFields.religious_denomination_other ?? false} onBlur={() => setTouchedFields(prev => ({ ...prev, religious_denomination_other: true }))} />
 
               <Text style={styles.fieldLabel}>Emergency Contact Name</Text>
-              <TextInput style={styles.fieldInput} value={editForm.emergency_contact_name ?? ''} onChangeText={v => setEditForm(f => ({ ...f, emergency_contact_name: v }))} placeholder="Full name" placeholderTextColor="#B5A898" />
+              <TextInput style={styles.fieldInput} value={editForm.emergency_contact_name ?? ''} onChangeText={v => setEditForm(f => ({ ...f, emergency_contact_name: v }))} placeholder="Full name" placeholderTextColor={tc('#B5A898')} />
 
               <Text style={styles.fieldLabel}>Emergency Contact Phone</Text>
               <TextInput
@@ -966,7 +967,7 @@ export default function ProfileScreen() {
                 value={editForm.emergency_contact_phone ?? ''}
                 onChangeText={v => { setEditForm(f => ({ ...f, emergency_contact_phone: v })); setTouchedFields(prev => ({ ...prev, emergency_contact_phone: true })); }}
                 onBlur={() => setTouchedFields(prev => ({ ...prev, emergency_contact_phone: true }))}
-                placeholder="+233..." placeholderTextColor="#B5A898" keyboardType="phone-pad"
+                placeholder="+233..." placeholderTextColor={tc('#B5A898')} keyboardType="phone-pad"
               />
               {getFieldAppearance(editForm.emergency_contact_phone ?? '', (v) => /^0\d{9}$/.test(v) ? null : 'Emergency contact phone must be 10 digits starting with 0', touchedFields.emergency_contact_phone ?? false, true).hint ? (
                 <Text style={styles.fieldErrorText}>{getFieldAppearance(editForm.emergency_contact_phone ?? '', (v) => /^0\d{9}$/.test(v) ? null : 'Emergency contact phone must be 10 digits starting with 0', touchedFields.emergency_contact_phone ?? false, true).hint}</Text>
@@ -986,7 +987,7 @@ export default function ProfileScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles({
   root:            { flex: 1, backgroundColor: '#F4EFE6' },
   content:         { paddingBottom: 48 },
   hero:            { alignItems: 'center', paddingTop: 36, paddingBottom: 40, borderBottomLeftRadius: 32, borderBottomRightRadius: 32, marginBottom: 24 },

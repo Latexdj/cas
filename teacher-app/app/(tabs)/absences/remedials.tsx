@@ -5,6 +5,7 @@ import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
 import { useTheme } from '@/context/ThemeContext';
 import { RemedialLesson } from '@/types/api';
+import { createThemedStyles } from '@/lib/themedStyles';
 
 function fmt(iso: string) {
   const [y, m, d] = iso.slice(0, 10).split('-').map(Number);
@@ -61,7 +62,7 @@ export default function RemedialsScreen() {
                 {rem.location_name ? <Text style={styles.meta}>{rem.location_name}</Text> : null}
               </View>
               <View style={[styles.badge, { backgroundColor: `${Colors.primary}20` }]}>
-                <Text style={[styles.badgeText, { color: Colors.primary }]}>{rem.status}</Text>
+                <Text style={[styles.badgeText, { color: Colors.primaryText }]}>{rem.status}</Text>
               </View>
             </View>
           </View>
@@ -71,7 +72,7 @@ export default function RemedialsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles({
   container:  { flex: 1, backgroundColor: '#F4EFE6' },
   content:    { padding: 16, paddingBottom: 40 },
   skeleton:   { backgroundColor: '#E5DDD5', borderRadius: 16, height: 96, marginBottom: 12 },

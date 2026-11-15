@@ -10,6 +10,7 @@ import { Dropdown } from '@/components/ui/Dropdown';
 import { Input } from '@/components/ui/Input';
 import { gradeBadge } from '@/lib/grade';
 import type { PascoQuestion } from '@/types/api';
+import { createThemedStyles } from '@/lib/themedStyles';
 
 type Phase = 'setup' | 'practice' | 'done';
 type Difficulty = 'All' | 'Easy' | 'Medium' | 'Hard';
@@ -191,7 +192,7 @@ export default function PascoScreen() {
   );
 }
 
-const s = StyleSheet.create({
+const s = createThemedStyles({
   flex:            { flex: 1 },
   fieldLabel:      { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6, marginTop: 4 },
   diffRow:         { flexDirection: 'row', gap: 8, marginBottom: 16 },

@@ -2,7 +2,9 @@ import React from 'react';
 import { ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useTheme, useIsDark, useToggleDark } from '@/context/ThemeContext';
+import { useTheme, useIsDark } from '@/context/ThemeContext';
+import { AppearancePicker } from '@/components/AppearancePicker';
+import { createThemedStyles } from '@/lib/themedStyles';
 
 interface MenuItem {
   title: string;
@@ -74,7 +76,6 @@ const MENU_SECTIONS: { label: string; items: MenuItem[] }[] = [
 export default function MoreScreen() {
   const Colors     = useTheme();
   const isDark     = useIsDark();
-  const toggleDark = useToggleDark();
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: Colors.bg }} contentContainerStyle={styles.content}>
@@ -83,22 +84,11 @@ export default function MoreScreen() {
       <View style={styles.section}>
         <Text style={[styles.sectionLabel, { color: Colors.muted }]}>Appearance</Text>
         <View style={[styles.card, { backgroundColor: Colors.surface, borderColor: Colors.border }]}>
-          <View style={styles.item}>
-            <View style={[styles.iconWrap, { backgroundColor: Colors.primaryLight }]}>
-              <Ionicons name={isDark ? 'moon' : 'sunny-outline'} size={22} color={Colors.primary} />
-            </View>
-            <View style={styles.itemBody}>
-              <Text style={[styles.itemTitle, { color: Colors.text }]}>Dark Mode</Text>
-              <Text style={[styles.itemSub, { color: Colors.muted }]}>
-                {isDark ? 'Dark theme active' : 'Light theme active'}
-              </Text>
-            </View>
-            <Switch
-              value={isDark}
-              onValueChange={toggleDark}
-              trackColor={{ false: Colors.border, true: Colors.primaryMid }}
-              thumbColor="#ffffff"
-            />
+          <View style={{ padding: 14, gap: 10 }}>
+            <Text style={[styles.itemSub, { color: Colors.muted }]}>
+              Device follows your phone's light or dark setting.
+            </Text>
+            <AppearancePicker />
           </View>
         </View>
       </View>
@@ -118,7 +108,7 @@ export default function MoreScreen() {
                 activeOpacity={0.7}
               >
                 <View style={[styles.iconWrap, { backgroundColor: Colors.accentLight }]}>
-                  <Ionicons name={item.icon} size={22} color={Colors.primary} />
+                  <Ionicons name={item.icon} size={22} color={Colors.primaryText} />
                 </View>
                 <View style={styles.itemBody}>
                   <Text style={[styles.itemTitle, { color: Colors.text }]}>{item.title}</Text>
@@ -134,7 +124,7 @@ export default function MoreScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles({
   content:      { padding: 16, paddingBottom: 48 },
   section:      { marginBottom: 24 },
   sectionLabel: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 8, paddingHorizontal: 4 },

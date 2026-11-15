@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Spinner } from '@/components/ui/Spinner';
 import type { ExeatData } from '@/types/api';
+import { createThemedStyles } from '@/lib/themedStyles';
 
 const STATUS_CFG = {
   pending:  { label: 'Pending',  color: '#D97706', bg: '#FEF3C7' },
@@ -173,7 +174,7 @@ function formatDateTime(d: string) {
   return new Date(d).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
-const s = StyleSheet.create({
+const s = createThemedStyles({
   flex:         { flex: 1 },
   quotaCard:    { marginBottom: 14 },
   quotaTitle:   { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 12 },

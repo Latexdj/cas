@@ -10,6 +10,7 @@ import { Spinner } from '@/components/ui/Spinner';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Colors } from '@/constants/colors';
 import { TimetableSlot, AttendanceRecord, SchoolCalendarEntry, AttendanceSummary } from '@/types/api';
+import { createThemedStyles, tc } from '@/lib/themedStyles';
 
 interface MeetingSummaryRow {
   meeting_type: string;
@@ -51,7 +52,7 @@ function UpcomingEventsSection({ events }: { events: SchoolCalendarEntry[] }) {
   );
 }
 
-const eventStyles = StyleSheet.create({
+const eventStyles = createThemedStyles({
   section:  { paddingHorizontal: 16, paddingBottom: 24, marginTop: 8 },
   header:   { fontSize: 12, fontWeight: '700', color: '#8C7E6E', letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 10 },
   card:     { backgroundColor: '#FAFAF8', borderRadius: 14, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: '#E2D9CC', flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
@@ -146,7 +147,7 @@ export default function HomeScreen() {
             onPress={() => router.push('/(tabs)/notifications')}
             activeOpacity={0.75}
           >
-            <Ionicons name="notifications-outline" size={23} color="#fff" />
+            <Ionicons name="notifications-outline" size={23} color={tc('#fff')} />
             {unreadCount > 0 && (
               <View style={styles.bellBadge}>
                 <Text style={styles.bellBadgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
@@ -165,7 +166,7 @@ export default function HomeScreen() {
           <Text style={styles.statLabel}>Lessons</Text>
         </View>
         <View style={[styles.stat, styles.statDivider]}>
-          <Text style={[styles.statNum, { color: '#2D7A4F' }]}>{submitted.length}</Text>
+          <Text style={[styles.statNum, { color: tc('#2D7A4F', 'text') }]}>{submitted.length}</Text>
           <Text style={styles.statLabel}>Submitted</Text>
         </View>
         <View style={[styles.stat, styles.statDivider]}>
@@ -185,7 +186,7 @@ export default function HomeScreen() {
           </View>
           <View style={styles.summaryRow}>
             <View style={styles.summaryItem}>
-              <Text style={[styles.summaryNum, { color: '#2D7A4F' }]}>{mySummary.present_periods}</Text>
+              <Text style={[styles.summaryNum, { color: tc('#2D7A4F', 'text') }]}>{mySummary.present_periods}</Text>
               <Text style={styles.summaryLabel}>Present</Text>
             </View>
             <View style={[styles.summaryItem, styles.summaryItemDivider]}>
@@ -193,7 +194,7 @@ export default function HomeScreen() {
               <Text style={styles.summaryLabel}>Absent</Text>
             </View>
             <View style={[styles.summaryItem, styles.summaryItemDivider]}>
-              <Text style={[styles.summaryNum, { color: '#8C7E6E' }]}>{mySummary.excused_periods}</Text>
+              <Text style={[styles.summaryNum, { color: tc('#8C7E6E', 'text') }]}>{mySummary.excused_periods}</Text>
               <Text style={styles.summaryLabel}>Excused</Text>
             </View>
             <View style={[styles.summaryItem, styles.summaryItemDivider]}>
@@ -275,7 +276,7 @@ export default function HomeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles({
   root:          { flex: 1, backgroundColor: '#F4EFE6' },
   header:        { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 24, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   greeting:      { fontSize: 21, fontWeight: '800', color: '#fff', letterSpacing: -0.3 },

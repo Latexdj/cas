@@ -10,6 +10,7 @@ import { Spinner } from '@/components/ui/Spinner';
 import { Button } from '@/components/ui/Button';
 import { gradeBadge } from '@/lib/grade';
 import type { LmsQuizAttemptResponse, LmsQuizQuestion, LmsQuizResult } from '@/types/api';
+import { createThemedStyles } from '@/lib/themedStyles';
 
 type Phase = 'start' | 'quiz' | 'review' | 'results';
 type Answer = { question_id: string; selected_option?: string; answer_text?: string };
@@ -216,11 +217,11 @@ export default function QuizScreen() {
           </View>
           {currentIndex === questions.length - 1 ? (
             <TouchableOpacity onPress={() => setPhase('review')} style={s.navBtn}>
-              <Text style={[s.navBtnText, { color: C.primary, fontWeight: '800' }]}>Review</Text>
+              <Text style={[s.navBtnText, { color: C.primaryText, fontWeight: '800' }]}>Review</Text>
             </TouchableOpacity>
           ) : (
             <TouchableOpacity onPress={() => setCurrentIndex(i => i + 1)} style={s.navBtn}>
-              <Text style={[s.navBtnText, { color: C.primary }]}>Next</Text>
+              <Text style={[s.navBtnText, { color: C.primaryText }]}>Next</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -303,7 +304,7 @@ function formatTime(seconds: number) {
   return `${m}:${s2.toString().padStart(2, '0')}`;
 }
 
-const s = StyleSheet.create({
+const s = createThemedStyles({
   flex:            { flex: 1 },
   backRow:         { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 16 },
   backText:        { fontSize: 13, fontWeight: '600' },

@@ -20,6 +20,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { useTheme } from '@/context/ThemeContext';
 import { TimetableSlot, Location as LocationType, AttendanceRecord, Student } from '@/types/api';
+import { createThemedStyles, tc } from '@/lib/themedStyles';
 
 type Step = 'teacher' | 'students';
 type StudentStatus = 'Present' | 'Absent';
@@ -477,7 +478,7 @@ export default function SubmitScreen() {
             <Text style={styles.qrStatusText}>Verifying…</Text>
           ) : qrError ? (
             <>
-              <Text style={[styles.qrStatusText, { color: '#FCA5A5' }]}>{qrError}</Text>
+              <Text style={[styles.qrStatusText, { color: tc('#FCA5A5', 'text') }]}>{qrError}</Text>
               <TouchableOpacity onPress={() => { qrScannedRef.current = false; setQrError(''); }}>
                 <Text style={styles.qrRetryText}>Tap to retry</Text>
               </TouchableOpacity>
@@ -521,7 +522,7 @@ export default function SubmitScreen() {
     return (
       <View style={styles.emptyRoot}>
         <View style={[styles.emptyIconWrap, { backgroundColor: Colors.accentLight }]}>
-          <Ionicons name="calendar-outline" size={48} color={Colors.primary} />
+          <Ionicons name="calendar-outline" size={48} color={Colors.primaryText} />
         </View>
         <Text style={styles.emptyTitle}>No schedule today</Text>
         <Text style={styles.emptySub}>You have no timetable slots for today. If you taught a class that isn't scheduled, you can log a remedial lesson.</Text>
@@ -545,13 +546,13 @@ export default function SubmitScreen() {
         {/* Step indicator */}
         <View style={styles.stepBar}>
           <View style={[styles.stepItem, styles.stepDone]}>
-            <Ionicons name="checkmark-circle" size={16} color="#2D7A4F" />
+            <Ionicons name="checkmark-circle" size={16} color={tc('#2D7A4F')} />
             <Text style={styles.stepDoneText}>Teacher Attendance</Text>
           </View>
           <View style={styles.stepSep} />
           <View style={[styles.stepItem, { borderColor: Colors.primary }]}>
             <View style={[styles.stepDot, { backgroundColor: Colors.primary }]} />
-            <Text style={[styles.stepActiveText, { color: Colors.primary }]}>
+            <Text style={[styles.stepActiveText, { color: Colors.primaryText }]}>
               {classQueue.length > 1
                 ? `Register (${classQueueIndex + 1}/${classQueue.length})`
                 : 'Student Attendance'}
@@ -586,7 +587,7 @@ export default function SubmitScreen() {
             <Text style={styles.lockedLabel}>Subject</Text>
             <Text style={styles.lockedValue}>{selectedSlot?.subject}</Text>
           </View>
-          <View style={[styles.lockedRow, { borderTopWidth: 1, borderTopColor: '#E2D9CC' }]}>
+          <View style={[styles.lockedRow, { borderTopWidth: 1, borderTopColor: tc('#E2D9CC', 'border') }]}>
             <Text style={styles.lockedLabel}>Class</Text>
             <Text style={styles.lockedValue}>{classQueue[classQueueIndex] ?? ''}</Text>
           </View>
@@ -594,23 +595,23 @@ export default function SubmitScreen() {
 
         {/* Count badge */}
         <View style={styles.countRow}>
-          <View style={[styles.countBadge, { backgroundColor: '#E4F4EB' }]}>
-            <Text style={[styles.countNum, { color: '#2D7A4F' }]}>{presentCount}</Text>
-            <Text style={[styles.countLabel, { color: '#2D7A4F' }]}>Present</Text>
+          <View style={[styles.countBadge, { backgroundColor: tc('#E4F4EB', 'bg') }]}>
+            <Text style={[styles.countNum, { color: tc('#2D7A4F', 'text') }]}>{presentCount}</Text>
+            <Text style={[styles.countLabel, { color: tc('#2D7A4F', 'text') }]}>Present</Text>
           </View>
-          <View style={[styles.countBadge, { backgroundColor: '#FEF2F2' }]}>
-            <Text style={[styles.countNum, { color: '#B83232' }]}>{absentCount}</Text>
-            <Text style={[styles.countLabel, { color: '#B83232' }]}>Absent</Text>
+          <View style={[styles.countBadge, { backgroundColor: tc('#FEF2F2', 'bg') }]}>
+            <Text style={[styles.countNum, { color: tc('#B83232', 'text') }]}>{absentCount}</Text>
+            <Text style={[styles.countLabel, { color: tc('#B83232', 'text') }]}>Absent</Text>
           </View>
           {exeatCount > 0 && (
-            <View style={[styles.countBadge, { backgroundColor: '#FEF3C7' }]}>
-              <Text style={[styles.countNum, { color: '#92400E' }]}>{exeatCount}</Text>
-              <Text style={[styles.countLabel, { color: '#92400E' }]}>On Exeat</Text>
+            <View style={[styles.countBadge, { backgroundColor: tc('#FEF3C7', 'bg') }]}>
+              <Text style={[styles.countNum, { color: tc('#92400E', 'text') }]}>{exeatCount}</Text>
+              <Text style={[styles.countLabel, { color: tc('#92400E', 'text') }]}>On Exeat</Text>
             </View>
           )}
-          <View style={[styles.countBadge, { backgroundColor: '#F8FAFC' }]}>
-            <Text style={[styles.countNum, { color: '#64748B' }]}>{students.length}</Text>
-            <Text style={[styles.countLabel, { color: '#64748B' }]}>Total</Text>
+          <View style={[styles.countBadge, { backgroundColor: tc('#F8FAFC', 'bg') }]}>
+            <Text style={[styles.countNum, { color: tc('#64748B', 'text') }]}>{students.length}</Text>
+            <Text style={[styles.countLabel, { color: tc('#64748B', 'text') }]}>Total</Text>
           </View>
         </View>
 
@@ -618,7 +619,7 @@ export default function SubmitScreen() {
 
         {loadingStudents ? (
           <View style={{ alignItems: 'center', paddingVertical: 32 }}>
-            <Text style={{ color: '#8C7E6E' }}>Loading students…</Text>
+            <Text style={{ color: tc('#8C7E6E', 'text') }}>Loading students…</Text>
           </View>
         ) : (
           students.map(student => {
@@ -628,14 +629,14 @@ export default function SubmitScreen() {
               return (
                 <View
                   key={student.id}
-                  style={[styles.studentRow, { backgroundColor: '#FFFBEB', borderColor: '#FDE68A', opacity: 0.85 }]}
+                  style={[styles.studentRow, { backgroundColor: tc('#FFFBEB', 'bg'), borderColor: tc('#FDE68A', 'border'), opacity: 0.85 }]}
                 >
                   <View style={styles.studentLeft}>
                     <Text style={styles.studentCode}>{student.student_code}</Text>
-                    <Text style={[styles.studentName, { color: '#78350F' }]}>{student.name}</Text>
+                    <Text style={[styles.studentName, { color: tc('#78350F', 'text') }]}>{student.name}</Text>
                   </View>
-                  <View style={[styles.statusPill, { backgroundColor: '#FEF3C7' }]}>
-                    <Text style={[styles.statusPillText, { color: '#92400E' }]}>On Exeat</Text>
+                  <View style={[styles.statusPill, { backgroundColor: tc('#FEF3C7', 'bg') }]}>
+                    <Text style={[styles.statusPillText, { color: tc('#92400E', 'text') }]}>On Exeat</Text>
                   </View>
                 </View>
               );
@@ -681,7 +682,7 @@ export default function SubmitScreen() {
       <View style={styles.stepBar}>
         <View style={[styles.stepItem, { borderColor: Colors.primary }]}>
           <View style={[styles.stepDot, { backgroundColor: Colors.primary }]} />
-          <Text style={[styles.stepActiveText, { color: Colors.primary }]}>Teacher Attendance</Text>
+          <Text style={[styles.stepActiveText, { color: Colors.primaryText }]}>Teacher Attendance</Text>
         </View>
         <View style={styles.stepSep} />
         <View style={[styles.stepItem, styles.stepPending]}>
@@ -694,7 +695,7 @@ export default function SubmitScreen() {
       <Text style={styles.sectionTitle}>Select Lesson *</Text>
       {allDone && (
         <View style={styles.allDoneBanner}>
-          <Ionicons name="checkmark-circle" size={16} color="#2D7A4F" />
+          <Ionicons name="checkmark-circle" size={16} color={tc('#2D7A4F')} />
           <Text style={styles.allDoneText}>All lessons submitted for today</Text>
         </View>
       )}
@@ -710,15 +711,15 @@ export default function SubmitScreen() {
           >
             <View style={styles.slotRowLeft}>
               <Text style={styles.slotTime}>{slot.start_time.slice(0,5)} – {slot.end_time.slice(0,5)}</Text>
-              <Text style={[styles.slotSubject, selected && { color: Colors.primary }]}>{slot.subject}</Text>
+              <Text style={[styles.slotSubject, selected && { color: Colors.primaryText }]}>{slot.subject}</Text>
               <Text style={styles.slotClass}>{slot.class_names}</Text>
             </View>
             <View style={styles.slotRowRight}>
               {done
-                ? <Ionicons name="checkmark-circle" size={22} color="#2D7A4F" />
+                ? <Ionicons name="checkmark-circle" size={22} color={tc('#2D7A4F')} />
                 : selected
-                  ? <Ionicons name="radio-button-on" size={22} color={Colors.primary} />
-                  : <Ionicons name="radio-button-off" size={22} color="#C0B8AF" />
+                  ? <Ionicons name="radio-button-on" size={22} color={Colors.primaryText} />
+                  : <Ionicons name="radio-button-off" size={22} color={tc('#C0B8AF')} />
               }
             </View>
           </TouchableOpacity>
@@ -733,11 +734,11 @@ export default function SubmitScreen() {
               <Text style={styles.lockedLabel}>Subject</Text>
               <Text style={styles.lockedValue}>{selectedSlot.subject}</Text>
             </View>
-            <View style={[styles.lockedRow, { borderTopWidth: 1, borderTopColor: '#E2D9CC' }]}>
+            <View style={[styles.lockedRow, { borderTopWidth: 1, borderTopColor: tc('#E2D9CC', 'border') }]}>
               <Text style={styles.lockedLabel}>Class(es)</Text>
               <Text style={styles.lockedValue}>{selectedSlot.class_names}</Text>
             </View>
-            <View style={[styles.lockedRow, { borderTopWidth: 1, borderTopColor: '#E2D9CC' }]}>
+            <View style={[styles.lockedRow, { borderTopWidth: 1, borderTopColor: tc('#E2D9CC', 'border') }]}>
               <Text style={styles.lockedLabel}>Periods</Text>
               <Text style={styles.lockedValue}>{selectedSlot.periods ?? 1}</Text>
             </View>
@@ -749,25 +750,25 @@ export default function SubmitScreen() {
               <Text style={styles.sectionTitle}>Classroom QR Code *</Text>
               {qrVerified ? (
                 <View style={styles.qrVerifiedCard}>
-                  <Ionicons name="checkmark-circle" size={22} color="#2D7A4F" />
+                  <Ionicons name="checkmark-circle" size={22} color={tc('#2D7A4F')} />
                   <View style={{ flex: 1, marginLeft: 10 }}>
                     <Text style={styles.qrVerifiedTitle}>Classroom Verified</Text>
                     <Text style={styles.qrVerifiedSub}>{qrClassName}</Text>
                   </View>
                   <TouchableOpacity onPress={() => { setQrVerified(false); setQrClassName(''); }}>
-                    <Text style={[styles.qrRescanText, { color: Colors.primary }]}>Rescan</Text>
+                    <Text style={[styles.qrRescanText, { color: Colors.primaryText }]}>Rescan</Text>
                   </TouchableOpacity>
                 </View>
               ) : (
                 <TouchableOpacity style={styles.qrScanCard} onPress={openQrScanner}>
                   <View style={[styles.qrScanIconWrap, { backgroundColor: Colors.accentLight }]}>
-                    <Ionicons name="qr-code-outline" size={24} color={Colors.primary} />
+                    <Ionicons name="qr-code-outline" size={24} color={Colors.primaryText} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={[styles.qrScanTitle, { color: Colors.primary }]}>Scan Classroom QR Code</Text>
+                    <Text style={[styles.qrScanTitle, { color: Colors.primaryText }]}>Scan Classroom QR Code</Text>
                     <Text style={styles.qrScanSub}>Point your camera at the code on the wall</Text>
                   </View>
-                  <Ionicons name="chevron-forward" size={18} color="#C0B8AF" />
+                  <Ionicons name="chevron-forward" size={18} color={tc('#C0B8AF')} />
                 </TouchableOpacity>
               )}
             </>
@@ -811,7 +812,7 @@ export default function SubmitScreen() {
                   <Image source={{ uri: photoUri }} style={styles.photoPreview} />
               {photoSizeKb && <Text style={styles.photoSize}>{photoSizeKb} KB</Text>}
               <TouchableOpacity style={styles.retakeBtn} onPress={openCamera}>
-                <Text style={[styles.retakeBtnText, { color: Colors.primary }]}>{IS_WEB ? 'Reset' : 'Retake Photo'}</Text>
+                <Text style={[styles.retakeBtnText, { color: Colors.primaryText }]}>{IS_WEB ? 'Reset' : 'Retake Photo'}</Text>
               </TouchableOpacity>
             </View>
           ) : (
@@ -872,7 +873,7 @@ export default function SubmitScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles({
   container:             { flex: 1, backgroundColor: '#F4EFE6' },
   content:               { padding: 16, paddingBottom: 40 },
   sectionTitle:          { fontSize: 13, fontWeight: '700', color: '#8C7E6E', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10, marginTop: 16 },

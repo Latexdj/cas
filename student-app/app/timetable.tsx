@@ -5,6 +5,7 @@ import { api } from '@/lib/api';
 import { Card } from '@/components/ui/Card';
 import { Spinner } from '@/components/ui/Spinner';
 import type { TimetableRow } from '@/types/api';
+import { createThemedStyles } from '@/lib/themedStyles';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 
@@ -56,7 +57,7 @@ export default function TimetableScreen() {
               {periods.map((row, i) => (
                 <View key={i} style={[s.periodRow, i > 0 && { borderTopWidth: 1, borderTopColor: C.border }]}>
                   <View style={[s.timeCol, { backgroundColor: isToday ? C.primaryLight : C.surfaceWarm }]}>
-                    <Text style={[s.timeStart, { color: C.primary }]}>{fmt(row.start_time)}</Text>
+                    <Text style={[s.timeStart, { color: C.primaryText }]}>{fmt(row.start_time)}</Text>
                     <Text style={[s.timeEnd, { color: C.muted }]}>{fmt(row.end_time)}</Text>
                   </View>
                   <View style={s.subjectCol}>
@@ -82,7 +83,7 @@ function fmt(t: string) {
   return `${h12}:${String(m).padStart(2, '0')} ${ampm}`;
 }
 
-const s = StyleSheet.create({
+const s = createThemedStyles({
   flex:       { flex: 1 },
   dayBlock:   { marginBottom: 20 },
   dayHeader:  { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },

@@ -3,6 +3,7 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { useTheme } from '@/context/ThemeContext';
 import type { StudentResult } from '@/types/api';
+import { createThemedStyles } from '@/lib/themedStyles';
 
 function ordinal(n: number) {
   const s = ['th', 'st', 'nd', 'rd'];
@@ -32,7 +33,7 @@ export default function StudentResultScreen() {
         <View style={styles.statsRow}>
           <View style={[styles.statBox, { backgroundColor: Colors.primaryLight ?? Colors.bg }]}>
             <Text style={[styles.statLabel, { color: Colors.muted }]}>Average</Text>
-            <Text style={[styles.statValue, { color: Colors.primary }]}>{result.average ?? '—'}</Text>
+            <Text style={[styles.statValue, { color: Colors.primaryText }]}>{result.average ?? '—'}</Text>
           </View>
           <View style={[styles.statBox, { backgroundColor: Colors.bg }]}>
             <Text style={[styles.statLabel, { color: Colors.muted }]}>Position</Text>
@@ -78,7 +79,7 @@ export default function StudentResultScreen() {
             </View>
             <Text style={[styles.subjectNum, { color: Colors.muted }]}>{s.ca_score ?? '—'}</Text>
             <Text style={[styles.subjectNum, { color: Colors.muted }]}>{s.exam_score ?? '—'}</Text>
-            <Text style={[styles.subjectNum, { color: Colors.primary, fontWeight: '800' }]}>{s.total ?? '—'}</Text>
+            <Text style={[styles.subjectNum, { color: Colors.primaryText, fontWeight: '800' }]}>{s.total ?? '—'}</Text>
             <Text style={[styles.subjectNum, { color: Colors.text, fontWeight: '700' }]}>{s.grade}</Text>
           </View>
         ))}
@@ -87,7 +88,7 @@ export default function StudentResultScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles({
   container:     { flex: 1 },
   content:       { padding: 16, gap: 12, paddingBottom: 40 },
   summaryCard:   { borderRadius: 14, borderWidth: 1, padding: 14 },

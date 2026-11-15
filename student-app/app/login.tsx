@@ -7,6 +7,7 @@ import { api } from '@/lib/api';
 import { storage } from '@/lib/storage';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { createThemedStyles, tc } from '@/lib/themedStyles';
 
 export default function LoginScreen() {
   const C           = useTheme();
@@ -108,7 +109,7 @@ export default function LoginScreen() {
             returnKeyType="next"
             rightElement={
               schoolLoading
-                ? <ActivityIndicator size="small" color={C.primary} />
+                ? <ActivityIndicator size="small" color={C.primaryText} />
                 : schoolInfo
                   ? <Ionicons name="checkmark-circle" size={20} color={C.success as string} />
                   : null
@@ -118,7 +119,7 @@ export default function LoginScreen() {
           {schoolInfo && (
             <View style={[s.schoolPreview, { backgroundColor: C.primaryLight, borderColor: C.primary }]}>
               <Ionicons name="business-outline" size={14} color={C.primary as string} />
-              <Text style={[s.schoolPreviewText, { color: C.primary }]} numberOfLines={1}>{schoolInfo.name}</Text>
+              <Text style={[s.schoolPreviewText, { color: C.primaryText }]} numberOfLines={1}>{schoolInfo.name}</Text>
             </View>
           )}
 
@@ -144,7 +145,7 @@ export default function LoginScreen() {
             onSubmitEditing={handleLogin}
             rightElement={
               <TouchableOpacity onPress={() => setShowPwd(v => !v)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <Ionicons name={showPwd ? 'eye-off-outline' : 'eye-outline'} size={20} color="#8C7E6E" />
+                <Ionicons name={showPwd ? 'eye-off-outline' : 'eye-outline'} size={20} color={tc('#8C7E6E')} />
               </TouchableOpacity>
             }
           />
@@ -160,7 +161,7 @@ export default function LoginScreen() {
   );
 }
 
-const s = StyleSheet.create({
+const s = createThemedStyles({
   flex:             { flex: 1, backgroundColor: '#F4EFE6' },
   container:        { flexGrow: 1, paddingBottom: 40 },
   header:           { paddingTop: 72, paddingBottom: 44, alignItems: 'center', borderBottomLeftRadius: 32, borderBottomRightRadius: 32, marginBottom: 32 },

@@ -1,6 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, TextInput, TextInputProps, View } from 'react-native';
 import { Colors } from '@/constants/colors';
+import { createThemedStyles } from '@/lib/themedStyles';
 
 interface Props extends TextInputProps {
   label?: string;
@@ -21,7 +22,7 @@ export function Input({ label, error, style, ...rest }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles({
   wrapper:    { marginBottom: 16 },
   label:      { fontSize: 12, fontWeight: '700', color: Colors.textSoft, marginBottom: 7, letterSpacing: 0.4, textTransform: 'uppercase' },
   input:      {

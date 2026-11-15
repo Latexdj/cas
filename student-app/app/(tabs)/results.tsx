@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/Card';
 import { Spinner } from '@/components/ui/Spinner';
 import { Dropdown } from '@/components/ui/Dropdown';
 import type { AcademicYear, SemesterResults } from '@/types/api';
+import { createThemedStyles } from '@/lib/themedStyles';
 
 const GRADE_COLOR = (g: string | null, danger: string, warn: string, success: string) =>
   !g ? '#94A3B8' : ['A1','A','B2','B3','B+','B-','C4','C5','C6'].includes(g) ? success
@@ -87,7 +88,7 @@ export default function ResultsScreen() {
 
       {filterLoading && (
         <View style={[s.filterSpinner, { backgroundColor: C.surface }]}>
-          <ActivityIndicator color={C.primary} />
+          <ActivityIndicator color={C.primaryText} />
           <Text style={[s.filterSpinnerText, { color: C.muted }]}>Loading…</Text>
         </View>
       )}
@@ -163,7 +164,7 @@ export default function ResultsScreen() {
   );
 }
 
-const s = StyleSheet.create({
+const s = createThemedStyles({
   flex:           { flex: 1 },
   filterRow:      { flexDirection: 'row', gap: 10, marginBottom: 16 },
   filterYear:     { flex: 2 },

@@ -4,6 +4,7 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { Spinner } from '@/components/ui/Spinner';
+import { createThemedStyles } from '@/lib/themedStyles';
 
 function InitialLayout() {
   const { user, isLoading, mustChangePassword } = useAuth();
@@ -71,6 +72,6 @@ export default function RootLayout() {
   );
 }
 
-const s = StyleSheet.create({
+const s = createThemedStyles({
   overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: '#fff', zIndex: 999 },
 });

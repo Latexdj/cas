@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { storage } from '@/lib/storage';
+import { createThemedStyles, tc } from '@/lib/themedStyles';
 
 export default function WelcomeScreen() {
   const insets = useSafeAreaInsets();
@@ -34,7 +35,7 @@ export default function WelcomeScreen() {
           activeOpacity={0.82}
         >
           <View style={s.materialIconWrap}>
-            <Ionicons name="folder-open" size={38} color="#fff" />
+            <Ionicons name="folder-open" size={38} color={tc('#fff')} />
           </View>
           <View style={s.materialText}>
             <Text style={s.materialTitle}>Learning Materials</Text>
@@ -50,13 +51,13 @@ export default function WelcomeScreen() {
           activeOpacity={0.82}
         >
           <View style={[s.loginIconWrap]}>
-            <Ionicons name="person-circle-outline" size={34} color="#1C1208" />
+            <Ionicons name="person-circle-outline" size={34} color={tc('#1C1208')} />
           </View>
           <View style={s.loginText}>
             <Text style={s.loginTitle}>Student Login</Text>
             <Text style={s.loginSub}>Access results, attendance, fees and more</Text>
           </View>
-          <Ionicons name="chevron-forward" size={20} color="#8C7E6E" />
+          <Ionicons name="chevron-forward" size={20} color={tc('#8C7E6E')} />
         </TouchableOpacity>
 
       </View>
@@ -66,7 +67,7 @@ export default function WelcomeScreen() {
   );
 }
 
-const s = StyleSheet.create({
+const s = createThemedStyles({
   root:           { flex: 1, backgroundColor: '#F4EFE6', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 },
   brand:          { alignItems: 'center', marginBottom: 48 },
   logo:           { width: 88, height: 88, borderRadius: 20, marginBottom: 16, backgroundColor: '#E2D9CC' },

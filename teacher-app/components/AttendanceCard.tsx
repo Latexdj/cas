@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Card } from './ui/Card';
 import { Colors } from '@/constants/colors';
 import { AttendanceRecord } from '@/types/api';
+import { createThemedStyles } from '@/lib/themedStyles';
 
 export function AttendanceCard({ record }: { record: AttendanceRecord }) {
   const date = new Date(record.date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
@@ -25,10 +26,10 @@ export function AttendanceCard({ record }: { record: AttendanceRecord }) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles({
   row:       { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   datePill:  { backgroundColor: Colors.bg, borderRadius: 8, padding: 8, alignItems: 'center', minWidth: 64 },
-  dateText:  { fontSize: 12, color: Colors.primary, fontWeight: '600', textAlign: 'center' },
+  dateText:  { fontSize: 12, color: Colors.primaryText, fontWeight: '600', textAlign: 'center' },
   info:      { flex: 1 },
   subject:   { fontSize: 15, fontWeight: '600', color: Colors.text },
   meta:      { fontSize: 13, color: Colors.muted, marginTop: 2 },

@@ -1,6 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Colors } from '@/constants/colors';
+import { createThemedStyles } from '@/lib/themedStyles';
 
 const palette: Record<string, { bg: string; text: string }> = {
   present:              { bg: Colors.successLight, text: Colors.success },
@@ -30,7 +31,7 @@ export function Badge({ status }: { status: string }) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles({
   badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, alignSelf: 'flex-start' },
   text:  { fontSize: 11, fontWeight: '700', letterSpacing: 0.3 },
 });

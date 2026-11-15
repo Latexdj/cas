@@ -5,6 +5,7 @@ import { api } from '@/lib/api';
 import { Card } from '@/components/ui/Card';
 import { Spinner } from '@/components/ui/Spinner';
 import type { FeeSummary } from '@/types/api';
+import { createThemedStyles } from '@/lib/themedStyles';
 
 export default function FeesScreen() {
   const C = useTheme();
@@ -127,7 +128,7 @@ function formatDate(d: string) {
   return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-const s = StyleSheet.create({
+const s = createThemedStyles({
   flex:          { flex: 1 },
   center:        { flex: 1, justifyContent: 'center', alignItems: 'center' },
   disabledText:  { fontSize: 14, textAlign: 'center', paddingHorizontal: 32 },

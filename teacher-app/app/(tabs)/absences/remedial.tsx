@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Colors } from '@/constants/colors';
 import { Location } from '@/types/api';
+import { createThemedStyles } from '@/lib/themedStyles';
 
 export default function ScheduleRemedialScreen() {
   const { user } = useAuth();
@@ -139,7 +140,7 @@ export default function ScheduleRemedialScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles({
   container:        { flex: 1, backgroundColor: Colors.bg },
   content:          { padding: 16, paddingBottom: 40 },
   absenceInfo:      { backgroundColor: '#FEF3C7', borderRadius: 12, padding: 16, marginBottom: 20 },

@@ -4,6 +4,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useNavigation } from 'expo-router';
 import { useTheme } from '@/context/ThemeContext';
+import { createThemedStyles, tc } from '@/lib/themedStyles';
 
 // Lazy-require native modules — graceful fallback if not linked
 let Pdf: any   = null;
@@ -40,7 +41,7 @@ export default function ViewerScreen() {
   if (fileType === 'pdf') {
     if (!Pdf) return <UnsupportedMsg text="PDF viewer not available. Please reinstall the app." C={C} />;
     return (
-      <View style={[s.flex, { backgroundColor: '#1a1a1a' }]}>
+      <View style={[s.flex, { backgroundColor: tc('#1a1a1a', 'bg') }]}>
         <Pdf
           source={{ uri: fileUri, cache: true }}
           style={s.pdf}
@@ -63,7 +64,7 @@ export default function ViewerScreen() {
   if (fileType === 'video') {
     if (!Video) return <UnsupportedMsg text="Video player not available. Please reinstall the app." C={C} />;
     return (
-      <View style={[s.flex, { backgroundColor: '#000' }]}>
+      <View style={[s.flex, { backgroundColor: tc('#000', 'bg') }]}>
         <Video
           source={{ uri: fileUri }}
           useNativeControls
@@ -79,7 +80,7 @@ export default function ViewerScreen() {
   // ── Image ─────────────────────────────────────────────────────────────────────
   if (fileType === 'image') {
     return (
-      <View style={[s.flex, { backgroundColor: '#000' }]}>
+      <View style={[s.flex, { backgroundColor: tc('#000', 'bg') }]}>
         <ScrollView
           maximumZoomScale={4}
           minimumZoomScale={1}
@@ -125,7 +126,7 @@ function UnsupportedMsg({ text, C }: { text: string; C: any }) {
   );
 }
 
-const s = StyleSheet.create({
+const s = createThemedStyles({
   flex:          { flex: 1 },
   center:        { justifyContent: 'center', alignItems: 'center' },
   pdf:           { flex: 1, width: SW },

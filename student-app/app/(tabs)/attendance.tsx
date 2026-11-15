@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/Card';
 import { Spinner } from '@/components/ui/Spinner';
 import { Dropdown } from '@/components/ui/Dropdown';
 import type { AcademicYear, AttendanceSummary } from '@/types/api';
+import { createThemedStyles } from '@/lib/themedStyles';
 
 const SEM_OPTIONS = [
   { label: 'Semester 1', value: '1' },
@@ -88,7 +89,7 @@ export default function AttendanceScreen() {
 
       {filterLoading && (
         <View style={[s.filterSpinner, { backgroundColor: C.surface }]}>
-          <ActivityIndicator color={C.primary} />
+          <ActivityIndicator color={C.primaryText} />
           <Text style={[s.filterSpinnerText, { color: C.muted }]}>Loading…</Text>
         </View>
       )}
@@ -167,7 +168,7 @@ function formatDate(d: string) {
   return new Date(d).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
 }
 
-const s = StyleSheet.create({
+const s = createThemedStyles({
   flex:              { flex: 1 },
   filterRow:         { flexDirection: 'row', gap: 10, marginBottom: 16 },
   filterYear:        { flex: 2 },

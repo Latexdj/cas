@@ -9,6 +9,7 @@ import { storage } from '@/lib/storage';
 import { useTheme } from '@/context/ThemeContext';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { createThemedStyles } from '@/lib/themedStyles';
 
 export default function LoginScreen() {
   const Colors = useTheme();
@@ -96,7 +97,7 @@ export default function LoginScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles({
   flex:        { flex: 1, backgroundColor: '#F4EFE6' },
   container:   { flexGrow: 1, paddingBottom: 40 },
   topBand:     { paddingTop: 80, paddingBottom: 48, alignItems: 'center', borderBottomLeftRadius: 32, borderBottomRightRadius: 32, marginBottom: 32 },

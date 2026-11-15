@@ -16,6 +16,7 @@ import type {
   StudentProfile, SemesterResults, AttendanceSummary,
   CalendarEvent, AcademicYear, FeeSummary,
 } from '@/types/api';
+import { createThemedStyles, tc } from '@/lib/themedStyles';
 
 const SW = Dimensions.get('window').width;
 // 3 cards per row: 16px padding each side + 2×10px gaps
@@ -103,7 +104,7 @@ function SemBarChart({
                   {d.value!.toFixed(0)}{unit}
                 </Text>
               ) : (
-                <Text style={{ fontSize: 10, color: '#CBD5E1', marginBottom: 3 }}>—</Text>
+                <Text style={{ fontSize: 10, color: tc('#CBD5E1', 'text'), marginBottom: 3 }}>—</Text>
               )}
               <View style={{ height: H, width: '100%', justifyContent: 'flex-end', position: 'relative' }}>
                 {refLine != null && (
@@ -156,7 +157,7 @@ function PositionChart({ data }: {
                   {d.position}{d.total != null ? `/${d.total}` : ''}
                 </Text>
               ) : (
-                <Text style={{ fontSize: 10, color: '#CBD5E1', marginBottom: 3 }}>—</Text>
+                <Text style={{ fontSize: 10, color: tc('#CBD5E1', 'text'), marginBottom: 3 }}>—</Text>
               )}
               <View style={{ height: H, width: '100%', justifyContent: 'flex-end' }}>
                 <View style={{
@@ -189,7 +190,7 @@ function SubjectRow({
   return (
     <View style={{ marginBottom: 14 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
-        <Text style={{ flex: 1, fontSize: 13, fontWeight: '700', color: '#1C1208' }} numberOfLines={1}>
+        <Text style={{ flex: 1, fontSize: 13, fontWeight: '700', color: tc('#1C1208', 'text') }} numberOfLines={1}>
           {name}
         </Text>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -210,7 +211,7 @@ function SubjectRow({
           </Text>
         </View>
       </View>
-      <View style={{ height: 8, backgroundColor: '#F1F5F9', borderRadius: 4, overflow: 'hidden' }}>
+      <View style={{ height: 8, backgroundColor: tc('#F1F5F9', 'bg'), borderRadius: 4, overflow: 'hidden' }}>
         <View style={{
           height: 8, width: current != null ? `${pct}%` : '0%',
           backgroundColor: clr, borderRadius: 4,
@@ -385,18 +386,18 @@ export default function HomeScreen() {
 
         {/* Banners */}
         {attRate > 0 && attRate < 75 && (
-          <View style={[s.banner, { backgroundColor: '#FFF1F2', borderColor: '#FECDD3' }]}>
-            <Ionicons name="warning-outline" size={14} color="#DC2626" />
-            <Text style={[s.bannerText, { color: '#DC2626' }]}>
+          <View style={[s.banner, { backgroundColor: tc('#FFF1F2', 'bg'), borderColor: tc('#FECDD3', 'border') }]}>
+            <Ionicons name="warning-outline" size={14} color={tc('#DC2626')} />
+            <Text style={[s.bannerText, { color: tc('#DC2626', 'text') }]}>
               Your attendance is {attRate.toFixed(0)}% — below the 75% minimum. Please attend regularly.
             </Text>
           </View>
         )}
         {fees && fees.outstanding > 0 && (
           <TouchableOpacity onPress={() => router.push('/fees')}>
-            <View style={[s.banner, { backgroundColor: '#FFFBEB', borderColor: '#FDE68A' }]}>
-              <Ionicons name="card-outline" size={14} color="#D97706" />
-              <Text style={[s.bannerText, { color: '#D97706' }]}>
+            <View style={[s.banner, { backgroundColor: tc('#FFFBEB', 'bg'), borderColor: tc('#FDE68A', 'border') }]}>
+              <Ionicons name="card-outline" size={14} color={tc('#D97706')} />
+              <Text style={[s.bannerText, { color: tc('#D97706', 'text') }]}>
                 Outstanding fees: GH₵{fees.outstanding.toFixed(2)} — Tap to view
               </Text>
             </View>
@@ -416,7 +417,7 @@ export default function HomeScreen() {
               <View style={[s.gridIconWrap, { backgroundColor: lnk.tint + '22' }]}>
                 <Ionicons name={lnk.icon} size={26} color={lnk.tint} />
               </View>
-              <Text style={[s.gridLabel, { color: '#1C1208' }]}>{lnk.label}</Text>
+              <Text style={[s.gridLabel, { color: tc('#1C1208', 'text') }]}>{lnk.label}</Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -426,7 +427,7 @@ export default function HomeScreen() {
 
         {historyLoading ? (
           <Card style={{ alignItems: 'center', paddingVertical: 24 }}>
-            <ActivityIndicator color={C.primary} size="small" />
+            <ActivityIndicator color={C.primaryText} size="small" />
             <Text style={{ color: C.muted, fontSize: 13, marginTop: 10 }}>Loading progress data…</Text>
           </Card>
         ) : !hasCharts ? (
@@ -440,28 +441,28 @@ export default function HomeScreen() {
             {/* Academic Average */}
             <Card style={s.chartCard}>
               <View style={s.chartHeader}>
-                <View style={[s.chartDot, { backgroundColor: '#145C44' }]} />
+                <View style={[s.chartDot, { backgroundColor: tc('#145C44', 'bg') }]} />
                 <Text style={[s.chartTitle, { color: C.text }]}>Academic Average</Text>
               </View>
               <Text style={[s.chartSub, { color: C.muted }]}>Overall score across semesters. Dashed line = 50% pass mark.</Text>
-              <SemBarChart data={avgData} color="#145C44" unit="%" max={100} refLine={50} />
+              <SemBarChart data={avgData} color={tc('#145C44')} unit="%" max={100} refLine={50} />
             </Card>
 
             {/* Attendance Rate */}
             <Card style={s.chartCard}>
               <View style={s.chartHeader}>
-                <View style={[s.chartDot, { backgroundColor: '#1D4ED8' }]} />
+                <View style={[s.chartDot, { backgroundColor: tc('#1D4ED8', 'bg') }]} />
                 <Text style={[s.chartTitle, { color: C.text }]}>Attendance Rate</Text>
               </View>
               <Text style={[s.chartSub, { color: C.muted }]}>Attendance % per semester. Dashed line = 75% minimum.</Text>
-              <SemBarChart data={attData} color="#1D4ED8" unit="%" max={100} refLine={75} />
+              <SemBarChart data={attData} color={tc('#1D4ED8')} unit="%" max={100} refLine={75} />
             </Card>
 
             {/* Class Position */}
             {hasPos && (
               <Card style={s.chartCard}>
                 <View style={s.chartHeader}>
-                  <View style={[s.chartDot, { backgroundColor: '#D97706' }]} />
+                  <View style={[s.chartDot, { backgroundColor: tc('#D97706', 'bg') }]} />
                   <Text style={[s.chartTitle, { color: C.text }]}>Class Position</Text>
                 </View>
                 <Text style={[s.chartSub, { color: C.muted }]}>Taller bar = higher rank. Gold = 1st, green = top 3.</Text>
@@ -484,7 +485,7 @@ export default function HomeScreen() {
               ))}
               {prevSubjects.length > 0 && (
                 <View style={[s.subjectLegend, { borderTopColor: C.border }]}>
-                  <Ionicons name="trending-up" size={12} color="#145C44" />
+                  <Ionicons name="trending-up" size={12} color={tc('#145C44')} />
                   <Text style={[s.subjectLegendText, { color: C.muted }]}>
                     Arrows show change from previous semester
                   </Text>
@@ -528,11 +529,11 @@ export default function HomeScreen() {
 }
 
 // ── Chart shared styles (module-level so they don't rebuild each render) ──────
-const cs = StyleSheet.create({
+const cs = createThemedStyles({
   xLabel: { flex: 1, textAlign: 'center', fontSize: 9, color: '#94A3B8', fontWeight: '600', lineHeight: 13 },
 });
 
-const s = StyleSheet.create({
+const s = createThemedStyles({
   flex:        { flex: 1 },
 
   // Header

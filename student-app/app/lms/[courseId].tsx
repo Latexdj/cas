@@ -10,6 +10,7 @@ import { Card } from '@/components/ui/Card';
 import { Spinner } from '@/components/ui/Spinner';
 import { Button } from '@/components/ui/Button';
 import type { LmsAssignment, LmsAnnouncement, LmsLesson, LmsQuiz } from '@/types/api';
+import { createThemedStyles } from '@/lib/themedStyles';
 
 type Tab = 'lessons' | 'assignments' | 'quizzes' | 'announcements';
 
@@ -126,16 +127,16 @@ function LessonsTab({ lessons, C }: { lessons: LmsLesson[]; C: any }) {
           )}
           {(lesson.content_type === 'youtube' || lesson.content_type === 'link') && lesson.external_url && (
             <TouchableOpacity onPress={() => Linking.openURL(lesson.external_url!)} style={s.lessonLink}>
-              <Ionicons name={lesson.content_type === 'youtube' ? 'logo-youtube' : 'link-outline'} size={16} color={C.primary} />
-              <Text style={[s.lessonLinkText, { color: C.primary }]}>
+              <Ionicons name={lesson.content_type === 'youtube' ? 'logo-youtube' : 'link-outline'} size={16} color={C.primaryText} />
+              <Text style={[s.lessonLinkText, { color: C.primaryText }]}>
                 {lesson.content_type === 'youtube' ? 'Watch video' : 'Open link'}
               </Text>
             </TouchableOpacity>
           )}
           {lesson.content_type === 'file' && lesson.file_url && (
             <TouchableOpacity onPress={() => Linking.openURL(lesson.file_url!)} style={s.lessonLink}>
-              <Ionicons name="document-outline" size={16} color={C.primary} />
-              <Text style={[s.lessonLinkText, { color: C.primary }]}>Open file</Text>
+              <Ionicons name="document-outline" size={16} color={C.primaryText} />
+              <Text style={[s.lessonLinkText, { color: C.primaryText }]}>Open file</Text>
             </TouchableOpacity>
           )}
         </Card>
@@ -224,7 +225,7 @@ function AssignmentCard({ assignment: a, C, onSubmitted }: { assignment: LmsAssi
 
       {a.status !== 'graded' && a.status === 'submitted' && !expanded && (
         <TouchableOpacity onPress={() => setExpanded(true)}>
-          <Text style={[s.resubmitLink, { color: C.primary }]}>Submitted · Resubmit</Text>
+          <Text style={[s.resubmitLink, { color: C.primaryText }]}>Submitted · Resubmit</Text>
         </TouchableOpacity>
       )}
 
@@ -240,8 +241,8 @@ function AssignmentCard({ assignment: a, C, onSubmitted }: { assignment: LmsAssi
             onChangeText={setBodyText}
           />
           <TouchableOpacity onPress={pickFile} style={[s.attachBtn, { borderColor: C.border }]}>
-            <Ionicons name="attach-outline" size={16} color={C.primary} />
-            <Text style={[s.attachText, { color: C.primary }]} numberOfLines={1}>
+            <Ionicons name="attach-outline" size={16} color={C.primaryText} />
+            <Text style={[s.attachText, { color: C.primaryText }]} numberOfLines={1}>
               {file ? file.name : 'Attach a file'}
             </Text>
           </TouchableOpacity>
@@ -322,7 +323,7 @@ function formatDate(d: string) {
   return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-const s = StyleSheet.create({
+const s = createThemedStyles({
   flex:          { flex: 1 },
   tabRow:        { flexDirection: 'row', borderRadius: 12, borderWidth: 1, padding: 4, marginBottom: 16, gap: 4 },
   tabBtn:        { flex: 1, paddingVertical: 9, borderRadius: 9, alignItems: 'center' },

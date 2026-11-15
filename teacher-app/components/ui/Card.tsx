@@ -1,6 +1,7 @@
 import React from 'react';
 import { StyleSheet, View, ViewProps } from 'react-native';
 import { Colors } from '@/constants/colors';
+import { createThemedStyles } from '@/lib/themedStyles';
 
 interface Props extends ViewProps {
   warm?: boolean;
@@ -14,7 +15,7 @@ export function Card({ children, style, warm, ...rest }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles({
   card: {
     backgroundColor: Colors.surface,
     borderRadius: 16,

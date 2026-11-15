@@ -7,6 +7,7 @@ import { api } from '@/lib/api';
 import { Card } from '@/components/ui/Card';
 import { Spinner } from '@/components/ui/Spinner';
 import type { AcademicYear, LmsCourse, LmsAssignment } from '@/types/api';
+import { createThemedStyles, tc } from '@/lib/themedStyles';
 
 export default function LmsScreen() {
   const C = useTheme();
@@ -50,7 +51,7 @@ export default function LmsScreen() {
         activeOpacity={0.75}
       >
         <View style={[s.pascoIcon, { backgroundColor: C.accent }]}>
-          <Ionicons name="book-outline" size={20} color="#fff" />
+          <Ionicons name="book-outline" size={20} color={tc('#fff')} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={[s.pascoTitle, { color: C.text }]}>Pasco Practice</Text>
@@ -137,7 +138,7 @@ function formatDate(d: string) {
   return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-const s = StyleSheet.create({
+const s = createThemedStyles({
   flex:         { flex: 1 },
   pascoRow:     { flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderRadius: 14, padding: 12, marginBottom: 16 },
   pascoIcon:    { width: 38, height: 38, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },

@@ -3,6 +3,7 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
 import { TimetableSlot, AttendanceRecord } from '@/types/api';
+import { createThemedStyles, tc } from '@/lib/themedStyles';
 
 interface Props {
   slot: TimetableSlot;
@@ -28,7 +29,7 @@ export function TimetableSlotCard({ slot, submitted, onPress }: Props) {
       <View style={[styles.bar, { backgroundColor: done ? '#2D7A4F' : Colors.accent }]} />
       <View style={styles.body}>
         <View style={styles.timeRow}>
-          <Ionicons name="time-outline" size={13} color="#8C7E6E" style={{ marginRight: 4 }} />
+          <Ionicons name="time-outline" size={13} color={tc('#8C7E6E')} style={{ marginRight: 4 }} />
           <Text style={styles.time}>{slot.start_time?.slice(0, 5)} – {slot.end_time?.slice(0, 5)}</Text>
         </View>
         <Text style={styles.subject}>{slot.subject}</Text>
@@ -36,7 +37,7 @@ export function TimetableSlotCard({ slot, submitted, onPress }: Props) {
       </View>
       <View style={[styles.statusPill, { backgroundColor: done ? '#E4F4EB' : Colors.accentLight }]}>
         {done
-          ? <Ionicons name="checkmark-circle" size={18} color="#2D7A4F" />
+          ? <Ionicons name="checkmark-circle" size={18} color={tc('#2D7A4F')} />
           : <Ionicons name="arrow-forward-circle-outline" size={18} color={Colors.accent} />
         }
         <Text style={[styles.statusText, { color: done ? '#2D7A4F' : Colors.accent }]}>
@@ -47,7 +48,7 @@ export function TimetableSlotCard({ slot, submitted, onPress }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles({
   card:       { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 16, marginBottom: 10, borderWidth: 1, borderColor: '#E2D9CC', shadowColor: '#1C1208', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2, overflow: 'hidden' },
   cardDone:   { opacity: 0.7 },
   bar:        { width: 5, alignSelf: 'stretch' },

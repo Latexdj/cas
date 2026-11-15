@@ -1,6 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Colors } from '@/constants/colors';
+import { createThemedStyles } from '@/lib/themedStyles';
 
 interface Props {
   icon?: string;
@@ -20,7 +21,7 @@ export function EmptyState({ icon = '📭', title, subtitle }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles({
   container: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 },
   iconWrap:  { width: 72, height: 72, borderRadius: 36, backgroundColor: Colors.primaryLight, justifyContent: 'center', alignItems: 'center', marginBottom: 18 },
   icon:      { fontSize: 34 },

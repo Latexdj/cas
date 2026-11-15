@@ -5,6 +5,7 @@ import { api } from '@/lib/api';
 import { Card } from '@/components/ui/Card';
 import { Spinner } from '@/components/ui/Spinner';
 import type { ClearanceStatus } from '@/types/api';
+import { createThemedStyles, tc } from '@/lib/themedStyles';
 
 const STATUS_CFG = {
   not_initiated:  { label: 'Not Started',     color: '#64748B', bg: '#F1F5F9' },
@@ -70,7 +71,7 @@ export default function ClearanceScreen() {
 
       {/* Items still to be returned */}
       {owed.length > 0 && (
-        <Card style={[s.owedCard, { borderColor: '#B83232' }]}>
+        <Card style={[s.owedCard, { borderColor: tc('#B83232', 'border') }]}>
           <Text style={s.owedTitle}>{owed.length} item{owed.length === 1 ? '' : 's'} not returned</Text>
           <Text style={[s.owedSub, { color: C.muted }]}>You cannot be cleared until these are returned to the school.</Text>
           {owed.map(o => (
@@ -118,7 +119,7 @@ export default function ClearanceScreen() {
   );
 }
 
-const s = StyleSheet.create({
+const s = createThemedStyles({
   flex:          { flex: 1 },
   overallCard:   { marginBottom: 20, borderWidth: 2 },
   overallRow:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },

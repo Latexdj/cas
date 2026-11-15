@@ -13,6 +13,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { DropdownSelect } from '@/components/DropdownSelect';
 import { useTheme } from '@/context/ThemeContext';
 import { AttendanceRecord, AcademicYear } from '@/types/api';
+import { createThemedStyles, tc } from '@/lib/themedStyles';
 
 /* ─── Types ─── */
 interface StudentSession {
@@ -98,7 +99,7 @@ function PendingCard({ item }: { item: QueuedSubmission }) {
   );
 }
 
-const pendingStyles = StyleSheet.create({
+const pendingStyles = createThemedStyles({
   card:      { backgroundColor: '#FFF7ED', borderWidth: 1, borderColor: '#FDBA74', borderRadius: 12, padding: 14, marginBottom: 10 },
   header:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
   badge:     { backgroundColor: '#EA580C', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
@@ -121,7 +122,7 @@ function DateRangeRow({ from, to, onChangeFrom, onChangeTo }: {
         <Text style={drStyles.label}>From</Text>
         <TextInput
           style={drStyles.input} value={from} onChangeText={onChangeFrom}
-          placeholder="YYYY-MM-DD" placeholderTextColor="#B5A898"
+          placeholder="YYYY-MM-DD" placeholderTextColor={tc('#B5A898')}
           keyboardType="numbers-and-punctuation" maxLength={10}
         />
       </View>
@@ -129,7 +130,7 @@ function DateRangeRow({ from, to, onChangeFrom, onChangeTo }: {
         <Text style={drStyles.label}>To</Text>
         <TextInput
           style={drStyles.input} value={to} onChangeText={onChangeTo}
-          placeholder="YYYY-MM-DD" placeholderTextColor="#B5A898"
+          placeholder="YYYY-MM-DD" placeholderTextColor={tc('#B5A898')}
           keyboardType="numbers-and-punctuation" maxLength={10}
         />
       </View>
@@ -137,7 +138,7 @@ function DateRangeRow({ from, to, onChangeFrom, onChangeTo }: {
   );
 }
 
-const drStyles = StyleSheet.create({
+const drStyles = createThemedStyles({
   row:   { flexDirection: 'row', gap: 12, backgroundColor: '#FAFAF8', borderBottomWidth: 1, borderBottomColor: '#E2D9CC', paddingHorizontal: 16, paddingVertical: 10 },
   half:  { flex: 1 },
   label: { fontSize: 11, fontWeight: '700', color: '#8C7E6E', marginBottom: 4 },
@@ -347,7 +348,7 @@ export default function HistoryScreen() {
           style={[styles.tabBtn, tab === t && { backgroundColor: Colors.primary }]}
           onPress={() => handleTabPress(t)}
         >
-          <Text style={[styles.tabBtnText, tab === t && { color: '#fff' }]}>{label}</Text>
+          <Text style={[styles.tabBtnText, tab === t && { color: tc('#fff', 'text') }]}>{label}</Text>
         </TouchableOpacity>
       ))}
     </View>
@@ -386,7 +387,7 @@ export default function HistoryScreen() {
             <Text style={styles.pendingSectionTitle}>Pending Sync ({pending.length})</Text>
             <TouchableOpacity style={styles.syncBtn} onPress={handleSyncNow} disabled={syncing}>
               {syncing
-                ? <ActivityIndicator size="small" color="#fff" />
+                ? <ActivityIndicator size="small" color={tc('#fff')} />
                 : <Text style={styles.syncBtnText}>Sync Now</Text>}
             </TouchableOpacity>
           </View>
@@ -414,7 +415,7 @@ export default function HistoryScreen() {
           onEndReached={loadMore}
           onEndReachedThreshold={0.3}
           ListHeaderComponent={myListHeader}
-          ListFooterComponent={loadingMore ? <ActivityIndicator style={{ marginVertical: 16 }} color={Colors.primary} /> : null}
+          ListFooterComponent={loadingMore ? <ActivityIndicator style={{ marginVertical: 16 }} color={Colors.primaryText} /> : null}
           ListEmptyComponent={
             <EmptyState icon="📋" title="No records" subtitle={`No attendance records for ${selectedYearName} · ${semLabel}.`} />
           }
@@ -503,14 +504,14 @@ export default function HistoryScreen() {
                 </View>
                 {detail && (
                   <View style={styles.modalCounts}>
-                    <Text style={[styles.modalCountText, { color: '#145C44' }]}>
+                    <Text style={[styles.modalCountText, { color: tc('#145C44', 'text') }]}>
                       {detail.records.filter(r => r.status === 'Present').length} Present
                     </Text>
-                    <Text style={[styles.modalCountText, { color: '#B83232' }]}>
+                    <Text style={[styles.modalCountText, { color: tc('#B83232', 'text') }]}>
                       {detail.records.filter(r => r.status === 'Absent').length} Absent
                     </Text>
                     {detail.records.filter(r => r.status === 'Late').length > 0 && (
-                      <Text style={[styles.modalCountText, { color: '#C8780A' }]}>
+                      <Text style={[styles.modalCountText, { color: tc('#C8780A', 'text') }]}>
                         {detail.records.filter(r => r.status === 'Late').length} Late
                       </Text>
                     )}
@@ -523,7 +524,7 @@ export default function HistoryScreen() {
 
               <ScrollView style={styles.modalBody}>
                 {detailLoading && !detail ? (
-                  <ActivityIndicator style={{ marginTop: 24 }} color={Colors.primary} />
+                  <ActivityIndicator style={{ marginTop: 24 }} color={Colors.primaryText} />
                 ) : detail?.records.map(r => {
                   const sc = statusColor[r.status] ?? statusColor.Present;
                   return (
@@ -631,8 +632,8 @@ export default function HistoryScreen() {
                 disabled={meetingLoadingMore}
               >
                 {meetingLoadingMore
-                  ? <ActivityIndicator size="small" color={Colors.primary} />
-                  : <Text style={[styles.loadMoreText, { color: Colors.primary }]}>Load more</Text>}
+                  ? <ActivityIndicator size="small" color={Colors.primaryText} />
+                  : <Text style={[styles.loadMoreText, { color: Colors.primaryText }]}>Load more</Text>}
               </TouchableOpacity>
             )}
           </View>
@@ -677,7 +678,7 @@ export default function HistoryScreen() {
               style={[styles.semChip, styles.flex1, riskBelowOnly === v && { backgroundColor: Colors.primary }]}
               onPress={() => setRiskBelowOnly(v)}
             >
-              <Text style={[styles.semChipText, riskBelowOnly === v && { color: '#fff' }]}>
+              <Text style={[styles.semChipText, riskBelowOnly === v && { color: tc('#fff', 'text') }]}>
                 {v ? `Below ${RISK_THRESHOLD}% only` : 'All Students'}
               </Text>
             </TouchableOpacity>
@@ -701,7 +702,7 @@ export default function HistoryScreen() {
             const hasAlert = belowCount > 0;
 
             return (
-              <View key={className} style={[styles.classGroup, hasAlert && { borderColor: '#FECACA' }]}>
+              <View key={className} style={[styles.classGroup, hasAlert && { borderColor: tc('#FECACA', 'border') }]}>
                 <TouchableOpacity
                   style={[styles.classHeader, { backgroundColor: hasAlert ? '#FFF8F8' : '#FAFAF8' }]}
                   onPress={() => setOpenClasses(prev => {
@@ -715,7 +716,7 @@ export default function HistoryScreen() {
                     <Text style={styles.classSubText}>
                       {students.length} student{students.length !== 1 ? 's' : ''}
                       {hasAlert && !riskBelowOnly
-                        ? <Text style={{ color: '#B83232' }}> | {belowCount} below {RISK_THRESHOLD}%</Text>
+                        ? <Text style={{ color: tc('#B83232', 'text') }}> | {belowCount} below {RISK_THRESHOLD}%</Text>
                         : null}
                     </Text>
                   </View>
@@ -727,7 +728,7 @@ export default function HistoryScreen() {
                   const barColor = pct >= 90 ? '#145C44' : pct >= RISK_THRESHOLD ? '#C8780A' : '#B83232';
                   const isLow = s.present_pct !== null && s.present_pct < RISK_THRESHOLD;
                   return (
-                    <View key={s.id} style={[styles.studentRow, isLow && { backgroundColor: '#FFF8F8' }]}>
+                    <View key={s.id} style={[styles.studentRow, isLow && { backgroundColor: tc('#FFF8F8', 'bg') }]}>
                       <View style={styles.studentInfo}>
                         <Text style={styles.studentName}>{s.name}</Text>
                         <Text style={styles.studentCode}>{s.student_code}</Text>
@@ -756,7 +757,7 @@ export default function HistoryScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles({
   container:          { flex: 1, backgroundColor: '#F4EFE6' },
   list:               { flexGrow: 1 },
   /* Tab bar */

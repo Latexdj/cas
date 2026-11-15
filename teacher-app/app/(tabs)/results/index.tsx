@@ -8,6 +8,7 @@ import { api } from '@/lib/api';
 import { useTheme } from '@/context/ThemeContext';
 import { DropdownSelect } from '@/components/DropdownSelect';
 import type { AcademicYear, StudentResult } from '@/types/api';
+import { createThemedStyles } from '@/lib/themedStyles';
 
 function ordinal(n: number) {
   const s = ['th', 'st', 'nd', 'rd'];
@@ -82,7 +83,7 @@ export default function ResultsIndexScreen() {
           <Text style={[styles.emptyText, { color: Colors.muted }]}>Select a class to view results</Text>
         </View>
       ) : loading ? (
-        <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 40 }} />
+        <ActivityIndicator size="large" color={Colors.primaryText} style={{ marginTop: 40 }} />
       ) : results.length === 0 ? (
         <View style={[styles.empty, { borderColor: Colors.border }]}>
           <Text style={[styles.emptyText, { color: Colors.muted }]}>No results for {className}</Text>
@@ -123,7 +124,7 @@ export default function ResultsIndexScreen() {
                   <Text style={[styles.rowCode, { color: Colors.muted }]}>{r.student_code}</Text>
                 </View>
                 <View style={styles.rowRight}>
-                  <Text style={[styles.rowAvg, { color: Colors.primary }]}>{r.average ?? '—'}</Text>
+                  <Text style={[styles.rowAvg, { color: Colors.primaryText }]}>{r.average ?? '—'}</Text>
                   <Text style={[styles.rowGrade, { color: Colors.muted }]}>{r.overall_grade}</Text>
                 </View>
               </TouchableOpacity>
@@ -134,7 +135,7 @@ export default function ResultsIndexScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles({
   container:  { flex: 1 },
   content:    { padding: 16, gap: 12, paddingBottom: 40 },
   card:       { borderRadius: 14, borderWidth: 1, padding: 14 },

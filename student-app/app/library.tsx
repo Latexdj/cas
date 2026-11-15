@@ -5,6 +5,7 @@ import { api } from '@/lib/api';
 import { Card } from '@/components/ui/Card';
 import { Spinner } from '@/components/ui/Spinner';
 import type { LibraryBook, LibraryLoan, LibraryResource } from '@/types/api';
+import { createThemedStyles } from '@/lib/themedStyles';
 
 type Tab = 'books' | 'loans' | 'resources';
 
@@ -120,7 +121,7 @@ export default function LibraryScreen() {
                     <Text style={[s.fine, { color: C.danger }]}>Fine: GH₵{loan.fine_amount.toFixed(2)}</Text>
                   )}
                   <TouchableOpacity onPress={() => handleRenew(loan.id)} style={[s.renewBtn, { borderColor: C.primary }]}>
-                    <Text style={[s.renewText, { color: C.primary }]}>Renew</Text>
+                    <Text style={[s.renewText, { color: C.primaryText }]}>Renew</Text>
                   </TouchableOpacity>
                 </Card>
               ))}
@@ -154,7 +155,7 @@ export default function LibraryScreen() {
                   {res.description && <Text style={[s.resDesc, { color: C.muted }]} numberOfLines={2}>{res.description}</Text>}
                 </View>
                 <View style={[s.resTypeBadge, { backgroundColor: C.primaryLight }]}>
-                  <Text style={[s.resTypeText, { color: C.primary }]}>{res.resource_type.replace('_', ' ')}</Text>
+                  <Text style={[s.resTypeText, { color: C.primaryText }]}>{res.resource_type.replace('_', ' ')}</Text>
                 </View>
               </View>
             </Card>
@@ -168,7 +169,7 @@ function formatDate(d: string) {
   return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-const s = StyleSheet.create({
+const s = createThemedStyles({
   flex:         { flex: 1 },
   tabRow:       { flexDirection: 'row', borderRadius: 12, borderWidth: 1, padding: 4, marginBottom: 14, gap: 4 },
   tabBtn:       { flex: 1, paddingVertical: 8, borderRadius: 9, alignItems: 'center' },

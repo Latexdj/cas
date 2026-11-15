@@ -1,18 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useAuth } from '@/context/AuthContext';
-import { useTheme, useToggleDark, useIsDark } from '@/context/ThemeContext';
+import { useTheme } from '@/context/ThemeContext';
+import { AppearancePicker } from '@/components/AppearancePicker';
 import { api } from '@/lib/api';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Spinner } from '@/components/ui/Spinner';
 import type { StudentProfile } from '@/types/api';
+import { createThemedStyles } from '@/lib/themedStyles';
 
 export default function ProfileScreen() {
   const C = useTheme();
-  const isDark    = useIsDark();
-  const toggleDark= useToggleDark();
   const { user, logout } = useAuth();
 
   const [profile,  setProfile]  = useState<StudentProfile | null>(null);
@@ -95,12 +95,8 @@ export default function ProfileScreen() {
         {/* Settings */}
         <Card style={s.settingsCard}>
           <Text style={[s.sectionTitle, { color: C.muted }]}>Settings</Text>
-          <TouchableOpacity style={s.settingRow} onPress={toggleDark}>
-            <Text style={[s.settingLabel, { color: C.text }]}>Dark Mode</Text>
-            <View style={[s.toggle, { backgroundColor: isDark ? C.primary : C.border }]}>
-              <View style={[s.toggleThumb, isDark && s.toggleThumbOn]} />
-            </View>
-          </TouchableOpacity>
+          <Text style={[s.settingLabel, { color: C.text, marginBottom: 8 }]}>Appearance</Text>
+          <AppearancePicker />
         </Card>
 
         {/* Sign out */}
@@ -114,7 +110,7 @@ function formatDate(d: string) {
   return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
-const s = StyleSheet.create({
+const s = createThemedStyles({
   flex:         { flex: 1 },
   heroCard:     { borderRadius: 20, padding: 24, alignItems: 'center', marginBottom: 16 },
   avatar:       { width: 72, height: 72, borderRadius: 36, justifyContent: 'center', alignItems: 'center', marginBottom: 14 },
