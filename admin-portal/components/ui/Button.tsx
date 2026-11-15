@@ -1,6 +1,6 @@
 import { ButtonHTMLAttributes } from 'react';
 
-type Variant = 'primary' | 'secondary' | 'danger' | 'ghost';
+type Variant = 'primary' | 'secondary' | 'danger' | 'dangerGhost' | 'ghost';
 type Size    = 'sm' | 'md' | 'lg';
 
 interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -12,12 +12,14 @@ interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
 const variants: Record<Variant, string> = {
   primary:   'bg-[#145C44] hover:bg-[#0B3D2E] text-white',
   secondary: 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-600 hover:bg-slate-200 dark:hover:bg-slate-600',
-  danger:    'bg-red-600 hover:bg-red-500 text-white',
+  // Solid red is for the confirming step of a destructive action; rows use dangerGhost.
+  danger:    'bg-[#B83232] hover:bg-[#9B2020] text-white',
+  dangerGhost: 'bg-transparent text-bad-ink hover:bg-[#FBEDED] dark:hover:bg-[#371515]',
   ghost:     'bg-transparent text-[#145C44] dark:text-[#2ab289] hover:bg-slate-100 dark:hover:bg-slate-700',
 };
 
 const sizes: Record<Size, string> = {
-  sm: 'px-3 py-1.5 text-xs',
+  sm: 'px-3 py-1.5 text-sm',
   md: 'px-4 py-2 text-sm',
   lg: 'px-5 py-2.5 text-sm',
 };

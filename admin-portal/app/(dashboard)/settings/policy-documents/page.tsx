@@ -420,7 +420,7 @@ export default function PolicyDocumentsPage() {
             Add your school rules and the clauses used to ground AI-assisted letter drafting.
           </p>
         </div>
-        <Btn label="+ New Document" onClick={() => { setShowCreate(true); setCErr(''); setCForm({ title: '', source_url: '', is_active: true }); }} />
+        <Btn label="Add document" onClick={() => { setShowCreate(true); setCErr(''); setCForm({ title: '', source_url: '', is_active: true }); }} />
       </div>
 
       {/* GES notice */}
@@ -486,7 +486,7 @@ export default function PolicyDocumentsPage() {
                 {canEdit(sel) && (
                   <div style={{ display: 'flex', gap: 8 }}>
                     <Btn label="Import from PDF" onClick={() => { setShowPdfModal(true); setPdfText(''); setPdfErr(''); }} variant="ghost" small />
-                    <Btn label="+ Add Clause" onClick={openClauseCreate} small />
+                    <Btn label="Add clause" onClick={openClauseCreate} small />
                   </div>
                 )}
               </div>
@@ -807,7 +807,7 @@ function DocRow({ doc, selected, onSelect, onEdit, onDelete, canEdit }: {
         {canEdit && (
           <div style={{ display: 'flex', gap: 4, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
             <button onClick={() => onEdit(doc)} style={{ padding: '4px 8px', fontSize: 11, fontWeight: 700, borderRadius: 6, border: `1px solid ${C.border}`, background: '#fff', color: C.mid, cursor: 'pointer' }}>Edit</button>
-            <button onClick={() => onDelete(doc.id)} style={{ padding: '4px 8px', fontSize: 11, fontWeight: 700, borderRadius: 6, border: `1px solid #FECACA`, background: '#FEF2F2', color: C.danger, cursor: 'pointer' }}>Del</button>
+            <button onClick={() => onDelete(doc.id)} style={{ padding: '4px 8px', fontSize: 11, fontWeight: 700, borderRadius: 6, border: `1px solid #FECACA`, background: '#FEF2F2', color: C.danger, cursor: 'pointer' }}>Delete</button>
           </div>
         )}
       </div>
@@ -836,7 +836,7 @@ function ClauseRow({ clause, index, canEdit, onEdit, onDelete }: {
         {canEdit && (
           <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
             <button onClick={onEdit} style={{ padding: '3px 8px', fontSize: 11, fontWeight: 700, borderRadius: 5, border: `1px solid ${C.border}`, background: '#fff', color: C.mid, cursor: 'pointer' }}>Edit</button>
-            <button onClick={onDelete} style={{ padding: '3px 8px', fontSize: 11, fontWeight: 700, borderRadius: 5, border: '1px solid #FECACA', background: '#FEF2F2', color: C.danger, cursor: 'pointer' }}>Del</button>
+            <button onClick={onDelete} style={{ padding: '3px 8px', fontSize: 11, fontWeight: 700, borderRadius: 5, border: '1px solid #FECACA', background: '#FEF2F2', color: C.danger, cursor: 'pointer' }}>Delete</button>
           </div>
         )}
       </div>

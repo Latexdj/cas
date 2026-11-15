@@ -183,7 +183,7 @@ export default function PascoPage() {
           className="px-4 py-2 rounded-lg text-sm font-semibold text-white"
           style={{ backgroundColor: '#145C44' }}
         >
-          + Add Question
+          Add question
         </button>
       </div>
 

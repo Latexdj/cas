@@ -95,7 +95,7 @@ export default function HousesPage() {
             Student residential houses. Assign housemasters via <span className="font-medium">Clearance → Offices & Staff</span>.
           </p>
         </div>
-        <Button size="sm" onClick={openAdd}>+ Add House</Button>
+        <Button size="sm" onClick={openAdd}>Add house</Button>
       </div>
 
       {/* Summary cards */}

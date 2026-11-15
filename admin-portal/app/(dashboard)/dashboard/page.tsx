@@ -1,7 +1,7 @@
 ﻿'use client';
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { api } from '@/lib/api';
-import { StatCard } from '@/components/ui/Card';
+import { TodayPanel, type QueueItem } from '@/components/dashboard/TodayPanel';
 import { UnreadNotificationsBanner } from '@/components/UnreadNotificationsBanner';
 import { Button } from '@/components/ui/Button';
 import { useSessionFilter } from '@/hooks/useSessionFilter';
@@ -270,12 +270,12 @@ function attendanceStatus(pct: number | null): { label: string; color: string; b
 
 function cardCfg(row: ClassroomStatus) {
   if (row.status === 'occupied')
-    return { bg: '#F0FDF4', border: '#16A34A', dot: '#16A34A', label: 'OCCUPIED' };
+    return { bg: 'var(--surface)', border: 'var(--line)', dot: '#2D7A4F', label: 'Lesson recorded' };
   if (row.in_current_period && row.leave_type)
-    return { bg: '#FAF5FF', border: '#9333EA', dot: '#9333EA', label: 'ON LEAVE' };
+    return { bg: 'var(--surface)', border: '#C8973A', dot: '#C8973A', label: 'Teacher on leave' };
   if (row.in_current_period)
-    return { bg: '#FFFBEB', border: '#F59E0B', dot: '#D97706', label: 'SCHEDULED' };
-  return   { bg: '#F5F0E8', border: '#E2E8F0', dot: '#CBD5E1', label: 'FREE' };
+    return { bg: 'var(--surface)', border: 'var(--line)', dot: '#6E6253', label: 'Not recorded yet' };
+  return   { bg: 'var(--sunken)', border: 'var(--line)', dot: '#8C7E6E', label: 'Free' };
 }
 
 // ── sub-components ───────────────────────────────────────────────────────────
@@ -285,10 +285,10 @@ function ClassroomCard({ row }: { row: ClassroomStatus }) {
   return (
     <div
       className="rounded-xl p-4"
-      style={{ backgroundColor: cfg.bg, border: `1px solid ${cfg.border}`, borderLeft: `4px solid ${cfg.border}` }}
+      style={{ backgroundColor: cfg.bg, border: `1px solid ${cfg.border}` }}
     >
       <div className="flex items-center justify-between mb-2.5">
-        <span className="text-xs font-bold font-medium" style={{ color: cfg.dot }}>
+        <span className="text-sm font-medium text-ink-2">
           {cfg.label}
         </span>
         <span
@@ -315,11 +315,13 @@ function ClassroomCard({ row }: { row: ClassroomStatus }) {
           <a
             href={`tel:${row.teacher_phone}`}
             title={`Call ${row.teacher_phone}`}
+            aria-label={`Call ${row.teacher_name ?? 'the teacher'} on ${row.teacher_phone}`}
+            className="hover:bg-sunken w-11 h-11 md:w-9 md:h-9"
             style={{
               display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-              width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
-              background: `${cfg.border}22`, color: cfg.dot, textDecoration: 'none',
-              border: `1.5px solid ${cfg.border}55`,
+              borderRadius: '50%', flexShrink: 0,
+              color: 'var(--brand-ink)', textDecoration: 'none',
+              border: '1px solid var(--line)',
             }}
             onClick={e => e.stopPropagation()}
           >
@@ -355,7 +357,7 @@ interface Notice {
 const PRIORITY_STYLE: Record<string, { bg: string; border: string; text: string; badge: string }> = {
   urgent:    { bg: '#FEF2F2', border: '#FECACA', text: '#991B1B', badge: '#DC2626' },
   important: { bg: '#FFFBEB', border: '#FDE68A', text: '#92400E', badge: '#D97706' },
-  normal:    { bg: '#EFF6FF', border: '#BFDBFE', text: '#1E40AF', badge: '#2563EB' },
+  normal:    { bg: '#FFFFFF', border: '#E2D9CC', text: '#4A3F32', badge: '#6E6253' },
 };
 
 function AdminNoticesWidget() {
@@ -427,6 +429,18 @@ export default function DashboardPage() {
   const [showConflicts,  setShowConflicts]  = useState(false);
   const [timetableGaps,  setTimetableGaps]  = useState<{ unscheduled: number; unteachered: number } | null>(null);
   const [dayStatus,      setDayStatus]      = useState<{ status: string; label: string | null } | null>(null);
+  const [pendingLeaves,  setPendingLeaves]  = useState(0);
+  const [pendingProfiles, setPendingProfiles] = useState(0);
+
+  // Counts for the "Needs you" list. Each fails quietly to zero.
+  useEffect(() => {
+    api.get('/api/teacher-excuses', { params: { status: 'Pending' } })
+      .then(r => setPendingLeaves(Array.isArray(r.data) ? r.data.filter((x: { status?: string }) => !x.status || x.status === 'Pending').length : 0))
+      .catch(() => setPendingLeaves(0));
+    api.get('/api/admin/teacher-profile-requests', { params: { status: 'Pending' } })
+      .then(r => setPendingProfiles(Array.isArray(r.data) ? r.data.length : 0))
+      .catch(() => setPendingProfiles(0));
+  }, []);
 
   // Load academic years once and set defaults to current year + current semester.
   // Only fall back to "current year" when nothing was restored from a prior
@@ -665,16 +679,19 @@ export default function DashboardPage() {
 
       <AdminNoticesWidget />
 
-      {/* ── stat cards ── */}
+      {/* ── today: periods and what needs attention ── */}
+      <TodayPanel queues={[
+        { label: 'Leave requests to decide',      count: pendingLeaves,                          href: '/leave-excuses',            action: 'Review' },
+        { label: 'Unresolved absence flags',      count: stats?.outstanding_absences ?? 0,        href: '/absences',                 action: 'Resolve' },
+        { label: 'Remedial lessons not yet held', count: stats?.pending_remedials ?? 0,           href: '/absences',                 action: 'View' },
+        { label: 'Teacher profile changes',       count: pendingProfiles,                        href: '/teacher-profile-requests', action: 'Review' },
+        { label: 'Timetable gaps',                count: (timetableGaps?.unscheduled ?? 0) + (timetableGaps?.unteachered ?? 0), href: '/timetable', action: 'Fix' },
+      ] satisfies QueueItem[]} />
+
       {stats && (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-          <StatCard label="Today's Attendance" value={stats.today_attendance}     color="green"  />
-          <StatCard label="Today's Absences"   value={stats.today_absences}       color="red"    />
-          <StatCard label="Total Teachers"     value={stats.total_teachers}       color="blue"   />
-          <StatCard label="Week Attendance"    value={stats.week_attendance}      color="purple" />
-          <StatCard label="Outstanding"        value={stats.outstanding_absences} color="yellow" />
-          <StatCard label="Pending Remedials"  value={stats.pending_remedials}    color="yellow" />
-        </div>
+        <p className="text-sm text-ink-muted">
+          Today {stats.today_attendance} lessons recorded and {stats.today_absences} teacher absences; {stats.week_attendance} lessons recorded this week; {stats.total_teachers} active teachers.
+        </p>
       )}
 
       {/* ── classroom occupancy ── */}
@@ -686,25 +703,13 @@ export default function DashboardPage() {
           <p className="text-xs" style={{ color: '#94A3B8' }}>Live · updates every 60 s</p>
         </div>
 
-        {/* occupancy stats bar */}
-        <div className="grid grid-cols-4 gap-3 mb-4">
-          <div className="rounded-xl p-4 text-center bg-white" style={{ border: '1px solid #F1F5F9' }}>
-            <p className="text-2xl font-bold" style={{ color: '#1C1208' }}>{totalClassrooms}</p>
-            <p className="text-xs mt-0.5" style={{ color: '#94A3B8' }}>Total</p>
-          </div>
-          <div className="rounded-xl p-4 text-center" style={{ border: '1px solid #BBF7D0', backgroundColor: '#F0FDF4' }}>
-            <p className="text-2xl font-bold" style={{ color: '#16A34A' }}>{occupiedCount}</p>
-            <p className="text-xs mt-0.5" style={{ color: '#16A34A' }}>Occupied</p>
-          </div>
-          <div className="rounded-xl p-4 text-center" style={{ border: '1px solid #FCA5A5', backgroundColor: '#FEF2F2' }}>
-            <p className="text-2xl font-bold" style={{ color: '#DC2626' }}>{vacantCount}</p>
-            <p className="text-xs mt-0.5" style={{ color: '#DC2626' }}>Vacant</p>
-          </div>
-          <div className="rounded-xl p-4 text-center" style={{ border: '1px solid #BFDBFE', backgroundColor: '#EFF6FF' }}>
-            <p className="text-2xl font-bold" style={{ color: '#2563EB' }}>{currentPeriodCount}</p>
-            <p className="text-xs mt-0.5" style={{ color: '#2563EB' }}>Current Period</p>
-          </div>
-        </div>
+        {/* occupancy totals: one line, colour only for vacant rooms */}
+        <p className="mb-4 text-sm text-ink-2">
+          <span className="font-semibold text-ink">{totalClassrooms}</span> classrooms:{' '}
+          <span className="font-semibold text-ink">{occupiedCount}</span> with a recorded lesson,{' '}
+          <span className={`font-semibold ${vacantCount > 0 ? 'text-bad-ink' : 'text-ink'}`}>{vacantCount}</span> vacant,{' '}
+          <span className="font-semibold text-ink">{currentPeriodCount}</span> timetabled this period.
+        </p>
 
         {/* filter buttons */}
         <div className="flex gap-2 mb-4">

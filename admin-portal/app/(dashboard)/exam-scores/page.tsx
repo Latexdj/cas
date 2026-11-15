@@ -202,11 +202,8 @@ export default function AdminExamScoresPage() {
           placeholder="Class…" onKeyDown={e => e.key === 'Enter' && load()}
           className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm bg-white text-slate-900 w-24" />
 
-        <button onClick={load} disabled={loading}
-          className="px-4 py-1.5 rounded-lg text-sm font-semibold text-white disabled:opacity-50 transition-colors"
-          style={{ backgroundColor: '#145C44' }}>
-          {loading ? 'Loading…' : 'Apply'}
-        </button>
+        {/* Filters apply as you change them, like every other list. */}
+        {loading && <span className="text-sm text-ink-muted" role="status">Loading…</span>}
       </div>
 
       {error && (

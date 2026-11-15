@@ -76,7 +76,7 @@ export default function LocationsPage() {
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
-        <Button onClick={openCreate}>+ Add Location</Button>
+        <Button onClick={openCreate}>Add location</Button>
       </div>
 
       {loading ? (
@@ -112,7 +112,7 @@ export default function LocationsPage() {
                   </td>
                   <td className="px-4 py-3 flex gap-2 whitespace-nowrap">
                     <Button variant="ghost" size="sm" onClick={() => openEdit(l)}>Edit</Button>
-                    <Button variant="danger" size="sm" onClick={() => del(l.id, l.name)}>Del</Button>
+                    <Button variant="dangerGhost" size="sm" onClick={() => del(l.id, l.name)}>Delete</Button>
                   </td>
                 </tr>
               ))}

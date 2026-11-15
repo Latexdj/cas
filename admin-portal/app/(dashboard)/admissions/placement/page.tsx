@@ -146,7 +146,7 @@ export default function PlacementPage() {
                 </td>
                 <td className="px-4 py-3">
                   {!r.is_registered && (
-                    <Button variant="danger" size="sm" onClick={() => del(r.id)}>Remove</Button>
+                    <Button variant="dangerGhost" size="sm" onClick={() => del(r.id)}>Remove</Button>
                   )}
                 </td>
               </tr>

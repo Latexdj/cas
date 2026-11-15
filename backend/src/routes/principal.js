@@ -101,7 +101,8 @@ router.get('/snapshot', async (req, res, next) => {
 });
 
 // â”€â”€ 2. Classroom Occupancy â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-router.get('/occupancy', async (req, res, next) => {
+// Shared with the admin dashboard's day strip (admin.js mounts the same handler).
+async function occupancyHandler(req, res, next) {
   try {
     const sid  = req.schoolId;
     const date = req.query.date || today();
@@ -192,7 +193,8 @@ router.get('/occupancy', async (req, res, next) => {
 
     res.json({ date, slots });
   } catch (err) { next(err); }
-});
+}
+router.get('/occupancy', occupancyHandler);
 
 // â”€â”€ 3. Academic Years (for frontend dropdowns) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.get('/academic-years', async (req, res, next) => {
@@ -1741,4 +1743,4 @@ router.get('/exam-results/rankings', checkModuleAccess('exam_results'), async (r
 });
 
 module.exports = router;
-
+module.exports.occupancyHandler = occupancyHandler;

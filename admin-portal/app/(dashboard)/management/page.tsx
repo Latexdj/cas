@@ -163,7 +163,7 @@ export default function ManagementUsersPage() {
           </p>
         </div>
         {!callerRestricted && (
-          <Button onClick={openCreate} size="sm" disabled={available.length === 0}>+ Assign Role</Button>
+          <Button onClick={openCreate} size="sm" disabled={available.length === 0}>Assign role</Button>
         )}
       </div>
 

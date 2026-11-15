@@ -432,7 +432,7 @@ export default function PlcPage() {
             style={{ backgroundColor: '#145C44' }}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-            New Session
+            Add session
           </button>
         )}
       </div>
@@ -488,7 +488,7 @@ export default function PlcPage() {
           {tab === 'sessions' && (
             <div className="bg-white rounded-xl border border-slate-100 overflow-hidden shadow-sm">
               {sessions.length === 0 ? (
-                <div className="py-16 text-center text-slate-400 text-sm">No PLC sessions configured. Click <strong>New Session</strong> to create one.</div>
+                <div className="py-16 text-center text-slate-400 text-sm">No PLC sessions configured. Click <strong>Add session</strong> to create one.</div>
               ) : (
                 <div className="overflow-x-auto">
                 <table className="min-w-[750px] w-full text-sm">

@@ -85,7 +85,7 @@ export default function AcademicYearsPage() {
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
-        <Button onClick={openCreate}>+ Add Academic Year</Button>
+        <Button onClick={openCreate}>Add academic year</Button>
       </div>
 
       {loading ? (
@@ -194,7 +194,7 @@ function YearRows({ year, expanded, onToggleExpand, onEdit, onDelete, onRefresh 
               {expanded ? 'Hide Semesters ▲' : 'Semesters ▼'}
             </button>
             <Button variant="ghost" size="sm" onClick={onEdit}>Edit</Button>
-            <Button variant="danger" size="sm" onClick={onDelete}>Del</Button>
+            <Button variant="danger" size="sm" onClick={onDelete}>Delete</Button>
           </div>
         </td>
       </tr>
@@ -275,7 +275,7 @@ function SemesterPanel({ yearId, onRefresh: _onRefresh }: { yearId: string; onRe
         {!adding && (
           <button onClick={startAdd}
             className="text-xs font-semibold text-[#145C44] hover:text-[#0B3D2E] px-2 py-1 rounded hover:bg-[#E8F4EE] dark:hover:bg-green-900/20">
-            + Add Semester
+            Add semester
           </button>
         )}
       </div>
@@ -352,7 +352,7 @@ function SemesterPanel({ yearId, onRefresh: _onRefresh }: { yearId: string; onRe
                   <td className="px-3 py-2 text-right">
                     <div className="flex justify-end gap-3">
                       <button onClick={() => startEdit(s)} className="text-blue-500 hover:text-blue-700 font-semibold">Edit</button>
-                      <button onClick={() => del(s.id, s.name)} className="text-red-500 hover:text-red-700 font-semibold">Del</button>
+                      <button onClick={() => del(s.id, s.name)} className="text-red-500 hover:text-red-700 font-semibold">Delete</button>
                     </div>
                   </td>
                 </tr>

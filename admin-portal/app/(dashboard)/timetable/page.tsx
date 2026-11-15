@@ -427,7 +427,7 @@ export default function TimetablePage() {
         <div className="ml-auto flex gap-2">
           <Button variant="secondary" onClick={openUpload}>↑ Upload Excel</Button>
           <Button variant="secondary" onClick={openBulkUpdate}>✎ Update Records</Button>
-          <Button onClick={openCreate}>+ Add Slot</Button>
+          <Button onClick={openCreate}>Add slot</Button>
         </div>
       </div>
 
@@ -461,7 +461,7 @@ export default function TimetablePage() {
                   <td className="px-4 py-3 text-gray-700">{e.teacher_name}</td>
                   <td className="px-4 py-3 flex gap-2 whitespace-nowrap">
                     <Button variant="ghost" size="sm" onClick={() => openEdit(e)}>Edit</Button>
-                    <Button variant="danger" size="sm" onClick={() => del(e.id)}>Del</Button>
+                    <Button variant="dangerGhost" size="sm" onClick={() => del(e.id)} aria-label={`Delete ${e.subject} on ${e.day_of_week}`}>Delete</Button>
                   </td>
                 </tr>
               ))}

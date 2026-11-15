@@ -164,7 +164,7 @@ function AbsencesTab({ teachers }: { teachers: Teacher[] }) {
                     <td className="px-4 py-3 whitespace-nowrap">
                       <div className="flex gap-2 items-center">
                         <Button variant="ghost" size="sm" onClick={() => { setReason(r.reason ?? ''); setReasonModal(r); }}>Reason</Button>
-                        <Button variant="danger" size="sm" onClick={() => deleteAbsence(r.id)}>Delete</Button>
+                        <Button variant="dangerGhost" size="sm" onClick={() => deleteAbsence(r.id)}>Delete</Button>
                       </div>
                     </td>
                   </tr>

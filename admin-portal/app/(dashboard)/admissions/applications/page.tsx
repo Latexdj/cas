@@ -399,7 +399,7 @@ export default function ApplicationsPage() {
             onClick={() => { setDirectForm(BLANK_FORM); setDirectError(''); setDirectModal(true); }}
             className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold bg-amber-500 text-white hover:bg-amber-600 transition-colors"
           >
-            + Add Direct Admission
+            Add direct admission
           </button>
           <Button onClick={() => setMigModal(true)} disabled={!stats?.reported}>
             Migrate Reported → Students
@@ -490,7 +490,7 @@ export default function ApplicationsPage() {
                       {['completed','reported','migrated'].includes(r.status) && (
                         <Button size="sm" variant="secondary" onClick={() => printLetter(r.id)} loading={printingId === r.id}>Letter</Button>
                       )}
-                      <Button variant="danger" size="sm" onClick={() => del(r.id)}>Del</Button>
+                      <Button variant="dangerGhost" size="sm" onClick={() => del(r.id)}>Delete</Button>
                     </div>
                   </td>
                 </tr>

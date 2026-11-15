@@ -245,7 +245,7 @@ function GradeBoundariesCard() {
                     <td className="px-4 py-2.5">
                       <div className="flex gap-1.5">
                         <button onClick={() => openEdit(b)} className="text-xs px-2 py-1 rounded-lg font-semibold" style={{ backgroundColor: '#F1F5F9', color: '#64748B' }}>Edit</button>
-                        <button onClick={() => del(b.id, b.grade)} className="text-xs px-2 py-1 rounded-lg font-semibold" style={{ backgroundColor: '#FEF2F2', color: '#DC2626' }}>Del</button>
+                        <button onClick={() => del(b.id, b.grade)} className="text-xs px-2 py-1 rounded-lg font-semibold" style={{ backgroundColor: '#FEF2F2', color: '#DC2626' }}>Delete</button>
                       </div>
                     </td>
                   </tr>
@@ -257,7 +257,7 @@ function GradeBoundariesCard() {
             </table>
           </div>
           <div className="flex gap-2">
-            <Button size="sm" onClick={openAdd}>+ Add Grade</Button>
+            <Button size="sm" onClick={openAdd}>Add grade</Button>
             <Button size="sm" variant="secondary" onClick={seedDefaults} loading={seeding}>
               Reset to {activeBody} Defaults
             </Button>
@@ -549,7 +549,7 @@ export default function SettingsPage() {
   );
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <div className="max-w-4xl space-y-6">
       {/* School info */}
       <div className="bg-white rounded-xl p-6" style={{ border: '1px solid #F1F5F9', boxShadow: '0 1px 4px rgba(15,23,42,0.06)' }}>
         <h2 className="text-sm font-semibold font-medium mb-4" style={{ color: '#64748B' }}>School Information</h2>
@@ -931,6 +931,12 @@ export default function SettingsPage() {
           </div>
         </div>
       </div>
+      {/* About: the CAS credit that used to sit at the bottom of the menu */}
+      <section aria-labelledby="about-cas" className="rounded-xl bg-surface border border-line p-6">
+        <h2 id="about-cas" className="text-base font-semibold text-ink mb-2">About CAS</h2>
+        <p className="text-sm text-ink-2">Comprehensive Academic Suite, designed and supported by LatexTech.</p>
+        <p className="text-sm text-ink-2 mt-1">Support line: <span className="font-mono select-all">+233 24 8234 649</span></p>
+      </section>
     </div>
   );
 }

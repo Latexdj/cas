@@ -351,7 +351,7 @@ function SessionsTab() {
           onClick={() => { adding ? setAdding(false) : openAdd(); setMergeMode(false); setMergeIds([]); }}
           className="px-4 py-2 rounded-lg text-sm font-semibold text-white transition-colors"
           style={{ backgroundColor: adding ? '#64748B' : '#145C44' }}>
-          {adding ? 'Cancel' : '+ Add Sessions'}
+          {adding ? 'Cancel' : 'Add sessions'}
         </button>
       </div>
 

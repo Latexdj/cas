@@ -117,7 +117,7 @@ export default function SupportStaffPage() {
             Non-teaching staff who log in via the Staff Portal (clearance officers, librarians, store officers, accounts clerks)
           </p>
         </div>
-        <Button size="sm" onClick={openAdd}>+ Add Staff</Button>
+        <Button size="sm" onClick={openAdd}>Add staff</Button>
       </div>
 
       <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">

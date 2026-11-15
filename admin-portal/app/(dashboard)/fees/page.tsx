@@ -133,9 +133,10 @@ const btnSecondary: React.CSSProperties = {
   padding: '8px 16px', background: '#f1f5f9', color: '#374151',
   border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 14, cursor: 'pointer',
 };
+// Row-level delete: quiet text; the in-page confirmation carries the weight.
 const btnDanger: React.CSSProperties = {
-  padding: '6px 12px', background: '#fee2e2', color: '#dc2626',
-  border: 'none', borderRadius: 6, fontWeight: 600, fontSize: 12, cursor: 'pointer',
+  padding: '6px 12px', background: 'transparent', color: 'var(--bad-ink)',
+  border: 'none', borderRadius: 6, fontWeight: 600, fontSize: 13, cursor: 'pointer',
 };
 
 // ── Fee Items Tab ─────────────────────────────────────────────────────────────
@@ -177,7 +178,7 @@ function ItemsTab({ items, loading, onRefresh }: { items: FeeItem[]; loading: bo
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <p style={{ color: '#64748b', fontSize: 14 }}>Define categories of fees charged to students.</p>
-        <button style={btnPrimary} onClick={openNew}>+ Add Fee Item</button>
+        <button style={btnPrimary} onClick={openNew}>Add fee item</button>
       </div>
 
       {loading ? <p style={{ color: '#94a3b8', textAlign: 'center', padding: 32 }}>Loading…</p> : (
@@ -388,7 +389,7 @@ function SchedulesTab({
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <p style={{ color: '#64748b', fontSize: 14 }}>Set fee amounts per class and term, then generate bills for students.</p>
-        <button style={btnPrimary} onClick={openNew}>+ Add Schedule</button>
+        <button style={btnPrimary} onClick={openNew}>Add schedule</button>
       </div>
 
       {genMsg && (
@@ -722,7 +723,7 @@ function CollectionsTab({ items }: { items: FeeItem[] }) {
             ))}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <button style={btnSecondary} onClick={openBillModal}>
-                + Add Bill
+                Add bill
               </button>
               <button style={btnPrimary} onClick={() => { setPayForm({ bill_id: '', fee_item_id: '', amount: '', payment_date: new Date().toISOString().slice(0, 10), payment_method: 'Cash', reference: '', notes: '' }); setPayErr(''); setShowPayModal(true); }}>
                 + Record Payment
@@ -1495,7 +1496,7 @@ function ExpenditureTab({ onExpenseChange }: { onExpenseChange: () => void }) {
           <button style={{ ...btnSecondary, background: '#f0fdf4', color: '#145C44' }} onClick={loadSummary} disabled={loadingSummary}>
             {loadingSummary ? 'Loading…' : '📊 Income vs. Expenditure'}
           </button>
-          <button style={btnPrimary} onClick={openNew}>+ Add Expense</button>
+          <button style={btnPrimary} onClick={openNew}>Add expense</button>
         </div>
       </div>
 
@@ -1680,58 +1681,67 @@ export default function FeesPage() {
     api.get('/api/class-levels').then(r => setLevels(r.data)).catch(() => {});
   }, [loadItems, loadSchedules, loadStats]);
 
+  // Four groups, the same split as the accountant's menu in the staff portal.
+  const GROUPS: { label: string; tabs: { id: Tab; label: string }[] }[] = [
+    { label: 'Billing',     tabs: [{ id: 'items', label: 'Fee items' }, { id: 'schedules', label: 'Schedules' }] },
+    { label: 'Payments',    tabs: [{ id: 'collections', label: 'Collections' }, { id: 'expenditure', label: 'Expenditure' }] },
+    { label: 'Reports',     tabs: [{ id: 'arrears', label: 'Arrears' }, { id: 'payments_report', label: 'Payments' }, { id: 'fee_reports', label: 'Fee reports' }] },
+    { label: 'Maintenance', tabs: [{ id: 'bill_cleanup', label: 'Bill clean-up' }, { id: 'missing_bills', label: 'Missing bills' }, { id: 'needs_review', label: 'Needs review' }] },
+  ];
+  const activeGroup = GROUPS.find(g => g.tabs.some(t => t.id === tab)) ?? GROUPS[0];
   const TABS: { id: Tab; label: string }[] = [
-    { id: 'items',       label: 'Fee Items' },
-    { id: 'schedules',   label: 'Schedules' },
-    { id: 'collections', label: 'Collections' },
-    { id: 'expenditure', label: 'Expenditure' },
-    { id: 'arrears',     label: 'Arrears Report' },
-    { id: 'payments_report', label: 'Payments Report' },
-    { id: 'fee_reports', label: 'Fee Reports' },
-    { id: 'bill_cleanup', label: 'Bill Cleanup' },
-    { id: 'missing_bills', label: 'Missing Bills' },
-    { id: 'needs_review', label: 'Needs Review' },
+    ...GROUPS.flatMap(g => g.tabs),
   ];
 
   return (
-    <div style={{ padding: '24px 28px', maxWidth: 1100 }}>
+    <div style={{ maxWidth: 1100 }}>
       {/* Header */}
       <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontWeight: 800, fontSize: 22, color: '#1C1208' }}>Accounts & Fees</h1>
-        <p style={{ color: '#64748b', fontSize: 14, marginTop: 2 }}>Manage fee schedules, record payments, and track outstanding balances.</p>
+        <h1 className="text-2xl font-semibold text-ink">Accounts & fees</h1>
+        <p className="text-sm text-ink-muted mt-0.5">Fee schedules, payments and outstanding balances.</p>
       </div>
 
       {/* Stats cards */}
       {stats && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(160px,1fr))', gap: 12, marginBottom: 24 }}>
           {[
-            { label: 'Fees Collected', value: fmt(stats.total_collected), color: '#145C44', bg: '#f0fdf4' },
-            { label: 'Total Expenses', value: fmt(stats.total_expenses), color: '#dc2626', bg: '#fef2f2' },
-            { label: stats.net_position >= 0 ? 'Surplus' : 'Deficit',
-              value: fmt(Math.abs(stats.net_position)),
-              color: stats.net_position >= 0 ? '#145C44' : '#dc2626',
-              bg: stats.net_position >= 0 ? '#f0fdf4' : '#fef2f2' },
-            { label: 'Fees Outstanding', value: fmt(stats.outstanding), color: stats.outstanding > 0 ? '#f59e0b' : '#145C44', bg: stats.outstanding > 0 ? '#fffbeb' : '#f0fdf4' },
-            { label: 'Students Billed', value: stats.students_with_bills.toLocaleString(), color: '#4A3F32', bg: '#F5F0E8' },
+            { label: 'Fees collected', value: fmt(stats.total_collected), tone: '' },
+            { label: 'Expenses', value: fmt(stats.total_expenses), tone: '' },
+            { label: stats.net_position >= 0 ? 'Surplus' : 'Deficit', value: fmt(Math.abs(stats.net_position)), tone: stats.net_position >= 0 ? '' : 'text-bad-ink' },
+            { label: 'Still owed', value: fmt(stats.outstanding), tone: stats.outstanding > 0 ? 'text-warn-ink' : '' },
+            { label: 'Students billed', value: stats.students_with_bills.toLocaleString(), tone: '' },
           ].map(c => (
-            <div key={c.label} style={{ background: c.bg, borderRadius: 12, padding: '14px 18px', border: `1px solid ${c.color}22` }}>
-              <p style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 4 }}>{c.label}</p>
-              <p style={{ fontWeight: 700, fontSize: 18, color: c.color }}>{c.value}</p>
+            <div key={c.label} className="rounded-xl bg-surface border border-line px-4 py-3">
+              <p className="text-sm text-ink-muted mb-1">{c.label}</p>
+              <p className={`font-mono font-semibold text-base md:text-lg whitespace-nowrap ${c.tone || 'text-ink'}`}>{c.value}</p>
             </div>
           ))}
         </div>
       )}
 
       {/* Tabs */}
-      <div style={{ borderBottom: '2px solid #e2e8f0', marginBottom: 24, display: 'flex', gap: 4 }}>
-        {TABS.map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)} style={{
-            padding: '8px 18px', border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: 14,
-            background: 'none', borderBottom: tab === t.id ? '2px solid #145C44' : '2px solid transparent',
-            color: tab === t.id ? '#145C44' : '#64748b', marginBottom: -2,
-            transition: 'color .15s',
-          }}>{t.label}</button>
-        ))}
+      <div className="mb-6 space-y-3">
+        <div role="tablist" aria-label="Fee areas" className="inline-flex flex-wrap gap-1 p-1 rounded-xl bg-sunken border border-line">
+          {GROUPS.map(g => {
+            const on = g === activeGroup;
+            return (
+              <button key={g.label} role="tab" aria-selected={on} onClick={() => setTab(g.tabs[0].id)}
+                className={`px-4 min-h-[36px] rounded-lg text-sm font-semibold transition-colors ${on ? 'bg-surface text-ink shadow-sm' : 'text-ink-muted hover:text-ink'}`}>
+                {g.label}
+              </button>
+            );
+          })}
+        </div>
+        {activeGroup.tabs.length > 1 && (
+          <div role="tablist" aria-label={`${activeGroup.label} pages`} className="flex gap-1 overflow-x-auto no-scrollbar border-b border-line">
+            {activeGroup.tabs.map(t => (
+              <button key={t.id} role="tab" aria-selected={tab === t.id} onClick={() => setTab(t.id)}
+                className={`px-3 min-h-[40px] text-sm font-medium border-b-2 -mb-px whitespace-nowrap ${tab === t.id ? 'border-[#C8973A] text-ink' : 'border-transparent text-ink-muted hover:text-ink'}`}>
+                {t.label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Tab content */}

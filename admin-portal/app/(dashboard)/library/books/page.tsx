@@ -150,7 +150,7 @@ export default function BookCatalogPage() {
           <h1 className="text-xl font-bold text-slate-900 dark:text-white">Book Catalog</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{books.length} book(s) in catalog</p>
         </div>
-        <Button onClick={openAdd} size="sm">+ Add Book</Button>
+        <Button onClick={openAdd} size="sm">Add book</Button>
       </div>
 
       <div className="max-w-sm">

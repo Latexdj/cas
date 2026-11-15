@@ -9,6 +9,7 @@ import { validateStudentForm } from '@/lib/validations';
 import { Button } from '@/components/ui/Button';
 import type { Student, StudentProfile, Program, ClassItem, House } from '@/types/api';
 import { confirmAction, notify } from '@/components/ui/dialogs';
+import { ActionMenu } from '@/components/ui/ActionMenu';
 
 interface UploadResult { inserted: number; errors: { row: number; message: string }[]; }
 interface UpdateResult { updated: number; notFound: { row: number; code: string }[]; errors: { row: number; message: string }[]; }
@@ -194,11 +195,14 @@ export default function StudentsPage() {
 
   async function handleResetPassword(studentId: string) {
     setResettingId(studentId);
+    const st = students.find(x => x.id === studentId);
     try {
       await api.post(`/api/students/${studentId}/set-pin`, {});
-      // briefly show tick by keeping resettingId set, then clear
-    } catch { /* ignore */ }
-    setTimeout(() => setResettingId(null), 1500);
+      notify(`${st?.name ?? 'The student'}'s portal password is now Student123. They should change it when they next sign in.`, 'success');
+    } catch {
+      notify(`Could not reset ${st?.name ?? 'the student'}'s password. Check your connection and try again.`, 'error');
+    }
+    setResettingId(null);
   }
 
   async function handleSave() {
@@ -482,19 +486,23 @@ export default function StudentsPage() {
           <h1 className="text-2xl font-bold" style={{ color: '#1C1208' }}>Students</h1>
           <p className="text-sm mt-0.5" style={{ color: '#94A3B8' }}>{filtered.length} student{filtered.length !== 1 ? 's' : ''}</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="secondary" size="sm" onClick={() => { setBatchOpen(true); setBatchJob(null); setBatchRunning(false); }}>⬜ ID Cards</Button>
-          <Link href="/id-cards/scan"><Button variant="secondary" size="sm">▣ Scan ID Card</Button></Link>
-          <Link href="/id-cards"><Button variant="secondary" size="sm">⚑ Scan Audit</Button></Link>
-          <Button variant="secondary" size="sm" onClick={printStudents}>⎙ Print List</Button>
-          <Button variant="secondary" size="sm" onClick={() => { setFromClass(''); setToClass(''); setActionResult(''); setModal('graduate'); }}>Graduate Class</Button>
-          <Button variant="secondary" size="sm" onClick={() => { setFromClass(''); setToClass(''); setActionResult(''); setModal('promote'); }}>Promote Class</Button>
-          <Button variant="secondary" size="sm" onClick={() => { setUploadResult(null); setModal('upload'); }}>↑ Import Students</Button>
-          <Button variant="secondary" size="sm" onClick={() => { setUpdateResult(null); setModal('update'); }}>↑ Update Records</Button>
-          <Link href="/students/batch-review">
-            <Button variant="secondary" size="sm">📅 Admission Years</Button>
-          </Link>
-          <Button size="sm" onClick={openAdd}>+ Add Student</Button>
+        <div className="flex gap-2 items-center">
+          <ActionMenu label="More student actions" trigger={<>More<svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden><path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" /></svg></>} items={[
+            { heading: 'Print' },
+            { label: 'ID cards', onClick: () => { setBatchOpen(true); setBatchJob(null); setBatchRunning(false); } },
+            { label: 'Student list', onClick: printStudents },
+            { heading: 'Scan' },
+            { label: 'Scan an ID card', href: '/id-cards/scan' },
+            { label: 'ID card audit', href: '/id-cards' },
+            { heading: 'Records' },
+            { label: 'Import students', hint: 'From an Excel file', onClick: () => { setUploadResult(null); setModal('upload'); } },
+            { label: 'Update records', hint: 'Change many students at once', onClick: () => { setUpdateResult(null); setModal('update'); } },
+            { heading: 'End of year' },
+            { label: 'Promote a class', onClick: () => { setFromClass(''); setToClass(''); setActionResult(''); setModal('promote'); } },
+            { label: 'Graduate a class', onClick: () => { setFromClass(''); setToClass(''); setActionResult(''); setModal('graduate'); } },
+            { label: 'Admission years', href: '/students/batch-review' },
+          ]} />
+          <Button size="sm" onClick={openAdd}>Add student</Button>
         </div>
       </div>
 
@@ -551,10 +559,30 @@ export default function StudentsPage() {
         {loading ? (
           <div className="flex justify-center py-16"><div className="w-8 h-8 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#145C44', borderTopColor: 'transparent' }} /></div>
         ) : filtered.length === 0 ? (
-          <div className="text-center py-16 text-sm" style={{ color: '#94A3B8' }}>No students found.</div>
+          <div className="text-center py-16 text-sm text-ink-muted">No students match these filters. Clear the search or choose another class or status.</div>
 
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          {/* Phones: one row per student, name first, actions behind the menu. */}
+          <ul className="md:hidden divide-y divide-line">
+            {(displayRows as Student[]).map(s => (
+              <li key={s.id} className="flex items-center gap-3 px-4 py-3">
+                <Link href={`/students/${s.id}`} className="flex-1 min-w-0">
+                  <span className="block font-semibold text-ink truncate">{s.name}</span>
+                  <span className="block text-sm text-ink-muted truncate">
+                    <span className="font-mono">{s.student_code}</span>, {s.class_name}{s.status !== 'Active' ? `, ${s.status}` : ''}
+                  </span>
+                </Link>
+                <ActionMenu label={`Actions for ${s.name}`} items={[
+                  { label: 'Open profile', href: `/students/${s.id}` },
+                  { label: 'Edit details', onClick: () => openEdit(s) },
+                  { label: 'Reset portal password', hint: 'Sets it to Student123', disabled: resettingId === s.id, onClick: () => handleResetPassword(s.id) },
+                  { label: 'Delete student', destructive: true, onClick: () => handleDelete(s) },
+                ]} />
+              </li>
+            ))}
+          </ul>
+          <div className="hidden md:block overflow-x-auto">
             <table className="min-w-[800px] w-full text-sm">
               <thead>
                 <tr style={{ borderBottom: '1px solid #F1F5F9', backgroundColor: '#F5F0E8' }}>
@@ -588,13 +616,13 @@ export default function StudentsPage() {
                         </div>
                       </td>
                       <td className="px-5 py-3">
-                        <span className="font-mono text-xs font-bold px-2 py-0.5 rounded" style={{ backgroundColor: '#E0F2FE', color: '#0369A1' }}>{s.student_code}</span>
+                        <span className="font-mono text-sm text-ink-2">{s.student_code}</span>
                       </td>
-                      <td className="px-5 py-3 font-semibold" style={{ color: '#1C1208' }}>{s.name}</td>
+                      <td className="px-5 py-3 font-semibold"><Link href={`/students/${s.id}`} className="text-ink hover:underline underline-offset-2">{s.name}</Link></td>
                       <td className="px-5 py-3" style={{ color: '#475569' }}>{s.class_name}</td>
                       <td className="px-5 py-3">
                         {s.program_name
-                          ? <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold" style={{ backgroundColor: '#EFF6FF', color: '#2563EB' }}>{s.program_name}</span>
+                          ? <span className="text-ink-2">{s.program_name}</span>
                           : <span style={{ color: '#CBD5E1' }}>—</span>}
                       </td>
                       <td className="px-5 py-3">
@@ -602,20 +630,13 @@ export default function StudentsPage() {
                       </td>
                       <td className="px-5 py-3 text-xs" style={{ color: '#94A3B8' }}>{s.notes || '—'}</td>
                       <td className="px-5 py-3">
-                        <div className="flex gap-2 justify-end items-center">
-                          <Link href={`/students/${s.id}`} className="text-xs font-semibold px-2 py-1 rounded border" style={{ color: '#64748B', borderColor: '#E2E8F0' }}>Profile</Link>
-                          <button className="text-xs font-semibold" style={{ color: '#2563EB' }} onClick={() => openEdit(s)}>Edit</button>
-                          <button
-                            title="Reset portal password to Student123"
-                            disabled={resettingId === s.id}
-                            onClick={() => handleResetPassword(s.id)}
-                            className="text-xs font-semibold px-2 py-1 rounded border transition-colors disabled:opacity-60"
-                            style={resettingId === s.id
-                              ? { color: '#16a34a', borderColor: '#86efac', backgroundColor: '#f0fdf4' }
-                              : { color: '#7c3aed', borderColor: '#E2E8F0' }}>
-                            {resettingId === s.id ? '✓ Reset' : 'Reset Pwd'}
-                          </button>
-                          <button className="text-xs font-semibold" style={{ color: '#DC2626' }} onClick={() => handleDelete(s)}>Delete</button>
+                        <div className="flex justify-end">
+                          <ActionMenu label={`Actions for ${s.name}`} items={[
+                            { label: 'Open profile', href: `/students/${s.id}` },
+                            { label: 'Edit details', onClick: () => openEdit(s) },
+                            { label: 'Reset portal password', hint: 'Sets it to Student123', disabled: resettingId === s.id, onClick: () => handleResetPassword(s.id) },
+                            { label: 'Delete student', destructive: true, onClick: () => handleDelete(s) },
+                          ]} />
                         </div>
                       </td>
                     </tr>
@@ -623,9 +644,10 @@ export default function StudentsPage() {
                 })}
               </tbody>
             </table>
-            <Pagination page={page} pageSize={pageSize} total={total}
-              onPage={setPage} onPageSize={p => { setPageSize(p); setPage(1); }} />
           </div>
+          <Pagination page={page} pageSize={pageSize} total={total}
+            onPage={setPage} onPageSize={p => { setPageSize(p); setPage(1); }} />
+          </>
         )}
       </div>
 

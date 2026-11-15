@@ -251,7 +251,7 @@ export default function DepartmentsPage() {
           <h1 className="text-xl font-bold text-slate-900">Departments</h1>
           <p className="text-sm text-slate-500 mt-0.5">Create departments, assign HODs, and manage staff.</p>
         </div>
-        <Button onClick={openCreate}>+ Add Department</Button>
+        <Button onClick={openCreate}>Add department</Button>
       </div>
 
       {loading ? (
@@ -320,7 +320,7 @@ export default function DepartmentsPage() {
                   </div>
                 ) : (
                   <button onClick={() => openAssignHead(dept)} className="text-sm text-[#145C44] font-semibold hover:underline">
-                    + Assign HOD
+                    Assign HOD
                   </button>
                 )}
               </div>

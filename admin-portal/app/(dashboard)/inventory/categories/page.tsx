@@ -74,7 +74,7 @@ export default function InventoryCategoriesPage() {
         </div>
         <button onClick={openAdd}
           className="px-4 py-2 rounded-lg text-sm font-semibold bg-[#145C44] text-white hover:bg-[#0B3D2E] transition-colors">
-          + Add Category
+          Add category
         </button>
       </div>
 

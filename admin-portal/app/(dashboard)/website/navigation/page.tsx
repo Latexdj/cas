@@ -19,7 +19,7 @@ function NewItemForm({ pages, onAdd }: { pages: PageOption[]; onAdd: (v: { label
   const [target, setTarget] = useState('');
 
   if (!open) return (
-    <button onClick={() => setOpen(true)} className="text-xs font-semibold text-[#145C44] hover:underline">+ Add item</button>
+    <button onClick={() => setOpen(true)} className="text-xs font-semibold text-[#145C44] hover:underline">Add item</button>
   );
 
   return (

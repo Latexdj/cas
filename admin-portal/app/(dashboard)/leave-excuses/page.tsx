@@ -178,7 +178,7 @@ export default function LeaveExcusesPage() {
             onClick={() => { setAddOpen(o => !o); setFormError(''); }}
             className="px-4 py-2 rounded-lg text-sm font-semibold text-white transition-colors"
             style={{ backgroundColor: addOpen ? '#64748B' : '#145C44' }}>
-            {addOpen ? 'Cancel' : '+ Add Excuse'}
+            {addOpen ? 'Cancel' : 'Add excuse'}
           </button>
         </div>
 
@@ -349,7 +349,7 @@ export default function LeaveExcusesPage() {
                             })()}
                             <button onClick={() => del(ex.id)}
                               className="text-xs font-semibold" style={{ color: '#94A3B8' }}>
-                              Del
+                              Delete
                             </button>
                           </div>
                         </td>

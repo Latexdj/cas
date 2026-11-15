@@ -246,6 +246,9 @@ router.get('/stats', async (req, res, next) => {
 // occupied = scheduled right now AND attendance submitted
 // vacant   = everything else
 // Scoped to the current academic_year_id + semester. Returns all-vacant on holidays/vacations.
+// Today's periods with their teaching status, for the dashboard's day strip.
+router.get('/occupancy', (req, res, next) => require('./principal').occupancyHandler(req, res, next));
+
 router.get('/classroom-status', async (req, res, next) => {
   try {
     const ctx = await getCurrentSchoolContext(req.schoolId);

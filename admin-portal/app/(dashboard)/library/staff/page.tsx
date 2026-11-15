@@ -140,7 +140,7 @@ export default function LibraryStaffPage() {
             className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
             style={{ background: '#145C44' }}
           >
-            + New Librarian
+            Add librarian
           </button>
         </div>
 

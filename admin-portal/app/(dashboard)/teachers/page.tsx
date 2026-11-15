@@ -439,7 +439,7 @@ export default function TeachersPage() {
           <Button variant="secondary" onClick={printTeachers}>⎙ Print List</Button>
           <Button variant="secondary" onClick={openUpload}>↑ Upload Excel</Button>
           <Button variant="secondary" onClick={openUpdate}>✎ Update Records</Button>
-          <Button onClick={openCreate}>+ Add Teacher</Button>
+          <Button onClick={openCreate}>Add teacher</Button>
         </div>
       </div>
 
@@ -526,7 +526,7 @@ export default function TeachersPage() {
                         </svg>
                         Login
                       </button>
-                      <Button variant="danger" size="sm" onClick={() => deleteTeacher(t.id, t.name)}>Del</Button>
+                      <Button variant="dangerGhost" size="sm" onClick={() => deleteTeacher(t.id, t.name)}>Delete</Button>
                     </div>
                   </td>
                 </tr>

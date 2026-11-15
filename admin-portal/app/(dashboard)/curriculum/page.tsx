@@ -139,7 +139,7 @@ function SubjectsTab() {
         <p className="text-sm" style={{ color: '#94A3B8' }}>{subjects.length} subject{subjects.length !== 1 ? 's' : ''} defined</p>
         <div className="flex gap-2">
           <Button variant="secondary" onClick={openUpload}>↑ Upload Excel</Button>
-          <Button onClick={openCreate}>+ Add Subject</Button>
+          <Button onClick={openCreate}>Add subject</Button>
         </div>
       </div>
 
@@ -167,7 +167,7 @@ function SubjectsTab() {
                   <td className="px-4 py-3">
                     <div className="flex gap-2">
                       <Button variant="ghost" size="sm" onClick={() => openEdit(s)}>Edit</Button>
-                      <Button variant="danger" size="sm" onClick={() => del(s.id, s.name)}>Del</Button>
+                      <Button variant="dangerGhost" size="sm" onClick={() => del(s.id, s.name)}>Delete</Button>
                     </div>
                   </td>
                 </tr>
@@ -301,7 +301,7 @@ function ClassesTab() {
     <div className="space-y-4 max-w-sm">
       <div className="flex items-center justify-between">
         <p className="text-sm" style={{ color: '#94A3B8' }}>{classes.length} class{classes.length !== 1 ? 'es' : ''} defined</p>
-        <Button onClick={openCreate}>+ Add Class</Button>
+        <Button onClick={openCreate}>Add class</Button>
       </div>
 
       {loading ? (
@@ -327,7 +327,7 @@ function ClassesTab() {
                   <td className="px-4 py-3">
                     <div className="flex gap-2">
                       <Button variant="ghost" size="sm" onClick={() => openEdit(c)}>Edit</Button>
-                      <Button variant="danger" size="sm" onClick={() => del(c.id, c.name)}>Del</Button>
+                      <Button variant="dangerGhost" size="sm" onClick={() => del(c.id, c.name)}>Delete</Button>
                     </div>
                   </td>
                 </tr>
@@ -456,7 +456,7 @@ function LevelsTab() {
           </div>
           <div className="flex gap-2">
             <Button variant="secondary" onClick={runAutoDetect} loading={detecting}>Auto-detect from names</Button>
-            <Button onClick={openCreate}>+ Add Level</Button>
+            <Button onClick={openCreate}>Add level</Button>
           </div>
         </div>
       </div>
@@ -481,7 +481,7 @@ function LevelsTab() {
                   <td className="px-4 py-3">
                     <div className="flex gap-2">
                       <Button variant="ghost" size="sm" onClick={() => openEdit(l)}>Edit</Button>
-                      <Button variant="danger" size="sm" onClick={() => del(l)}>Del</Button>
+                      <Button variant="dangerGhost" size="sm" onClick={() => del(l)}>Delete</Button>
                     </div>
                   </td>
                 </tr>
@@ -641,7 +641,7 @@ function ProgramsTab() {
     <div className="space-y-4 max-w-2xl">
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <p className="text-sm" style={{ color: '#94A3B8' }}>{programs.length} program{programs.length !== 1 ? 's' : ''} defined</p>
-        <Button onClick={openCreate}>+ Add Program</Button>
+        <Button onClick={openCreate}>Add program</Button>
       </div>
 
       {loading ? (
@@ -679,7 +679,7 @@ function ProgramsTab() {
                   <td className="px-4 py-3">
                     <div className="flex gap-2">
                       <Button variant="ghost" size="sm" onClick={() => openEdit(p)}>Edit</Button>
-                      <Button variant="danger" size="sm" onClick={() => del(p.id, p.name)}>Del</Button>
+                      <Button variant="dangerGhost" size="sm" onClick={() => del(p.id, p.name)}>Delete</Button>
                     </div>
                   </td>
                 </tr>
@@ -777,7 +777,7 @@ function HousesTab() {
     <div className="space-y-4 max-w-2xl">
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <p className="text-sm" style={{ color: '#94A3B8' }}>{houses.length} house{houses.length !== 1 ? 's' : ''} defined</p>
-        <Button onClick={openCreate}>+ Add House</Button>
+        <Button onClick={openCreate}>Add house</Button>
       </div>
 
       {loading ? (
@@ -809,7 +809,7 @@ function HousesTab() {
                     <td className="px-4 py-3">
                       <div className="flex gap-2">
                         <Button variant="ghost" size="sm" onClick={() => openEdit(h)}>Edit</Button>
-                        <Button variant="danger" size="sm" onClick={() => del(h.id, h.name)}>Del</Button>
+                        <Button variant="dangerGhost" size="sm" onClick={() => del(h.id, h.name)}>Delete</Button>
                       </div>
                     </td>
                   </tr>
@@ -914,7 +914,7 @@ function AssessmentModesTab() {
             </p>
           )}
         </div>
-        <Button onClick={openCreate}>+ Add Mode</Button>
+        <Button onClick={openCreate}>Add mode</Button>
       </div>
 
       <div className="rounded-lg bg-blue-50 border border-blue-200 px-4 py-3 text-sm text-blue-800">
@@ -956,7 +956,7 @@ function AssessmentModesTab() {
                     <td className="px-4 py-3">
                       <div className="flex gap-2">
                         <Button variant="ghost" size="sm" onClick={() => openEdit(m)}>Edit</Button>
-                        <Button variant="danger" size="sm" onClick={() => del(m.id, m.name)}>Del</Button>
+                        <Button variant="dangerGhost" size="sm" onClick={() => del(m.id, m.name)}>Delete</Button>
                       </div>
                     </td>
                   </tr>
@@ -1289,7 +1289,7 @@ function AllocationsTab({ onGapChange }: { onGapChange: (n: number) => void }) {
                         )}
                       </td>
                       <td className="px-4 py-3">
-                        <Button variant="danger" size="sm" onClick={() => remove(a.id)}>Remove</Button>
+                        <Button variant="dangerGhost" size="sm" onClick={() => remove(a.id)}>Remove</Button>
                       </td>
                     </tr>
                   );
@@ -1317,7 +1317,7 @@ function AllocationsTab({ onGapChange }: { onGapChange: (n: number) => void }) {
                 className="w-20 rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-600"
                 title="Expected periods per week" />
               <span className="text-xs text-slate-400">periods/week</span>
-              <Button onClick={addAllocation} loading={adding} disabled={!addSubjectId}>+ Add</Button>
+              <Button onClick={addAllocation} loading={adding} disabled={!addSubjectId}>Add</Button>
             </div>
           )}
         </>

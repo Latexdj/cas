@@ -7,6 +7,7 @@ import { UnitsManager } from '@/components/inventory/UnitsManager';
 import { UnitPicker } from '@/components/inventory/UnitPicker';
 import type { InvUnit } from '@/components/inventory/units';
 import { confirmAction, notify } from '@/components/ui/dialogs';
+import { ActionMenu, type ActionItem } from '@/components/ui/ActionMenu';
 
 interface Category { id: string; name: string; }
 interface Department { id: string; name: string; }
@@ -286,7 +287,7 @@ export default function InventoryItemsPage() {
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{loading ? '…' : `${items.length} item${items.length !== 1 ? 's' : ''}`}</p>
         </div>
         <button onClick={openAdd} className="px-4 py-2 rounded-lg text-sm font-semibold bg-[#145C44] text-white hover:bg-[#0B3D2E] transition-colors">
-          + Add Item
+          Add item
         </button>
       </div>
 
@@ -370,30 +371,20 @@ export default function InventoryItemsPage() {
                     </td>
                     <td className="px-4 py-3 text-slate-500 dark:text-slate-400">{item.location ?? '—'}</td>
                     <td className="px-4 py-3">
-                      <div className="flex items-center gap-1 justify-end flex-wrap">
+                      <div className="flex items-center gap-1.5 justify-end">
                         {item.condition !== 'Written Off' && item.quantity_available > 0 && (
                           <button onClick={() => openIssue(item)}
-                            className="px-2.5 py-1 rounded-md text-xs font-semibold bg-[#145C44] text-white hover:bg-[#0B3D2E]">Issue</button>
+                            className="px-3 py-1.5 rounded-md text-sm font-semibold bg-[#145C44] text-white hover:bg-[#0B3D2E]">Issue</button>
                         )}
-                        {issued > 0 && (
-                          item.is_returnable ? (
-                            <Link href={`/inventory/loans?item_id=${item.id}`}
-                              className="px-2.5 py-1 rounded-md text-xs font-semibold bg-[#E8F4EE] dark:bg-green-900/20 text-[#145C44] dark:text-[#2ab289] hover:bg-[#D1EAD9]">Manage Loans</Link>
-                          ) : (
-                            <button onClick={() => { setReturnItem(item); setReturnQty('1'); setReturnCond('Good'); setReturnNotes(''); setReturnError(''); }}
-                              className="px-2.5 py-1 rounded-md text-xs font-semibold bg-[#E8F4EE] dark:bg-green-900/20 text-[#145C44] dark:text-[#2ab289] hover:bg-[#D1EAD9]">Return</button>
-                          )
-                        )}
-                        {item.track_units && (
-                          <button onClick={() => setUnitsFor({ id: item.id, name: item.name })}
-                            className="px-2.5 py-1 rounded-md text-xs font-semibold bg-[#E8F4EE] dark:bg-green-900/20 text-[#145C44] dark:text-[#2ab289] hover:bg-[#D1EAD9]">Units</button>
-                        )}
-                        {!item.track_units && <button onClick={() => { setCondItem(item); setNewCond(item.condition === 'Written Off' ? 'Good' : item.condition); setCondNotes(''); setCondError(''); }}
-                          className="px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200">Condition</button>}
-                        <button onClick={() => openEdit(item)}
-                          className="px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200">Edit</button>
-                        <button onClick={() => deleteItem(item.id)} disabled={deletingId === item.id}
-                          className="px-2.5 py-1 rounded-md text-xs font-semibold bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 disabled:opacity-40">Delete</button>
+                        <ActionMenu label={`Actions for ${item.name}`} items={[
+                          ...(issued > 0 ? [item.is_returnable
+                            ? { label: 'Manage loans', href: `/inventory/loans?item_id=${item.id}` }
+                            : { label: 'Record a return', onClick: () => { setReturnItem(item); setReturnQty('1'); setReturnCond('Good'); setReturnNotes(''); setReturnError(''); } }] : []),
+                          ...(item.track_units ? [{ label: 'Units (tags and IMEIs)', onClick: () => setUnitsFor({ id: item.id, name: item.name }) }] : []),
+                          ...(!item.track_units ? [{ label: 'Change condition', onClick: () => { setCondItem(item); setNewCond(item.condition === 'Written Off' ? 'Good' : item.condition); setCondNotes(''); setCondError(''); } }] : []),
+                          { label: 'Edit item', onClick: () => openEdit(item) },
+                          { label: 'Delete item', destructive: true, disabled: deletingId === item.id, onClick: () => deleteItem(item.id) },
+                        ] satisfies ActionItem[]} />
                       </div>
                     </td>
                   </tr>
@@ -705,7 +696,7 @@ export default function InventoryItemsPage() {
               <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">{condItem.name} — currently: {condItem.condition}</p>
               <div className="space-y-3">
                 <div>
-                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 font-medium">New Condition</label>
+                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 font-medium">Add condition</label>
                   <select value={newCond} onChange={e => setNewCond(e.target.value)} className={inputCls}>
                     <option value="Good">Good / Working</option>
                     <option value="Damaged">Damaged / Under Repair</option>

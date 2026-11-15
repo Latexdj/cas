@@ -374,7 +374,7 @@ export default function MemosPage() {
         <button
           onClick={openCreate}
           style={{ padding: '8px 16px', borderRadius: 6, border: 'none', background: C.forest, color: '#fff', fontSize: 13, cursor: 'pointer', fontWeight: 600 }}
-        >+ New Memo</button>
+        >Write memo</button>
       </div>
 
       {memos.length > 0 && (
@@ -392,7 +392,7 @@ export default function MemosPage() {
       ) : memos.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '56px 24px', color: C.muted, border: `1px dashed ${C.border}`, borderRadius: 10 }}>
           <p style={{ fontSize: 15, margin: 0 }}>No memos yet.</p>
-          <p style={{ fontSize: 13, marginTop: 6 }}>Click <strong>+ New Memo</strong> to issue the first one.</p>
+          <p style={{ fontSize: 13, marginTop: 6 }}>Click <strong>Write memo</strong> to issue the first one.</p>
         </div>
       ) : filteredMemos.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '56px 24px', color: C.muted, border: `1px dashed ${C.border}`, borderRadius: 10 }}>
@@ -437,7 +437,7 @@ export default function MemosPage() {
         <div style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '32px 16px', overflowY: 'auto' }}>
           <div style={{ background: C.bg, borderRadius: 12, width: '100%', maxWidth: 720, padding: 24 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
-              <h2 style={{ fontSize: 16, fontWeight: 700, color: C.forest, margin: 0 }}>New Memo</h2>
+              <h2 style={{ fontSize: 16, fontWeight: 700, color: C.forest, margin: 0 }}>Write memo</h2>
               <button onClick={() => setCreateOpen(false)} style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', fontSize: 14 }}>✕</button>
             </div>
 

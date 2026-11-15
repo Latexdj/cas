@@ -164,14 +164,14 @@ export default function ObservationWorkspace({ apiClient, basePath }: { apiClien
           <button onClick={() => { setAdding(a => !a); setError(''); }}
             className="px-4 py-2 rounded-lg text-sm font-semibold text-white"
             style={{ backgroundColor: adding ? '#64748B' : '#145C44' }}>
-            {adding ? 'Cancel' : '+ New Observation'}
+            {adding ? 'Cancel' : 'Start observation'}
           </button>
         </div>
       </div>
 
       {adding && (
         <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm p-5 space-y-4">
-          <h2 className="text-sm font-bold text-slate-800 dark:text-white">New Observation</h2>
+          <h2 className="text-sm font-bold text-slate-800 dark:text-white">Start observation</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className={labelCls}>Teacher *</label>

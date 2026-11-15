@@ -233,7 +233,7 @@ function ExcelReview({
       <section className="bg-white rounded-xl border border-slate-100 shadow-sm p-5 space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold text-slate-500">Subjects</h2>
-          <button onClick={onAddSubject} className="text-xs font-semibold text-[#145C44] hover:underline">+ Add subject</button>
+          <button onClick={onAddSubject} className="text-xs font-semibold text-[#145C44] hover:underline">Add subject</button>
         </div>
         <div className="overflow-x-auto">
           <table className="text-xs border-collapse">

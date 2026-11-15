@@ -399,7 +399,7 @@ export default function ObservationDetail({ apiClient, backHref, observationId }
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-bold text-slate-800 dark:text-white">Evidence Photos</h2>
           <label className="text-xs font-semibold cursor-pointer" style={{ color: '#145C44' }}>
-            {uploadingPhoto ? 'Uploading…' : '+ Add Photo'}
+            {uploadingPhoto ? 'Uploading…' : 'Add photo'}
             <input type="file" accept="image/*" className="hidden" onChange={uploadPhoto} disabled={uploadingPhoto} />
           </label>
         </div>

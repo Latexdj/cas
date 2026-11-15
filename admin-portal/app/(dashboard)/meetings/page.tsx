@@ -1762,7 +1762,7 @@ export default function MeetingsPage() {
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-4 h-4">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
-            New Meeting
+            Schedule meeting
           </button>
         )}
       </div>
@@ -1940,7 +1940,7 @@ export default function MeetingsPage() {
             <div className="bg-white rounded-xl border border-slate-100 overflow-hidden shadow-sm">
               {meetings.length === 0 ? (
                 <div className="py-16 text-center text-slate-400 text-sm">
-                  No meetings found.{!typeFilter && !mFrom && !mTo && <> Click <strong>New Meeting</strong> to create one.</>}
+                  No meetings found.{!typeFilter && !mFrom && !mTo && <> Click <strong>Schedule meeting</strong> to create one.</>}
                 </div>
               ) : (
                 <div className="overflow-x-auto">

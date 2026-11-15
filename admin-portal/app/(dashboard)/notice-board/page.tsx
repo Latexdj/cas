@@ -28,7 +28,7 @@ const EMPTY_FORM: FormState = { title: '', body: '', priority: 'normal', is_pinn
 const PRIORITY_STYLE: Record<string, { bg: string; border: string; badge: string; text: string }> = {
   urgent:    { bg: '#FEF2F2', border: '#FECACA', badge: '#DC2626', text: '#991B1B' },
   important: { bg: '#FFFBEB', border: '#FDE68A', badge: '#D97706', text: '#92400E' },
-  normal:    { bg: '#EFF6FF', border: '#BFDBFE', badge: '#2563EB', text: '#1E40AF' },
+  normal:    { bg: '#FFFFFF', border: '#E2D9CC', badge: '#6E6253', text: '#4A3F32' },
 };
 
 function fmtDate(d: string) {
@@ -236,7 +236,7 @@ export default function NoticeBoardPage() {
               strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
               <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
             </svg>
-            New Notice
+            Post notice
           </button>
         )}
       </div>

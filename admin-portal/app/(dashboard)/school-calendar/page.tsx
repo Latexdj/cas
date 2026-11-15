@@ -378,7 +378,7 @@ function EventsTab({ entries, year, onRefresh, departments, classLevels, classes
         <button onClick={() => { setAdding(a => !a); setError(''); setEditingId(null); }}
           className="px-4 py-2 rounded-lg text-sm font-semibold text-white transition-colors"
           style={{ backgroundColor: adding ? '#64748B' : '#145C44' }}>
-          {adding ? 'Cancel' : '+ Add Entry'}
+          {adding ? 'Cancel' : 'Add entry'}
         </button>
       </div>
 
@@ -488,7 +488,7 @@ function EventsTab({ entries, year, onRefresh, departments, classLevels, classes
 const PERIOD_CONFIG = {
   vacation: {
     label: 'Vacation Period',
-    addBtn: '+ Add Vacation',
+    addBtn: 'Add vacation',
     placeholder: 'e.g. Long Vacation 2025',
     emptyMsg: 'No vacation periods set. Add one to pause absence detection during school breaks.',
     accentCls: 'bg-teal-600',
@@ -497,7 +497,7 @@ const PERIOD_CONFIG = {
   },
   exam: {
     label: 'Exam Period',
-    addBtn: '+ Add Exam Period',
+    addBtn: 'Add exam period',
     placeholder: 'e.g. WASSCE 2025',
     emptyMsg: 'No exam periods set. Add one to mark examination dates and pause absence detection.',
     accentCls: 'bg-purple-600',

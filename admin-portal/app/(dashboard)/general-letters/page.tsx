@@ -920,7 +920,7 @@ export function GeneralLettersModule({ apiClient = defaultApi, defaultStatusFilt
               padding: '8px 16px', borderRadius: 6, border: 'none',
               background: C.forest, color: '#fff', fontSize: 13, cursor: 'pointer', fontWeight: 600,
             }}
-          >+ New Letter</button>
+          >Write letter</button>
         </div>
       </div>
 
@@ -965,7 +965,7 @@ export function GeneralLettersModule({ apiClient = defaultApi, defaultStatusFilt
           border: `1px dashed ${C.border}`, borderRadius: 10,
         }}>
           <p style={{ fontSize: 15, margin: 0 }}>No letters yet.</p>
-          <p style={{ fontSize: 13, marginTop: 6 }}>Click <strong>+ New Letter</strong> to issue the first one.</p>
+          <p style={{ fontSize: 13, marginTop: 6 }}>Click <strong>Write letter</strong> to issue the first one.</p>
         </div>
       ) : filteredLetters.length === 0 ? (
         <div style={{

@@ -346,7 +346,7 @@ function BatchDetailView({
             )}
             <button type="button" onClick={() => setShowLate(v => !v)}
               className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: primary }}>
-              {showLate ? 'Close' : '+ Add late collectors'}
+              {showLate ? 'Close' : 'Add late collectors'}
             </button>
           </div>
         </div>

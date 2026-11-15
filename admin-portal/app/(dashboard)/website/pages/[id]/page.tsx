@@ -143,7 +143,7 @@ function GalleryPanel({ pageId }: { pageId: string }) {
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold text-slate-500">Photos</h2>
         <label className="text-xs font-semibold text-[#145C44] hover:underline cursor-pointer">
-          {uploading ? 'Uploading…' : '+ Add photos'}
+          {uploading ? 'Uploading…' : 'Add photos'}
           <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" disabled={uploading}
             onChange={e => e.target.files?.length && upload(e.target.files)} />
         </label>

@@ -337,7 +337,7 @@ export default function HelpEntriesPage() {
             {!isSuperAdmin && ' Global entries (platform-wide) are read-only — contact support to change them.'}
           </p>
         </div>
-        <Btn label="+ Add Entry" onClick={() => { setShowCreate(true); setCForm(blank()); setCErr(''); }} />
+        <Btn label="Add entry" onClick={() => { setShowCreate(true); setCForm(blank()); setCErr(''); }} />
       </div>
 
       {/* Logged gaps — real questions Alex couldn't answer */}

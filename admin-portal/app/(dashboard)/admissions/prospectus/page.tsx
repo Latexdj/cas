@@ -157,7 +157,7 @@ export default function ProspectusPage() {
                   {new Date(r.uploaded_at).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })}
                 </td>
                 <td className="px-4 py-3">
-                  <Button variant="danger" size="sm" onClick={() => del(r.id)}>Delete</Button>
+                  <Button variant="dangerGhost" size="sm" onClick={() => del(r.id)}>Delete</Button>
                 </td>
               </tr>
             ))}
