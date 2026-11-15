@@ -1,10 +1,10 @@
 'use strict';
 /**
  * Phase 3 seed: management-role help entries for the principal portal.
- * Run once: node backend/seed-help-entries-phase3.js
+ * Run: node backend/seed-help-entries-phase3.js  (or node backend/seed-help-all.js)
+ * Safe to re-run: inserts new entries and updates existing ones by title.
  */
-require('dotenv').config({ path: require('path').join(__dirname, '.env') });
-const pool = require('./src/config/db');
+const { runSeed } = require('./help-seed-runner');
 
 const entries = [
   {
@@ -46,9 +46,9 @@ All approvals are logged with your name and timestamp in the audit trail.`,
 To manage leave requests:
 1. Select "Leave Requests" from the left sidebar in the Principal Portal.
 2. Pending requests appear as cards with the teacher name, leave type, dates, and reason.
-3. To approve: click the "Approve" button on the card. The teacher is notified automatically.
-4. To reject: click "Reject". You will be prompted to enter a reason — this reason is shown to the teacher and is required.
-5. Approved leaves are reflected in attendance and timetable systems automatically.
+3. To approve: tap "Approve" on the card. A confirmation appears in the card itself; tap "Yes, approve". The teacher is notified straight away and their lessons in those dates are excused.
+4. To approve with a condition (for example arranging cover for a lesson): tap "Conditional Approval", type the condition (required) and tap "Send Condition". The request shows "Pending Acceptance" until the teacher accepts or declines the condition; if they accept, it is approved automatically.
+5. To reject: tap "Reject", type the reason (required; the teacher sees it) and confirm.
 
 You can page through past requests using the navigation at the bottom of the list.`,
   },
@@ -83,27 +83,4 @@ The dashboard refreshes on page load. To get the latest figures without a full r
   },
 ];
 
-async function seed() {
-  let inserted = 0;
-  for (const e of entries) {
-    const { rows } = await pool.query(
-      `SELECT id FROM help_entries WHERE school_id IS NULL AND title = $1 AND applicable_roles @> $2::TEXT[]`,
-      [e.title, e.applicable_roles]
-    );
-    if (rows.length) {
-      console.log(`  SKIP (exists): ${e.title}`);
-      continue;
-    }
-    await pool.query(
-      `INSERT INTO help_entries (school_id, feature_area, applicable_roles, title, body, is_active)
-       VALUES (NULL, $1, $2, $3, $4, true)`,
-      [e.feature_area, e.applicable_roles, e.title, e.body]
-    );
-    console.log(`  INSERT: ${e.title}`);
-    inserted++;
-  }
-  console.log(`\nDone. Inserted ${inserted}/${entries.length} entries.`);
-  await pool.end();
-}
-
-seed().catch(err => { console.error(err); process.exit(1); });
+runSeed('principal portal (phase 3)', entries).catch(err => { console.error(err); process.exit(1); });

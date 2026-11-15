@@ -9,7 +9,7 @@
 require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 const { Pool } = require('pg');
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: /@(localhost|127\.0\.0\.1)[:/]/.test(process.env.DATABASE_URL || '') ? false : { rejectUnauthorized: false } });
 
 const ENTRIES = [
 
@@ -98,7 +98,7 @@ Break Bounds means the student has left school grounds without permission. AWOL 
 
 Save — click Save after making any status changes. Changes are not saved until you click the button. On mobile, the Save button is in the sticky bar at the bottom of the screen.
 
-Previous roll calls for this semester are listed in the left panel. Click any card to review or update it. You can also delete a roll call using the trash icon on its card — this permanently removes it and all its entries, so confirm before deleting.`,
+Previous roll calls for this semester are listed in the left panel. Click any card to review or update it. You can also delete a roll call: tap the trash icon on its card, then tap it again ("Tap again to delete") to confirm. This permanently removes the roll call and all its entries.`,
   },
 
 ];
@@ -110,7 +110,15 @@ async function run() {
 
   for (const e of ENTRIES) {
     const { rowCount } = await pool.query(
-      `INSERT INTO help_entries (school_id, feature_area, applicable_roles, title, body, is_active)
+      `WITH upd AS (
+         -- Existing global entry with this title: bring its text up to date
+         UPDATE help_entries
+            SET feature_area = $1, applicable_roles = $2, body = $4, is_active = true, updated_at = now()
+          WHERE school_id IS NULL AND title = $3
+            AND (body IS DISTINCT FROM $4 OR feature_area IS DISTINCT FROM $1 OR applicable_roles IS DISTINCT FROM $2::text[])
+         RETURNING 1
+       )
+       INSERT INTO help_entries (school_id, feature_area, applicable_roles, title, body, is_active)
        SELECT NULL, $1, $2, $3, $4, true
        WHERE NOT EXISTS (
          SELECT 1 FROM help_entries WHERE school_id IS NULL AND title = $3
@@ -122,7 +130,7 @@ async function run() {
       console.log(`  ✓  ${e.title}`);
     } else {
       skipped++;
-      console.log(`  –  ${e.title} (already exists)`);
+      console.log(`  –  ${e.title} (already up to date or updated)`);
     }
   }
 

@@ -8,7 +8,7 @@
 require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 const { Pool } = require('pg');
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: /@(localhost|127\.0\.0\.1)[:/]/.test(process.env.DATABASE_URL || '') ? false : { rejectUnauthorized: false } });
 
 const ENTRIES = [
 
@@ -18,7 +18,7 @@ const ENTRIES = [
     title: 'Support Staff Overview',
     body: `The Support Staff page is where you create and manage accounts for non-teaching staff who use the CAS Staff Portal. Go to Support Staff in the left menu to open it.
 
-Support staff are people who perform operational roles in the school but do not teach: clearance officers who process end-of-term student clearance, librarians who issue and return books, and store officers who manage school inventory items. They log in at the Staff Portal — a separate login page from the admin and teacher portals.
+Support staff are people who perform operational roles in the school but do not teach: clearance officers, librarians, store officers, bursars and accountants, and the school nurse. They log in at the Staff Portal — a separate login page from the admin and teacher portals.
 
 The table shows each staff member's name, email address, roles (shown as coloured pills), status (Active or Inactive), and the date the account was created.
 
@@ -44,13 +44,17 @@ Email — required. Used as the staff member's login username and for receiving 
 Password — required when creating a new account. When editing, leave this blank to keep the existing password. Type a new password only if you want to change it.
 
 Roles — at least one role must be selected. Tick the checkboxes for the sections this staff member should have access to in the Staff Portal:
-  Clearance — lets the staff member process student clearance items at the end of term.
-  Library — lets the staff member issue and return books and view the library dashboard.
-  Inventory — lets the staff member issue and return school inventory items and generate sign lists.
+  Clearance: process student clearance at the offices they are assigned to (assign them under Clearance → Offices).
+  Library: issue and return books and see overdue loans.
+  Inventory (Issue/Return): issue and return general store items and print sign lists.
+  Stores (Full Access): the whole Inventory module, including departmental items, categories, bulk issue, issue records, loans, the transaction log and the asset report.
+  Accounts (Bill Collector): collect fee payments and see basic fee reports.
+  Accountant (Full Access): the whole fees module (fee items, schedules and bills, expenditure, arrears, reports), letters to parents, and finalising the school budget.
+  Clinic: the whole Clinic module for the school nurse (visits, health profiles, clinic stock and reports).
 
-A staff member can hold more than one role. If they have multiple roles, a section switcher bar appears at the top of their staff portal so they can move between sections.
+A staff member can hold more than one role. If they have more than one role, each one appears as a section in their Staff Portal menu.
 
-When creating a new account, a note in the form confirms that login credentials will be emailed to the staff member automatically. The email contains their email address and password so they can log in immediately.
+When creating a new account, a note in the form confirms that login credentials will be emailed to the staff member automatically. The email contains the school code, their email address, their password and the link to the Staff Portal, so they can sign in straight away.
 
 Click Create Account (when adding) or Save Changes (when editing) to save. Click Cancel to close without saving.`,
   },
@@ -104,15 +108,15 @@ Overdue tab: lists every book currently overdue across all students, not just th
     feature_area: 'staff',
     applicable_roles: ['admin'],
     title: 'Staff Portal: Inventory Section',
-    body: `A staff member with the Inventory role uses the Inventory section of the Staff Portal to issue and return school items, and to generate printed sign lists. There are four tabs.
+    body: `A staff member with the Inventory (Issue/Return) role or the Stores (Full Access) role uses the Stores section of the Staff Portal.
 
-Items tab: shows the full list of inventory items. Each row shows the item name, category or type, asset tag (if any), available quantity out of the total quantity, and the condition (Good, Damaged, or Written Off). Items currently issued show how many units are out.
+The Inventory role (menu section Inventory) covers general store items: Items (view stock), Issue, Bulk Issue, Issue Records, Return, Loans and Sign List.
 
-Issue tab: the store officer types a Student ID and clicks Find to confirm the student. After the student is confirmed, they select an item from the dropdown (only items with available stock and not Written Off are shown). They then set the quantity and add optional notes, then click Issue Item to record the issue. The item list updates automatically to reflect the reduced available quantity.
+The Stores role (menu section Stores) has the whole Inventory module: everything above, plus full item management (add, edit and change condition, including departmental items, returnable items and tag-tracked units such as tablets), Categories, Transaction Log and Asset Report.
 
-Return tab: the store officer selects the item being returned from a dropdown (only items currently out are shown). They set the quantity being returned, select the returned condition (Good or Damaged), and add optional notes. Clicking Confirm Return records the return and updates the available quantity.
+Issuing: choose the item, then the person. Used-up items can go to a student, teacher, staff member or department. Returnable items go to a student or teacher with an optional due date and are tracked under Loans until returned with their condition (Good, Damaged or Lost).
 
-Sign List tab: generates a printable paper sign list for distributing items to a large group. The store officer enters a document title (required) and optionally an item name, quantity per person, issue date, and notes. They then choose whether recipients are Students or Teachers and apply filters — for students: class, program, year batch, gender, and residential status; for teachers: department and gender. A live counter shows how many people match the current filters. Clicking Generate and Print opens a formatted print-ready sheet in a new browser tab with all the recipients listed and a signature column. Pop-ups must be enabled in the browser for this to work.`,
+Bulk Issue gives the same item to a whole class or group at once, with a printable sign sheet and a confirmation in the page before anything is issued. The store officer's home page reminds them of issue records still missing a signed sheet.`,
   },
 
   {
@@ -121,7 +125,7 @@ Sign List tab: generates a printable paper sign list for distributing items to a
     title: 'How Support Staff Log In',
     body: `Support staff do not log in through the same login page as teachers or admins. They have a separate Staff Portal login.
 
-When you create a support staff account, CAS automatically emails the staff member their login credentials — their email address and an initial password.
+When you create a support staff account, CAS automatically emails the staff member their school code, email address, an initial password and the link to the Staff Portal.
 
 The Staff Portal login URL is different from the admin portal URL. If a staff member asks where to log in, tell them to go to the Staff Portal link for your school. If you are unsure of the URL, check the address bar when you are on the Support Staff page — the Staff Portal is on the same domain but at a different path (typically /staff-portal).
 
@@ -139,7 +143,15 @@ async function run() {
 
   for (const e of ENTRIES) {
     const { rowCount } = await pool.query(
-      `INSERT INTO help_entries (school_id, feature_area, applicable_roles, title, body, is_active)
+      `WITH upd AS (
+         -- Existing global entry with this title: bring its text up to date
+         UPDATE help_entries
+            SET feature_area = $1, applicable_roles = $2, body = $4, is_active = true, updated_at = now()
+          WHERE school_id IS NULL AND title = $3
+            AND (body IS DISTINCT FROM $4 OR feature_area IS DISTINCT FROM $1 OR applicable_roles IS DISTINCT FROM $2::text[])
+         RETURNING 1
+       )
+       INSERT INTO help_entries (school_id, feature_area, applicable_roles, title, body, is_active)
        SELECT NULL, $1, $2, $3, $4, true
        WHERE NOT EXISTS (
          SELECT 1 FROM help_entries WHERE school_id IS NULL AND title = $3
@@ -151,7 +163,7 @@ async function run() {
       console.log(`  ✓  ${e.title}`);
     } else {
       skipped++;
-      console.log(`  –  ${e.title} (already exists)`);
+      console.log(`  –  ${e.title} (already up to date or updated)`);
     }
   }
 

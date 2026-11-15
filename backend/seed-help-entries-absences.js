@@ -9,7 +9,7 @@
 require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 const { Pool } = require('pg');
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: /@(localhost|127\.0\.0\.1)[:/]/.test(process.env.DATABASE_URL || '') ? false : { rejectUnauthorized: false } });
 
 const ENTRIES = [
 
@@ -172,15 +172,17 @@ A status badge (amber for Pending, green for Approved, red for Rejected) in the 
 A detail grid showing: Type (Official Duty, Sick Leave, etc.), Dates (from–to), Reason, and (if applicable) a Rejected by and rejection reason row or an Approved by row.
 The date the request was submitted.
 
-Supporting document — if the teacher attached a supporting document to their request, a blue "View Supporting Document" button appears. Click it to open an in-browser document viewer that can display PDFs and common Office formats. A Download button in the viewer lets you save the file. If no document is attached and the request is not Official Duty, an amber notice says "No supporting document attached."
+Supporting document — if the teacher attached a supporting document to their request, a "View Supporting Document" button appears. Click it to open an in-browser document viewer that can display PDFs and common Office formats. A Download button in the viewer lets you save the file. If no document is attached and the request is not Official Duty, an amber notice says "No supporting document attached."
 
-Actions for Pending requests: two buttons appear at the bottom of the card — Approve (green) and Reject (red).
+Actions for Pending requests: three buttons appear at the bottom of the card — Approve, Conditional Approval and Reject.
 
-Clicking Approve opens a confirmation overlay. Click Confirm Approve to approve.
+Approve: a confirmation appears inside the card ("Approve …'s leave request?"). Tap "Yes, approve" to approve, or Cancel. The teacher is notified straight away and their lessons in those dates are excused.
 
-Clicking Reject opens a confirmation overlay with a required Rejection Reason text area. The rejection cannot be submitted without a reason. Click Confirm Reject to reject. The teacher will see the rejection reason in their portal.
+Conditional Approval: type the condition (required, for example "provided you arrange cover for your 2 Science A lesson") and tap Send Condition. The card shows "Pending Acceptance" until the teacher accepts or declines; if they accept, the leave is approved automatically, and if they decline it is rejected.
 
-Once actioned, the card updates to show the new status. The card no longer has action buttons once Approved or Rejected.`,
+Reject: type the rejection reason (required) and confirm. The teacher sees the reason in their portal.
+
+Once actioned, the card updates to show the new status and no longer has action buttons.`,
   },
 
   // ── Teacher entry ─────────────────────────────────────────────────────────────
@@ -213,7 +215,15 @@ async function run() {
 
   for (const e of ENTRIES) {
     const { rowCount } = await pool.query(
-      `INSERT INTO help_entries (school_id, feature_area, applicable_roles, title, body, is_active)
+      `WITH upd AS (
+         -- Existing global entry with this title: bring its text up to date
+         UPDATE help_entries
+            SET feature_area = $1, applicable_roles = $2, body = $4, is_active = true, updated_at = now()
+          WHERE school_id IS NULL AND title = $3
+            AND (body IS DISTINCT FROM $4 OR feature_area IS DISTINCT FROM $1 OR applicable_roles IS DISTINCT FROM $2::text[])
+         RETURNING 1
+       )
+       INSERT INTO help_entries (school_id, feature_area, applicable_roles, title, body, is_active)
        SELECT NULL, $1, $2, $3, $4, true
        WHERE NOT EXISTS (
          SELECT 1 FROM help_entries WHERE school_id IS NULL AND title = $3
@@ -225,7 +235,7 @@ async function run() {
       console.log(`  ✓  ${e.title}`);
     } else {
       skipped++;
-      console.log(`  –  ${e.title} (already exists)`);
+      console.log(`  –  ${e.title} (already up to date or updated)`);
     }
   }
 

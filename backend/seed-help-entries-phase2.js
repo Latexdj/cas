@@ -7,7 +7,7 @@
 require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 const { Pool } = require('pg');
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: /@(localhost|127\.0\.0\.1)[:/]/.test(process.env.DATABASE_URL || '') ? false : { rejectUnauthorized: false } });
 
 const ENTRIES = [
   // ── Teacher entries ────────────────────────────────────────────────────────
@@ -121,32 +121,7 @@ The Accounts Office row is separate and shows your current fee balance. If there
 You cannot initiate your own clearance — it is started by the school.`,
   },
 
-  {
-    feature_area:     'exeat',
-    applicable_roles: ['student'],
-    title: 'Requesting an Exeat',
-    body: `Go to Exeat in the sidebar. An exeat is a formal permission to leave school grounds and must be approved by your housemaster.
-
-Quota bars at the top show how many exeats of each type you have used this semester and the maximum allowed.
-
-Two types:
-- Internal — a few hours off campus (day visit, local errand)
-- External — overnight or home visit
-
-To submit a request: tap "Request". Choose the type (Internal or External). Fill in:
-- Destination
-- Reason for leaving
-- Parent or guardian contact (pre-filled from your record; edit if needed)
-- Departure date and time
-- Expected return date and time
-- Optional notes
-
-Tap Submit. Your housemaster will review and approve or reject the request.
-
-Status values: Pending (waiting for approval), Active / Approved — Out (approved and you are currently out), Returned (you have come back), Overdue (you have not returned by the expected time — report to your housemaster immediately), Rejected (with a reason).
-
-If your quota is reached, the request button is disabled. Contact your housemaster for an exception.`,
-  },
+  // 'Requesting an Exeat' lives in seed-help-entries-exeat.js (same title).
 
   {
     feature_area:     'results',
@@ -185,7 +160,15 @@ async function run() {
 
   for (const e of ENTRIES) {
     const { rowCount } = await pool.query(
-      `INSERT INTO help_entries (school_id, feature_area, applicable_roles, title, body, is_active)
+      `WITH upd AS (
+         -- Existing global entry with this title: bring its text up to date
+         UPDATE help_entries
+            SET feature_area = $1, applicable_roles = $2, body = $4, is_active = true, updated_at = now()
+          WHERE school_id IS NULL AND title = $3
+            AND (body IS DISTINCT FROM $4 OR feature_area IS DISTINCT FROM $1 OR applicable_roles IS DISTINCT FROM $2::text[])
+         RETURNING 1
+       )
+       INSERT INTO help_entries (school_id, feature_area, applicable_roles, title, body, is_active)
        SELECT NULL, $1, $2, $3, $4, true
        WHERE NOT EXISTS (
          SELECT 1 FROM help_entries WHERE school_id IS NULL AND title = $3

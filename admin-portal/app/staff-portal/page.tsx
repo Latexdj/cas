@@ -17,6 +17,7 @@ import { BulkIssuePanel } from '@/components/inventory/BulkIssuePanel';
 import { IssueRecordsPanel } from '@/components/inventory/IssueRecordsPanel';
 import { LettersSection } from './LettersSection';
 import { StaffSidebar, type StaffSidebarGroup } from './StaffSidebar';
+import { HelpWidget, type HelpNavItem } from '@/components/HelpWidget';
 import { StaffDashboard, type DashTarget } from './StaffDashboard';
 import { SchoolReports } from './SchoolReports';
 import BudgetsHub from '@/components/department-budgets/BudgetsHub';
@@ -2135,6 +2136,11 @@ export default function StaffPortalPage() {
         </div>
       )}
       </div>
+
+      {/* Help assistant (Alex): told about this user's menu so it can point to the right tab */}
+      <HelpWidget apiClient={api} navItems={sidebarGroups.flatMap((g): HelpNavItem[] => g.items.length
+        ? g.items.map(it => ({ section: g.label, label: it.label.replace(/ \(\d+\)$/, ''), href: '/staff-portal' }))
+        : [{ section: 'Menu', label: g.label, href: '/staff-portal' }])} />
     </div>
   );
 }

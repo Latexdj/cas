@@ -7,7 +7,7 @@
 require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 const { Pool } = require('pg');
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: /@(localhost|127\.0\.0\.1)[:/]/.test(process.env.DATABASE_URL || '') ? false : { rejectUnauthorized: false } });
 
 const ENTRIES = [
 
@@ -522,18 +522,9 @@ Class breakdown: a table shows expected fee income per class, the amount collect
 This view is read-only. Fee transactions, expenses, and bill generation are managed from the admin portal. If a figure appears incorrect, contact your school administrator.`,
   },
 
-  {
-    feature_area: 'principal_occupancy',
-    applicable_roles: ['management'],
-    title: 'Viewing House Occupancy',
-    body: `Select "Occupancy" from the left sidebar in the Principal Portal.
-
-The page shows each boarding house with its student count, room count, and occupancy rate relative to the configured maximum capacity. A progress bar for each house makes overcrowding visible at a glance.
-
-Use this view before admitting new boarding students to identify houses with available capacity.
-
-Room capacities and maximum limits are configured by housemasters and admins from the admin portal under Houses.`,
-  },
+  // 'Viewing House Occupancy' was removed: the principal portal's Occupancy page
+  // is Classroom Occupancy (live lessons). See seed-help-entries-principal.js,
+  // which also retires the old entry in the database.
 
 ];
 
@@ -544,7 +535,15 @@ async function run() {
 
   for (const e of ENTRIES) {
     const { rowCount } = await pool.query(
-      `INSERT INTO help_entries (school_id, feature_area, applicable_roles, title, body, is_active)
+      `WITH upd AS (
+         -- Existing global entry with this title: bring its text up to date
+         UPDATE help_entries
+            SET feature_area = $1, applicable_roles = $2, body = $4, is_active = true, updated_at = now()
+          WHERE school_id IS NULL AND title = $3
+            AND (body IS DISTINCT FROM $4 OR feature_area IS DISTINCT FROM $1 OR applicable_roles IS DISTINCT FROM $2::text[])
+         RETURNING 1
+       )
+       INSERT INTO help_entries (school_id, feature_area, applicable_roles, title, body, is_active)
        SELECT NULL, $1, $2, $3, $4, true
        WHERE NOT EXISTS (
          SELECT 1 FROM help_entries WHERE school_id IS NULL AND title = $3
@@ -556,7 +555,7 @@ async function run() {
       console.log(`  ✓  [${e.applicable_roles[0].padEnd(10)}]  ${e.title}`);
     } else {
       skipped++;
-      console.log(`  –  [${e.applicable_roles[0].padEnd(10)}]  ${e.title} (already exists)`);
+      console.log(`  –  [${e.applicable_roles[0].padEnd(10)}]  ${e.title} (already up to date or updated)`);
     }
   }
 
