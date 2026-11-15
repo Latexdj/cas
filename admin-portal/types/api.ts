@@ -81,6 +81,8 @@ export interface Subject {
   id: string;
   name: string;
   code: string | null;
+  department_id?: string | null;
+  department_name?: string | null;
 }
 
 export interface ClassItem {

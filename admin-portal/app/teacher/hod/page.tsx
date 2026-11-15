@@ -12,6 +12,7 @@ import { Pagination } from '@/components/ui/Pagination';
 
 interface Overview {
   hod_type:             'subject' | 'programme';
+  subjects_linked?:     boolean;
   programme_name:       string;
   department:           string;
   teacher_count:        number;
@@ -33,6 +34,7 @@ interface ClassRow {
   form_teacher_phone?: string | null;
   form_teacher_email?: string | null;
   // subject HOD fields
+  subject?:            string | null;
   teacher_id?:         string | null;
   teacher_name?:       string | null;
   teacher_phone?:      string | null;
@@ -51,6 +53,8 @@ interface TeacherRow {
   last_attendance_date:    string | null;
   assessments_total:       number;
   assessments_with_scores: number;
+  department?:             string | null;
+  teaches_only?:           boolean;
 }
 
 interface AbsenceRow {
@@ -248,7 +252,10 @@ export default function HodPage() {
     const deptQs = selectedDeptId && selectedDeptId !== '__legacy__' ? `?dept_id=${selectedDeptId}` : '';
     // Fetch independently so a failure in one doesn't blank out the other
     teacherApi.get<HodClass[]>(`/api/hod/classes${deptQs}`)
-      .then(r => setHodClasses(r.data))
+      .then(r => {
+        const seen = new Set<string>();
+        setHodClasses(r.data.filter(c => { const k = c.class_name.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; }));
+      })
       .catch(() => {});
 
     if (!academicYears.length) {
@@ -799,32 +806,39 @@ export default function HodPage() {
             <div className="bg-white rounded-xl border border-[#E2D9CC] p-8 text-center">
               <p className="text-sm text-[#8C7E6E]">
                 {overview?.hod_type === 'subject'
-                  ? 'No timetable entries found for this subject.'
+                  ? 'No class takes this department\'s subjects this term.'
                   : 'No classes found for this programme.'}
               </p>
-              <p className="text-xs text-[#C0B5A5] mt-1">
+              <p className="text-xs text-[#8C7E6E] mt-1">
                 {overview?.hod_type === 'subject'
-                  ? 'Ensure the timetable is set up and teachers have the correct department.'
+                  ? (overview?.subjects_linked
+                      ? 'Check the timetable or the curriculum allocations.'
+                      : 'Ask the admin to link this department\'s subjects in Curriculum, Subjects.')
                   : 'Ensure students have the correct programme assigned.'}
               </p>
             </div>
           ) : (
             <>
+            {overview?.hod_type === 'subject' && overview.subjects_linked === false && (
+              <p className="text-xs text-[#8C7E6E] mb-3">
+                Classes are worked out from teachers&apos; departments until the admin links subjects to departments.
+              </p>
+            )}
             <div className="space-y-3">
-              {(classRows as typeof classes).map(cls => {
+              {(classRows as typeof classes).map((cls, ci) => {
                 const isSubject = overview?.hod_type === 'subject';
                 const teacherName  = isSubject ? cls.teacher_name  : cls.form_teacher_name;
                 const teacherPhone = isSubject ? cls.teacher_phone : cls.form_teacher_phone;
                 const teacherEmail = isSubject ? cls.teacher_email : cls.form_teacher_email;
-                const roleLabel    = isSubject ? `${overview?.department} Teacher` : 'Form Teacher';
+                const roleLabel    = isSubject ? (cls.subject ? `${cls.subject} teacher` : `${overview?.department} Teacher`) : 'Form Teacher';
                 const assignedLabel = isSubject ? 'Teacher assigned' : 'Form teacher assigned';
                 const missingLabel  = isSubject ? 'No teacher on timetable' : 'Unassigned';
 
                 return (
-                  <div key={cls.class_name} className="bg-white rounded-xl border border-[#E2D9CC] p-4">
+                  <div key={`${cls.class_name}-${cls.subject ?? ''}-${ci}`} className="bg-white rounded-xl border border-[#E2D9CC] p-4">
                     <div className="flex items-start justify-between">
                       <div>
-                        <p className="text-sm font-bold text-[#2C2218]">{cls.class_name}</p>
+                        <p className="text-sm font-bold text-[#2C2218]">{cls.class_name}{cls.subject ? `: ${cls.subject}` : ''}</p>
                         <p className="text-xs text-[#8C7E6E] mt-0.5">{cls.student_count} student{cls.student_count !== 1 ? 's' : ''}</p>
                       </div>
                       {teacherName ? (
@@ -885,7 +899,7 @@ export default function HodPage() {
                   <div className="flex items-start justify-between">
                     <div>
                       <p className="text-sm font-bold text-[#2C2218]">{t.name}</p>
-                      <p className="text-xs text-[#8C7E6E]">{t.teacher_code}</p>
+                      <p className="text-xs text-[#8C7E6E]">{t.teacher_code}{t.teaches_only && t.department ? ` · Teaches here, member of ${t.department}` : ''}</p>
                     </div>
                     {t.form_class && (
                       <span className="text-xs font-semibold px-2.5 py-1 rounded-full shrink-0 ml-2"

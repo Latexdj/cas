@@ -133,7 +133,7 @@ An assessment progress bar below the cards shows assessments with scores entered
 
 Approvals tab:
 
-This tab shows result submissions from teachers in your department that are awaiting your HOD review.
+This tab shows result submissions for your department's subjects that are awaiting your HOD review, whoever teaches them. A subject belongs to the department the admin links it to in Curriculum → Subjects; until your department has subjects linked, submissions from teachers in your department appear here instead.
 
 The list shows one card per submission. Each card shows:
 Subject and class name (bold).
@@ -161,7 +161,7 @@ This tab lets you view the academic results for any class in your department for
 
 Three filters appear at the top:
 
-Class — select a class from the dropdown (populated with classes in your department).
+Class — select a class from the dropdown (the classes that take your department's subjects). The results show only your department's subjects.
 Academic Year — select the year. The current year is pre-selected.
 Semester — Semester 1 or Semester 2.
 
@@ -175,7 +175,7 @@ Click "Details" on any student row to expand a per-subject breakdown: Subject, C
 
 Classes tab:
 
-A list of all classes in your department, one card per class. Each card shows the class name, student count, and — for subject HODs — the teacher assigned to that class for your subject, along with their phone and email (if on record). A "Teacher assigned" badge (green) or "No teacher on timetable" badge (amber) is shown at the top-right of each card.
+For subject HODs, one card per class and subject your department teaches, for example "1 Science A: Physics". Each card shows the student count and the teacher on the timetable for that subject, with their phone and email (if on record). A "Teacher assigned" badge (green) or "No teacher on timetable" badge (amber) is shown at the top-right of each card. Classes come from your department's subjects, so a class shows even when its teacher belongs to another department. If the admin hasn't linked any subjects to your department yet, a note says the classes are worked out from teachers' departments for now.
 
 For programme HODs, the card shows the form teacher for that class instead of the subject teacher.
 
@@ -183,7 +183,7 @@ Teachers tab:
 
 A card for each teacher in your department. Each card shows:
 
-The teacher's name and teacher code. If the teacher is a form teacher, a badge shows their form class.
+The teacher's name and teacher code. If the teacher is a form teacher, a badge shows their form class. Teachers from another department who teach one of your subjects are listed too, marked "Teaches here, member of" their own department.
 An Absences tile — outstanding absences count (red if above zero).
 A Remedials tile — pending remedials count (amber if above zero).
 An Assessments progress bar — assessments with scores entered versus total assessments, as a fraction and percentage.

@@ -1,6 +1,11 @@
 const router = require('express').Router();
 const pool   = require('../config/db');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
+const deptScope = require('../services/department-scope.service');
+const { getCurrentSchoolContext } = require('../utils/school-context');
+
+// Subjects belong to departments through subjects.department_id (by id). The
+// older department_subjects table is no longer read or written.
 
 router.use(authenticate, requireActiveSubscription);
 
@@ -15,7 +20,7 @@ router.get('/', adminOnly, async (req, res, next) => {
         t.teacher_code AS head_code,
         t.photo_url AS head_photo,
         COUNT(DISTINCT dt.teacher_id)::int AS staff_count,
-        (SELECT COUNT(*)::int FROM department_subjects ds WHERE ds.department_id = d.id AND ds.school_id = d.school_id) AS subject_count
+        (SELECT COUNT(*)::int FROM subjects sj WHERE sj.department_id = d.id AND sj.school_id = d.school_id) AS subject_count
       FROM departments d
       LEFT JOIN teachers t  ON t.id = d.head_teacher_id
       LEFT JOIN department_teachers dt ON dt.department_id = d.id
@@ -49,11 +54,11 @@ router.post('/', adminOnly, async (req, res, next) => {
 router.get('/subjects', adminOnly, async (req, res, next) => {
   try {
     const { rows } = await pool.query(`
-      SELECT ds.id, ds.subject, ds.department_id, d.name AS department_name
-      FROM department_subjects ds
-      JOIN departments d ON d.id = ds.department_id
-      WHERE ds.school_id = $1
-      ORDER BY ds.subject
+      SELECT sj.id, sj.name AS subject, sj.department_id, d.name AS department_name
+      FROM subjects sj
+      JOIN departments d ON d.id = sj.department_id
+      WHERE sj.school_id = $1
+      ORDER BY sj.name
     `, [req.schoolId]);
     res.json(rows);
   } catch (err) { next(err); }
@@ -65,19 +70,29 @@ router.get('/subjects/timetable', adminOnly, async (req, res, next) => {
   try {
     const { rows } = await pool.query(`
       SELECT
-        tt.subject,
-        ds.department_id,
-        d.name AS department_name
-      FROM (
-        SELECT DISTINCT LOWER(subject) AS subject_key, MIN(subject) AS subject
-        FROM timetable WHERE school_id = $1
-        GROUP BY LOWER(subject)
-      ) tt
-      LEFT JOIN department_subjects ds
-        ON ds.school_id = $1 AND LOWER(ds.subject) = tt.subject_key
-      LEFT JOIN departments d ON d.id = ds.department_id
-      ORDER BY tt.subject
+        sj.name AS subject,
+        sj.department_id,
+        d.name AS department_name,
+        EXISTS (SELECT 1 FROM timetable tt WHERE tt.school_id = $1 AND LOWER(TRIM(tt.subject)) = LOWER(TRIM(sj.name))) AS on_timetable
+      FROM subjects sj
+      LEFT JOIN departments d ON d.id = sj.department_id
+      WHERE sj.school_id = $1
+      ORDER BY sj.name
     `, [req.schoolId]);
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+// ── GET /api/departments/unlinked-subjects ───────────────────────────────────
+// Subjects on the timetable that no department owns yet.
+router.get('/unlinked-subjects', adminOnly, async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT sj.id, sj.name
+        FROM subjects sj
+       WHERE sj.school_id = $1 AND sj.department_id IS NULL
+         AND EXISTS (SELECT 1 FROM timetable tt WHERE tt.school_id = $1 AND LOWER(TRIM(tt.subject)) = LOWER(TRIM(sj.name)))
+       ORDER BY sj.name`, [req.schoolId]);
     res.json(rows);
   } catch (err) { next(err); }
 });
@@ -106,13 +121,12 @@ router.post('/subjects/seed', adminOnly, async (req, res, next) => {
         [req.schoolId, row.dept_name]
       );
       if (!dRows.length) continue;
-      await pool.query(
-        `INSERT INTO department_subjects (school_id, department_id, subject)
-         VALUES ($1, $2, $3)
-         ON CONFLICT (school_id, subject) DO NOTHING`,
+      const r = await pool.query(
+        `UPDATE subjects SET department_id = $2
+          WHERE school_id = $1 AND LOWER(TRIM(name)) = LOWER(TRIM($3)) AND department_id IS NULL`,
         [req.schoolId, dRows[0].id, row.subject]
       );
-      seeded++;
+      seeded += r.rowCount;
     }
     res.json({ message: `Seeded ${seeded} subject(s).`, seeded });
   } catch (err) { next(err); }
@@ -217,12 +231,31 @@ router.post('/:id/teachers', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ── GET /api/departments/:id/classes ─────────────────────────────────────────
+// Classes taking the department's subjects this term, with subject and teacher.
+router.get('/:id/classes', adminOnly, async (req, res, next) => {
+  try {
+    const { rows: d } = await pool.query(`SELECT id FROM departments WHERE id = $1 AND school_id = $2`, [req.params.id, req.schoolId]);
+    if (!d.length) return res.status(404).json({ error: 'Department not found' });
+    const ctx = await getCurrentSchoolContext(req.schoolId);
+    res.json(await deptScope.getDepartmentClasses(req.schoolId, req.params.id, ctx.academicYearId, ctx.semester));
+  } catch (err) { next(err); }
+});
+
 // ── DELETE /api/departments/:id/teachers/:teacherId ──────────────────────────
 router.delete('/:id/teachers/:teacherId', adminOnly, async (req, res, next) => {
   try {
     await pool.query(
       `DELETE FROM department_teachers
        WHERE department_id = $1 AND teacher_id = $2 AND school_id = $3`,
+      [req.params.id, req.params.teacherId, req.schoolId]
+    );
+    // Otherwise name-based checks would still count them as a member.
+    await pool.query(
+      `UPDATE teachers t SET department = NULL
+         FROM departments d
+        WHERE t.id = $2 AND t.school_id = $3 AND d.id = $1 AND d.school_id = $3
+          AND LOWER(TRIM(t.department)) = LOWER(TRIM(d.name))`,
       [req.params.id, req.params.teacherId, req.schoolId]
     );
     res.json({ message: 'Teacher removed from department' });
@@ -354,12 +387,17 @@ router.post('/:id/subjects', adminOnly, async (req, res, next) => {
     );
     if (!dRows.length) return res.status(404).json({ error: 'Department not found' });
 
-    await pool.query(
-      `INSERT INTO department_subjects (school_id, department_id, subject)
-       VALUES ($1, $2, $3)
-       ON CONFLICT (school_id, subject) DO UPDATE SET department_id = EXCLUDED.department_id`,
+    const upd = await pool.query(
+      `UPDATE subjects SET department_id = $2 WHERE school_id = $1 AND LOWER(TRIM(name)) = LOWER(TRIM($3))`,
       [req.schoolId, req.params.id, subject.trim()]
     );
+    if (!upd.rowCount) {
+      await pool.query(
+        `INSERT INTO subjects (school_id, name, department_id) VALUES ($1, $3, $2)
+         ON CONFLICT (school_id, name) DO UPDATE SET department_id = EXCLUDED.department_id`,
+        [req.schoolId, req.params.id, subject.trim()]
+      );
+    }
     res.status(201).json({ message: 'Subject assigned to department.' });
   } catch (err) { next(err); }
 });
@@ -368,8 +406,8 @@ router.post('/:id/subjects', adminOnly, async (req, res, next) => {
 router.delete('/:id/subjects/:subject', adminOnly, async (req, res, next) => {
   try {
     await pool.query(
-      `DELETE FROM department_subjects
-       WHERE school_id = $1 AND department_id = $2 AND LOWER(subject) = LOWER($3)`,
+      `UPDATE subjects SET department_id = NULL
+        WHERE school_id = $1 AND department_id = $2 AND LOWER(TRIM(name)) = LOWER(TRIM($3))`,
       [req.schoolId, req.params.id, decodeURIComponent(req.params.subject)]
     );
     res.json({ message: 'Subject removed.' });

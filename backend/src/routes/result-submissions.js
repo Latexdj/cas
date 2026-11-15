@@ -1,3 +1,4 @@
+const deptScope = require('../services/department-scope.service');
 const router = require('express').Router();
 const pool   = require('../config/db');
 const { authenticate, adminOnly, adminOrManagement, requireActiveSubscription } = require('../middleware/auth');
@@ -273,13 +274,25 @@ router.get('/hod-queue', async (req, res, next) => {
         // differs from departments.name).
         params.push(hod.hodDepts);
         const deptParam = params.length;
+        const deptNames = `ANY(SELECT LOWER(x) FROM unnest($${deptParam}::text[]) AS x)`;
         deptFilter = `AND (
-          LOWER(t.department) = ANY(SELECT LOWER(x) FROM unnest($${deptParam}::text[]) AS x)
-          OR EXISTS (
-            SELECT 1 FROM departments d
-            WHERE d.school_id = $1
-              AND LOWER(d.name) = ANY(SELECT LOWER(x) FROM unnest($${deptParam}::text[]) AS x)
-              AND d.head_teacher_id = t.id
+          EXISTS (
+            SELECT 1 FROM subjects sj JOIN departments dd ON dd.id = sj.department_id
+            WHERE sj.school_id = $1 AND LOWER(TRIM(sj.name)) = LOWER(TRIM(rs.subject))
+              AND LOWER(dd.name) = ${deptNames}
+          )
+          OR (
+            NOT EXISTS (
+              SELECT 1 FROM subjects sj
+              WHERE sj.school_id = $1 AND LOWER(TRIM(sj.name)) = LOWER(TRIM(rs.subject)) AND sj.department_id IS NOT NULL
+            )
+            AND (
+              LOWER(t.department) = ${deptNames}
+              OR EXISTS (
+                SELECT 1 FROM departments d
+                WHERE d.school_id = $1 AND LOWER(d.name) = ${deptNames} AND d.head_teacher_id = t.id
+              )
+            )
           )
         )`;
       }
@@ -575,7 +588,7 @@ router.get('/final-queue', adminOrManagement, async (req, res, next) => {
        LEFT JOIN teachers t   ON t.id = rs.teacher_id
        LEFT JOIN teachers hod ON hod.id = rs.hod_reviewed_by
        LEFT JOIN academic_years ay ON ay.id = rs.academic_year_id
-       LEFT JOIN department_subjects ds ON ds.school_id = rs.school_id AND LOWER(ds.subject) = LOWER(rs.subject)
+       LEFT JOIN subjects ds ON ds.school_id = rs.school_id AND LOWER(TRIM(ds.name)) = LOWER(TRIM(rs.subject))
        LEFT JOIN departments dept ON dept.id = ds.department_id
        LEFT JOIN teachers assigned_hod ON assigned_hod.id = dept.head_teacher_id
        WHERE rs.school_id = $1 AND rs.status IN ('submitted','hod_approved','final_approved','published') ${filter}
@@ -897,14 +910,18 @@ router.post('/submit', async (req, res, next) => {
     await logAudit(req.schoolId, 'RESULT_SUBMITTED', req.user.id, req.user.name,
       'result_submissions', sub.id, { subject, class_name, semester });
 
-    // Notify HODs in this department (notify all HOD-assigned teachers)
-    const { rows: hods } = await pool.query(
-      `SELECT DISTINCT t.id FROM teachers t
-       JOIN teacher_responsibility_assignments tra ON tra.teacher_id = t.id
-       JOIN teacher_responsibilities tr ON tr.id = tra.responsibility_id
-       WHERE t.school_id=$1 AND tr.module_key='hod' AND t.status='Active'`,
-      [req.schoolId]
-    );
+    // Notify the head of the subject's department. If the subject isn't
+    // linked to a department yet, notify every HOD as before.
+    const subjDept = await deptScope.subjectDepartment(req.schoolId, subject);
+    const { rows: hods } = subjDept?.head_teacher_id
+      ? { rows: [{ id: subjDept.head_teacher_id }] }
+      : await pool.query(
+          `SELECT DISTINCT t.id FROM teachers t
+           JOIN teacher_responsibility_assignments tra ON tra.teacher_id = t.id
+           JOIN teacher_responsibilities tr ON tr.id = tra.responsibility_id
+           WHERE t.school_id=$1 AND tr.module_key='hod' AND t.status='Active'`,
+          [req.schoolId]
+        );
     for (const hod of hods) {
       await notifyTeacher(req.schoolId, hod.id,
         'New Result Submission',
@@ -939,6 +956,14 @@ router.post('/hod-review', async (req, res, next) => {
     const sub = rows[0];
     if (sub.status !== 'submitted') {
       return res.status(409).json({ error: `Cannot review — status is "${sub.status}"` });
+    }
+    // A linked subject can only be reviewed by its own department's HOD.
+    if (req.user.role !== 'admin' && !hod.programmeId) {
+      const subjDept = await deptScope.subjectDepartment(req.schoolId, sub.subject);
+      const mine = (hod.hodDepts ?? []).map(n => String(n).toLowerCase());
+      if (subjDept && !mine.includes(subjDept.name.toLowerCase())) {
+        return res.status(403).json({ error: `${sub.subject} belongs to the ${subjDept.name} department. Its head of department reviews it.` });
+      }
     }
 
     if (action === 'approve') {

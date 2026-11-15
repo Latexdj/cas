@@ -11,7 +11,9 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 
 router.get('/', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
-      `SELECT id, name, code FROM subjects WHERE school_id = $1 ORDER BY name`,
+      `SELECT s.id, s.name, s.code, s.department_id, d.name AS department_name
+         FROM subjects s LEFT JOIN departments d ON d.id = s.department_id
+        WHERE s.school_id = $1 ORDER BY s.name`,
       [req.schoolId]
     );
     res.json(rows);
@@ -20,11 +22,13 @@ router.get('/', async (req, res, next) => {
 
 router.post('/', adminOnly, async (req, res, next) => {
   try {
-    const { name, code } = req.body;
+    const { name, code, department_id } = req.body;
     if (!name?.trim()) return res.status(400).json({ error: 'name is required' });
     const { rows } = await pool.query(
-      `INSERT INTO subjects (school_id, name, code) VALUES ($1,$2,$3) RETURNING id, name, code`,
-      [req.schoolId, name.trim(), code?.trim() || null]
+      `INSERT INTO subjects (school_id, name, code, department_id)
+       VALUES ($1,$2,$3,(SELECT id FROM departments WHERE id = $4::uuid AND school_id = $1))
+       RETURNING id, name, code, department_id`,
+      [req.schoolId, name.trim(), code?.trim() || null, department_id || null]
     );
     res.status(201).json(rows[0]);
   } catch (err) {
@@ -50,23 +54,36 @@ router.post('/upload', adminOnly, upload.single('file'), async (req, res, next) 
 
     let inserted = 0, updated = 0, skipped = 0;
     const errors = [];
+    const deptCache = {};
 
     for (let i = 0; i < dataRows.length; i++) {
       const row  = dataRows[i];
       const name = String(row[0] ?? '').trim();
       const code = String(row[1] ?? '').trim();
+      const deptName = String(row[2] ?? '').trim();
       const rowNum = i + (hasHeader ? 2 : 1);
 
       if (!name) { skipped++; continue; }
+      let deptId = null;
+      if (deptName) {
+        const key = deptName.toLowerCase();
+        if (!(key in deptCache)) {
+          const { rows: d } = await pool.query(`SELECT id FROM departments WHERE school_id = $1 AND LOWER(TRIM(name)) = $2 LIMIT 1`, [req.schoolId, key]);
+          deptCache[key] = d[0]?.id ?? null;
+        }
+        deptId = deptCache[key];
+        if (!deptId) errors.push({ row: rowNum, message: `No department called "${deptName}". The subject was saved without a department.` });
+      }
 
       try {
         const { rows: res } = await pool.query(
-          `INSERT INTO subjects (school_id, name, code)
-           VALUES ($1, $2, $3)
+          `INSERT INTO subjects (school_id, name, code, department_id)
+           VALUES ($1, $2, $3, $4)
            ON CONFLICT (school_id, name)
-           DO UPDATE SET code = EXCLUDED.code
+           DO UPDATE SET code = EXCLUDED.code,
+                         department_id = COALESCE(EXCLUDED.department_id, subjects.department_id)
            RETURNING (xmax = 0) AS is_new`,
-          [req.schoolId, name, code || null]
+          [req.schoolId, name, code || null, deptId]
         );
         if (res[0].is_new) inserted++;
         else updated++;
@@ -82,12 +99,16 @@ router.post('/upload', adminOnly, upload.single('file'), async (req, res, next) 
 router.put('/:id', adminOnly, async (req, res, next) => {
   try {
     const { name, code } = req.body;
+    const hasDept = Object.prototype.hasOwnProperty.call(req.body, 'department_id');
     const { rows } = await pool.query(
       `UPDATE subjects
-       SET name = COALESCE($1, name), code = COALESCE($2, code)
+       SET name = COALESCE($1, name), code = COALESCE($2, code),
+           department_id = CASE WHEN $5::boolean
+                                THEN (SELECT id FROM departments WHERE id = $6::uuid AND school_id = $4)
+                                ELSE department_id END
        WHERE id = $3 AND school_id = $4
-       RETURNING id, name, code`,
-      [name?.trim() || null, code?.trim() || null, req.params.id, req.schoolId]
+       RETURNING id, name, code, department_id`,
+      [name?.trim() || null, code?.trim() || null, req.params.id, req.schoolId, hasDept, req.body.department_id || null]
     );
     if (!rows.length) return res.status(404).json({ error: 'Subject not found' });
     res.json(rows[0]);

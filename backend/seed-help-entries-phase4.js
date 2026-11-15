@@ -67,11 +67,13 @@ Bulk update: use the Bulk Update template to change many slots at once without r
     title: 'Managing Classes, Subjects, Programs, and Departments',
     body: `Classes: go to PEOPLE → Classes. Click "+ Add Class" and enter the class name (e.g. Form 3A), the year level, and an optional program. To edit a class, click its row.
 
-Subjects: go to CURRICULUM → Subjects. Click "+ Add Subject" to create a subject. Subjects can be uploaded in bulk using a template.
+Subjects: go to SETUP → Curriculum → Subjects. Click "Add subject" to create a subject and choose its Department. Subjects can be uploaded in bulk; the template's optional third column, Department, links each subject to a department by name. A note above the table counts the subjects with no department, and "Show only these" lists them.
 
 Programs: go to CURRICULUM → Curriculum. A program (e.g. General Arts, Business, Home Economics) groups students by academic track. Click "+ Add Program". You can set a shortened display name for ID cards under the program record.
 
-Departments: go to CURRICULUM → Departments. Departments group subjects and staff by faculty. To create a department, click "+ Add Department", assign a Head of Department (HOD), then use the Subjects and Teachers tabs on the department row to link subjects and staff to it. Removing or changing the HOD is done from the same row.`,
+Departments: go to SETUP → Departments. A department owns its subjects, and each subject belongs to one department. To create a department, click "Add department", assign a Head of Department (HOD), then use Manage Staff and Manage Subjects on the department card to link staff and subjects to it. Removing or changing the HOD is done from the same card.
+
+Why subjects matter: a department's classes are the classes that take its subjects, from the timetable and the curriculum allocations, whoever teaches them. The HOD's Classes tab, the results the HOD reviews and the submission notifications all follow these links. Click Classes on a department card to see each class with its subject and teacher. If timetable subjects have no department, a note at the top of the Departments page lists them. Until a department has any subjects linked, the system falls back to working out its classes from its teachers' departments.`,
   },
 
   {
@@ -224,7 +226,7 @@ Exam scores combine with CA scores in the results calculation. Once results are 
 
 Stage 1 — Teacher submission: teachers enter CA and exam scores, then submit using the Submit Results action in their portal. Unsubmitted teachers appear under ASSESSMENT → Outstanding Submissions.
 
-Stage 2 — HOD review: each Head of Department sees submitted scores for their department subjects. The HOD can approve or send back for correction.
+Stage 2 — HOD review: a submission goes to the head of the department that owns its subject (set in Curriculum → Subjects), and only that HOD is notified and can review it. The HOD can approve or send back for correction. Subjects with no department still follow the submitting teacher's department.
 
 Stage 3 — Admin final review: ASSESSMENT → Result Approvals shows submissions that passed HOD review. Review and approve each one.
 

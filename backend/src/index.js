@@ -2728,6 +2728,26 @@ async function runMigrations() {
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_student_electives_subject ON student_electives(subject_id)`);
     } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] class_subjects.is_elective + student_electives:', e.message); }
 
+    // ── Subjects belong to departments ────────────────────────────────────────
+    // A department's classes are the classes that take its subjects (timetable
+    // and curriculum allocations), whoever teaches them. Linked by id so
+    // renaming a subject or department doesn't break it. The older
+    // department_subjects table (subject name → department) is copied in once
+    // and then no longer read; see services/department-scope.service.js.
+    try {
+      await pool.query(`ALTER TABLE subjects ADD COLUMN IF NOT EXISTS department_id UUID REFERENCES departments(id) ON DELETE SET NULL`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_subjects_department ON subjects(school_id, department_id)`);
+      const { rows: [{ t }] } = await pool.query(`SELECT to_regclass('public.department_subjects') AS t`);
+      if (t) {
+        await pool.query(`
+          UPDATE subjects s SET department_id = ds.department_id
+            FROM department_subjects ds
+           WHERE ds.school_id = s.school_id
+             AND LOWER(TRIM(ds.subject)) = LOWER(TRIM(s.name))
+             AND s.department_id IS NULL`);
+      }
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] subjects.department_id:', e.message); }
+
     // Academic year date range
     try {
     await pool.query(`ALTER TABLE academic_years ADD COLUMN IF NOT EXISTS start_date DATE`);

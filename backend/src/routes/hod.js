@@ -3,6 +3,17 @@ const pool   = require('../config/db');
 const { authenticate, requireActiveSubscription } = require('../middleware/auth');
 const { getClassRoster } = require('../services/classHistory.service');
 const { getHeadedDepartments, hasHodResponsibility } = require('../services/hod.service');
+const deptScope = require('../services/department-scope.service');
+
+// For a subject HOD: the department's id and whether its subjects are linked.
+// When they are, classes/results follow the subjects; otherwise the older
+// teacher-department rule is used (see services/department-scope.service.js).
+async function subjectScope(req) {
+  if (!req.isSubjectHod) return { deptId: null, linked: false };
+  const deptId = req.hodDeptId ?? await deptScope.resolveDeptId(req.schoolId, req.hodDept);
+  const linked = deptId ? await deptScope.hasLinkedSubjects(req.schoolId, deptId) : false;
+  return { deptId, linked };
+}
 
 router.use(authenticate, requireActiveSubscription);
 
@@ -108,8 +119,11 @@ async function getCurrentYear(schoolId) {
 // â”€â”€ GET /api/hod/check â€” lightweight probe used by the frontend shell â”€â”€â”€â”€â”€â”€â”€â”€
 // Returns 200 + dept info if the teacher is an HOD via any assignment path,
 // 403 otherwise. The frontend calls this to show/hide the "My Dept" nav link.
-router.get('/check', hodOnly, (req, res) => {
-  res.json({ is_hod: true, dept: req.hodDept, is_subject_hod: req.isSubjectHod, depts: req.hodDepts ?? [] });
+router.get('/check', hodOnly, async (req, res, next) => {
+  try {
+    const { linked } = await subjectScope(req);
+    res.json({ is_hod: true, dept: req.hodDept, is_subject_hod: req.isSubjectHod, depts: req.hodDepts ?? [], subjects_linked: linked });
+  } catch (err) { next(err); }
 });
 
 // â”€â”€ GET /api/hod/overview â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -117,9 +131,16 @@ router.get('/overview', hodOnly, async (req, res, next) => {
   try {
     const ay   = await getCurrentYear(req.schoolId);
     const dept = req.hodDept ?? '';
+    const scope = await subjectScope(req);
 
     // Class + student count differs by HOD type
-    const classStudentQuery = req.isSubjectHod
+    const classStudentQuery = scope.linked
+      // Subjects linked: classes taking this department's subjects
+      ? deptScope.getDepartmentClasses(req.schoolId, scope.deptId, ay?.id, ay?.current_semester).then(rows => {
+          const byClass = new Map(rows.map(r => [r.class_name.toLowerCase(), r.student_count]));
+          return { rows: [{ class_count: byClass.size, student_count: [...byClass.values()].reduce((a, b) => a + b, 0) }] };
+        })
+      : req.isSubjectHod
       // Subject HOD: classes this department teaches in the current year+semester
       ? pool.query(
           `SELECT
@@ -173,7 +194,20 @@ router.get('/overview', hodOnly, async (req, res, next) => {
       [req.schoolId, dept]
     );
 
-    const assessQuery = ay
+    const assessQuery = ay && scope.linked
+      // Subjects linked: assessments in this department's subjects, whoever set them
+      ? pool.query(
+          `SELECT COUNT(a.id)::int AS total,
+                  COUNT(a.id) FILTER (
+                    WHERE EXISTS (SELECT 1 FROM assessment_scores WHERE assessment_id = a.id)
+                  )::int AS with_scores
+           FROM assessments a
+           JOIN subjects sj ON sj.school_id = a.school_id AND LOWER(TRIM(sj.name)) = LOWER(TRIM(a.subject))
+           WHERE a.school_id = $1 AND sj.department_id = $2
+             AND a.academic_year_id = $3 AND a.semester = $4`,
+          [req.schoolId, scope.deptId, ay.id, ay.current_semester]
+        )
+      : ay
       ? pool.query(
           `SELECT COUNT(a.id)::int AS total,
                   COUNT(a.id) FILTER (
@@ -201,6 +235,7 @@ router.get('/overview', hodOnly, async (req, res, next) => {
 
     res.json({
       hod_type:            req.isSubjectHod ? 'subject' : 'programme',
+      subjects_linked:     scope.linked,
       programme_name:      req.programmeName,
       department:          req.hodDept,
       teacher_count:       teacherRes.rows[0].count,
@@ -219,6 +254,12 @@ router.get('/classes', hodOnly, async (req, res, next) => {
   try {
     const dept = req.hodDept ?? '';
     const ay   = await getCurrentYear(req.schoolId);
+    const scope = await subjectScope(req);
+
+    if (scope.linked) {
+      const rows = await deptScope.getDepartmentClasses(req.schoolId, scope.deptId, ay?.id, ay?.current_semester);
+      return res.json(rows);
+    }
 
     if (req.isSubjectHod) {
       // Subject HOD: classes this department teaches in the current year+semester
@@ -278,10 +319,11 @@ router.get('/teachers', hodOnly, async (req, res, next) => {
     if (!req.hodDept) return res.json([]);
     const ay   = await getCurrentYear(req.schoolId);
     const dept = req.hodDept;
+    const scope = await subjectScope(req);
 
     const { rows } = await pool.query(
       `SELECT
-         t.id, t.name, t.email, t.phone, t.teacher_code,
+         t.id, t.name, t.email, t.phone, t.teacher_code, t.department,
          COUNT(DISTINCT ab.id) FILTER (
            WHERE ab.status NOT IN ('Made Up','Cleared','Verified','Excused')
          )::int AS outstanding_absences,
@@ -312,12 +354,18 @@ router.get('/teachers', hodOnly, async (req, res, next) => {
          AND (
            LOWER(t.department) = LOWER($2)
            OR EXISTS (SELECT 1 FROM departments d WHERE d.school_id = $1 AND LOWER(d.name) = LOWER($2) AND d.head_teacher_id = t.id)
+           OR ($5::uuid IS NOT NULL AND EXISTS (
+                SELECT 1 FROM timetable tt
+                  JOIN subjects sj ON sj.school_id = tt.school_id AND LOWER(TRIM(sj.name)) = LOWER(TRIM(tt.subject))
+                 WHERE tt.school_id = $1 AND tt.teacher_id = t.id AND sj.department_id = $5
+                   AND tt.academic_year_id = $3 AND tt.semester = $4))
          )
-       GROUP BY t.id, t.name, t.email, t.phone, t.teacher_code, fta.class_name
+       GROUP BY t.id, t.name, t.email, t.phone, t.teacher_code, fta.class_name, t.department
        ORDER BY t.name`,
-      [req.schoolId, dept, ay?.id ?? '00000000-0000-0000-0000-000000000000', ay?.current_semester ?? 1]
+      [req.schoolId, dept, ay?.id ?? '00000000-0000-0000-0000-000000000000', ay?.current_semester ?? 1, scope.linked ? scope.deptId : null]
     );
-    res.json(rows);
+    // Teachers from other departments who teach this department's subjects.
+    res.json(rows.map(r => ({ ...r, teaches_only: !!scope.linked && !!r.department && r.department.toLowerCase() !== dept.toLowerCase() })));
   } catch (err) { next(err); }
 });
 
@@ -371,7 +419,16 @@ router.get('/results', hodOnly, async (req, res, next) => {
       );
       if (!rows.length) return res.status(403).json({ error: 'Class not in your programme.' });
     }
-    // Subject HODs don't have a programme restriction â€” they can see any class that has their subject
+    // Subject HODs with linked subjects: only classes taking those subjects, and only those subjects.
+    const scope = await subjectScope(req);
+    let deptSubjects = null;
+    if (scope.linked) {
+      const classes = await deptScope.getDepartmentClasses(req.schoolId, scope.deptId, academic_year_id, Number(semester));
+      if (!classes.some(c => c.class_name.toLowerCase() === String(class_name).toLowerCase())) {
+        return res.status(403).json({ error: 'That class does not take any of your department\'s subjects.' });
+      }
+      deptSubjects = new Set((await deptScope.deptSubjectNames(req.schoolId, scope.deptId)).map(n => n.toLowerCase()));
+    }
 
     // Get CA settings
     const { rows: schoolRows } = await pool.query('SELECT ca_percentage FROM schools WHERE id=$1', [req.schoolId]);
@@ -437,7 +494,9 @@ router.get('/results', hodOnly, async (req, res, next) => {
     const examByStudent = {};
     for (const e of examScores) (examByStudent[e.student_id] ??= {})[e.subject] = e;
 
-    const allSubjects = [...new Set([...assessments.map(a=>a.subject), ...examScores.map(e=>e.subject)])].sort();
+    const allSubjects = [...new Set([...assessments.map(a=>a.subject), ...examScores.map(e=>e.subject)])]
+      .filter(sub => !deptSubjects || deptSubjects.has(String(sub).toLowerCase()))
+      .sort();
     const totalConfiguredCA = modes.reduce((s, m) => s + parseFloat(m.ca_contribution || 0), 0) || caPercentage;
 
     const results = students.map(student => {

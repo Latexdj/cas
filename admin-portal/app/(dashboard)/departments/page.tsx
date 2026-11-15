@@ -43,6 +43,7 @@ type Modal =
   | { type: 'assign-head'; dept: Department }
   | { type: 'staff'; dept: Department }
   | { type: 'subjects'; dept: Department }
+  | { type: 'classes'; dept: Department }
   | { type: 'delete'; dept: Department }
   | null;
 
@@ -72,6 +73,11 @@ export default function DepartmentsPage() {
   const [subjectsLoading,   setSubjectsLoading]   = useState(false);
   const [seedingSubjects,   setSeedingSubjects]   = useState(false);
 
+  // A department's classes (classes taking its subjects) and unlinked subjects
+  const [deptClasses,    setDeptClasses]    = useState<{ class_name: string; subject: string; teacher_name: string | null; student_count: number }[]>([]);
+  const [classesLoading, setClassesLoading] = useState(false);
+  const [unlinked,       setUnlinked]       = useState<{ id: string; name: string }[]>([]);
+
   const load = useCallback(async () => {
     try {
       const [depts, teachers] = await Promise.all([
@@ -80,6 +86,7 @@ export default function DepartmentsPage() {
       ]);
       setDepartments(depts.data);
       setAllTeachers(teachers.data.filter(t => t.status === 'Active'));
+      api.get<{ id: string; name: string }[]>('/api/departments/unlinked-subjects').then(r => setUnlinked(r.data)).catch(() => setUnlinked([]));
     } finally { setLoading(false); }
   }, []);
 
@@ -107,6 +114,14 @@ export default function DepartmentsPage() {
     loadStaff(dept.id);
   }
   function openDelete(dept: Department) { setModal({ type: 'delete', dept }); }
+  async function openClasses(dept: Department) {
+    setModal({ type: 'classes', dept });
+    setClassesLoading(true); setDeptClasses([]);
+    try { const { data } = await api.get(`/api/departments/${dept.id}/classes`); setDeptClasses(data); }
+    catch { setDeptClasses([]); }
+    finally { setClassesLoading(false); }
+  }
+
   function openSubjects(dept: Department) {
     setError('');
     setModal({ type: 'subjects', dept });
@@ -254,9 +269,19 @@ export default function DepartmentsPage() {
         <Button onClick={openCreate}>Add department</Button>
       </div>
 
+      {unlinked.length > 0 && departments.length > 0 && (
+        <div className="rounded-xl border border-[#C8973A]/40 bg-[#FBF6EC] px-4 py-3">
+          <p className="text-sm text-[#4A3F32]">
+            <span className="font-semibold">{unlinked.length} timetable subject{unlinked.length !== 1 ? 's have' : ' has'} no department:</span>{' '}
+            {unlinked.slice(0, 6).map(u => u.name).join(', ')}{unlinked.length > 6 ? ', …' : ''}.
+            {' '}A department&apos;s classes and its head&apos;s results queue follow its subjects. Use Manage Subjects on a department, or set them in Curriculum › Subjects.
+          </p>
+        </div>
+      )}
+
       {loading ? (
         <div className="flex justify-center items-center h-40">
-          <div className="w-6 h-6 rounded-full border-4 border-green-600 border-t-transparent animate-spin" />
+          <div className="w-6 h-6 rounded-full border-4 border-[#145C44] border-b-transparent animate-spin" />
         </div>
       ) : departments.length === 0 ? (
         <div className="text-center py-16 rounded-xl border border-dashed border-slate-200 bg-white">
@@ -284,7 +309,7 @@ export default function DepartmentsPage() {
                 </div>
                 <div className="flex gap-1 shrink-0">
                   {dept.clearance_enabled && (
-                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">Clearance</span>
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-[#E8F4EE] text-[#145C44] border border-[#145C44]/20">Clearance</span>
                   )}
                   <button onClick={() => openRename(dept)} className="p-1 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-50" title="Rename">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4">
@@ -346,6 +371,17 @@ export default function DepartmentsPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
                 </svg>
               </button>
+
+              {/* Classes button */}
+              <button
+                onClick={() => openClasses(dept)}
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 font-medium hover:bg-slate-50 transition-colors text-left flex items-center justify-between"
+              >
+                <span>Classes</span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4 text-slate-400">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                </svg>
+              </button>
             </div>
           ))}
         </div>
@@ -397,7 +433,7 @@ export default function DepartmentsPage() {
             <select
               value={selTeacher}
               onChange={e => setSelTeacher(e.target.value)}
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-600"
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#145C44]"
             >
               <option value="">Select a teacher…</option>
               {allTeachers.map(t => (
@@ -406,16 +442,16 @@ export default function DepartmentsPage() {
             </select>
           </div>
 
-          <label className="flex items-start gap-3 cursor-pointer rounded-xl border border-blue-200 bg-blue-50 px-4 py-3">
+          <label className="flex items-start gap-3 cursor-pointer rounded-xl border border-[#C8973A]/40 bg-[#FBF6EC] px-4 py-3">
             <input
               type="checkbox"
               checked={clearanceOn}
               onChange={e => setClearanceOn(e.target.checked)}
-              className="mt-0.5 w-4 h-4 accent-blue-600 shrink-0"
+              className="mt-0.5 w-4 h-4 accent-[#145C44] shrink-0"
             />
             <div>
-              <p className="text-sm font-semibold text-blue-900">Enable Clearance Access</p>
-              <p className="text-xs text-blue-600 mt-0.5">
+              <p className="text-sm font-semibold text-[#4A3F32]">Enable Clearance Access</p>
+              <p className="text-xs text-[#6B5D4D] mt-0.5">
                 When checked, this HOD will appear in the student clearance workflow and can approve clearance requests for their department.
                 A clearance office will be created automatically.
               </p>
@@ -447,7 +483,7 @@ export default function DepartmentsPage() {
             <select
               value={addTeacher}
               onChange={e => setAddTeacher(e.target.value)}
-              className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-600"
+              className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#145C44]"
             >
               <option value="">Add a teacher to this department…</option>
               {availableToAdd.map(t => (
@@ -466,14 +502,14 @@ export default function DepartmentsPage() {
               placeholder="Search staff…"
               value={staffSearch}
               onChange={e => setStaffSearch(e.target.value)}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-600"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#145C44]"
             />
           )}
 
           {/* Staff list */}
           {staffLoading ? (
             <div className="flex justify-center py-8">
-              <div className="w-5 h-5 rounded-full border-4 border-green-600 border-t-transparent animate-spin" />
+              <div className="w-5 h-5 rounded-full border-4 border-[#145C44] border-b-transparent animate-spin" />
             </div>
           ) : filteredStaff.length === 0 ? (
             <p className="text-sm text-slate-400 text-center py-6">No staff in this department yet.</p>
@@ -544,7 +580,7 @@ export default function DepartmentsPage() {
 
               {subjectsLoading ? (
                 <div className="flex justify-center py-8">
-                  <div className="w-5 h-5 rounded-full border-4 border-green-600 border-t-transparent animate-spin" />
+                  <div className="w-5 h-5 rounded-full border-4 border-[#145C44] border-b-transparent animate-spin" />
                 </div>
               ) : (
                 <div className="space-y-3 max-h-80 overflow-y-auto">
@@ -611,6 +647,43 @@ export default function DepartmentsPage() {
       </Modal>
 
       {/* ── Delete confirmation ── */}
+      <Modal open={modal?.type === 'classes'} onClose={closeModal}
+        title={modal?.type === 'classes' ? `${modal.dept.name}: classes` : 'Classes'} maxWidth="max-w-lg">
+        {modal?.type === 'classes' && (
+          <div className="space-y-3">
+            <p className="text-sm text-slate-600">
+              Classes taking {modal.dept.name}&apos;s subjects this term, from the timetable and curriculum allocations, whoever teaches them.
+            </p>
+            {classesLoading ? (
+              <div className="flex justify-center py-8">
+                <div className="w-5 h-5 rounded-full border-4 border-[#145C44] border-b-transparent animate-spin" />
+              </div>
+            ) : modal.dept.subject_count === 0 ? (
+              <p className="text-sm text-slate-600 rounded-lg bg-[#FBF6EC] border border-[#C8973A]/40 px-3 py-3">
+                No subjects are linked to {modal.dept.name} yet. Link its subjects under Manage Subjects, and its classes will appear here.
+              </p>
+            ) : deptClasses.length === 0 ? (
+              <p className="text-sm text-slate-600">No class takes these subjects this term. Check the timetable or Curriculum › Allocations.</p>
+            ) : (
+              <>
+                <p className="text-sm font-semibold text-slate-800">
+                  {new Set(deptClasses.map(c => c.class_name.toLowerCase())).size} classes
+                </p>
+                <div className="max-h-96 overflow-y-auto rounded-xl border border-slate-200 divide-y divide-slate-100">
+                  {deptClasses.map((c, i) => (
+                    <div key={`${c.class_name}-${c.subject}-${i}`} className="flex items-center gap-3 px-3 py-2.5">
+                      <span className="font-semibold text-slate-800 w-28 shrink-0">{c.class_name}</span>
+                      <span className="flex-1 min-w-0 text-sm text-slate-600 truncate">{c.subject}{c.teacher_name ? `, ${c.teacher_name}` : ', no teacher on the timetable'}</span>
+                      <span className="text-sm text-slate-500 font-mono shrink-0">{c.student_count}</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </Modal>
+
       <Modal open={modal?.type === 'delete'} onClose={closeModal} title="Delete Department" maxWidth="max-w-sm">
         <div className="space-y-4">
           {modal?.type === 'delete' && (

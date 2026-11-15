@@ -55,11 +55,11 @@ function TabBar({ active, onSelect, subjectCount, classCount, levelCount, progra
 const inputCls = 'mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-600';
 
 /* ── Subjects tab ── */
-const SUBJECT_EMPTY = { name: '', code: '' };
+const SUBJECT_EMPTY = { name: '', code: '', department_id: '' };
 interface UploadResult { inserted: number; updated: number; skipped: number; errors: { row: number; message: string }[] }
 
 function downloadTemplate() {
-  const csv = 'Subject Name,Code\nMATHEMATICS,Math\nENGLISH LANGUAGE,Eng\nBIOLOGY,Bio\nPHYSICS,Phy\nCHEMISTRY,Chem\n';
+  const csv = 'Subject Name,Code,Department\nMATHEMATICS,Math,Mathematics\nENGLISH LANGUAGE,Eng,Languages\nBIOLOGY,Bio,Science\nPHYSICS,Phy,Science\nCHEMISTRY,Chem,Science\n';
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
   a.download = 'subjects_template.csv'; a.click();
@@ -73,6 +73,8 @@ function SubjectsTab() {
   const [editId,   setEditId]   = useState<string | null>(null);
   const [saving,   setSaving]   = useState(false);
   const [error,    setError]    = useState('');
+  const [depts,    setDepts]    = useState<{ id: string; name: string }[]>([]);
+  const [onlyUnlinked, setOnlyUnlinked] = useState(false);
 
   const fileRef                   = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -81,22 +83,27 @@ function SubjectsTab() {
 
   const load = useCallback(async () => {
     try {
-      const { data } = await api.get<Subject[]>('/api/subjects');
+      const [{ data }, d] = await Promise.all([
+        api.get<Subject[]>('/api/subjects'),
+        api.get<{ id: string; name: string }[]>('/api/departments').catch(() => ({ data: [] as { id: string; name: string }[] })),
+      ]);
       setSubjects(data);
+      setDepts(d.data.map(x => ({ id: x.id, name: x.name })));
     } finally { setLoading(false); }
   }, []);
   useEffect(() => { load(); }, [load]);
 
   function openCreate() { setForm(SUBJECT_EMPTY); setError(''); setEditId(null); setModal('create'); }
-  function openEdit(s: Subject) { setForm({ name: s.name, code: s.code ?? '' }); setEditId(s.id); setError(''); setModal('edit'); }
+  function openEdit(s: Subject) { setForm({ name: s.name, code: s.code ?? '', department_id: s.department_id ?? '' }); setEditId(s.id); setError(''); setModal('edit'); }
   function openUpload() { setUploadErr(''); setResult(null); setModal('upload'); }
 
   async function save() {
     if (!form.name.trim()) { setError('Name is required.'); return; }
     setSaving(true); setError('');
     try {
-      if (modal === 'create') await api.post('/api/subjects', form);
-      else                    await api.put(`/api/subjects/${editId}`, form);
+      const body = { ...form, department_id: form.department_id || null };
+      if (modal === 'create') await api.post('/api/subjects', body);
+      else                    await api.put(`/api/subjects/${editId}`, body);
       setModal(null); await load();
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
@@ -113,7 +120,9 @@ function SubjectsTab() {
     }
   }
 
-  const { displayRows: subjectRows, total: subjectTotal, page: subjectPage, setPage: setSubjectPage, pageSize: subjectPageSize, setPageSize: setSubjectPageSize } = useTableControls(subjects);
+  const unlinkedCount = subjects.filter(s => !s.department_id).length;
+  const shown = onlyUnlinked ? subjects.filter(s => !s.department_id) : subjects;
+  const { displayRows: subjectRows, total: subjectTotal, page: subjectPage, setPage: setSubjectPage, pageSize: subjectPageSize, setPageSize: setSubjectPageSize } = useTableControls(shown);
 
   async function handleUpload() {
     const file = fileRef.current?.files?.[0];
@@ -134,18 +143,30 @@ function SubjectsTab() {
   }
 
   return (
-    <div className="space-y-4 max-w-2xl">
+    <div className="space-y-4 max-w-3xl">
       <div className="flex items-center justify-between gap-2 flex-wrap">
-        <p className="text-sm" style={{ color: '#94A3B8' }}>{subjects.length} subject{subjects.length !== 1 ? 's' : ''} defined</p>
+        <p className="text-sm text-ink-muted">{subjects.length} subject{subjects.length !== 1 ? 's' : ''} defined</p>
         <div className="flex gap-2">
           <Button variant="secondary" onClick={openUpload}>↑ Upload Excel</Button>
           <Button onClick={openCreate}>Add subject</Button>
         </div>
       </div>
 
+      {!loading && depts.length > 0 && unlinkedCount > 0 && (
+        <div className="flex items-center justify-between gap-3 flex-wrap rounded-xl border border-[#C8973A]/40 bg-[#FBF6EC] px-4 py-3">
+          <p className="text-sm text-[#4A3F32]">
+            <span className="font-semibold">{unlinkedCount} subject{unlinkedCount !== 1 ? 's have' : ' has'} no department.</span>{' '}
+            A department&apos;s classes and its head&apos;s results queue follow the subjects linked to it.
+          </p>
+          <button type="button" onClick={() => setOnlyUnlinked(v => !v)} className="text-sm font-semibold text-brand-ink">
+            {onlyUnlinked ? 'Show all subjects' : 'Show only these'}
+          </button>
+        </div>
+      )}
+
       {loading ? (
         <div className="flex justify-center h-32 items-center">
-          <div className="w-6 h-6 rounded-full border-4 border-green-600 border-t-transparent animate-spin" />
+          <div className="w-6 h-6 rounded-full border-4 border-[#145C44] border-b-transparent animate-spin" />
         </div>
       ) : (
         <div className="bg-white rounded-xl overflow-hidden" style={{ border: '1px solid #F1F5F9', boxShadow: '0 1px 4px rgba(15,23,42,0.06)' }}>
@@ -153,7 +174,7 @@ function SubjectsTab() {
           <table className="min-w-[450px] w-full text-sm">
             <thead style={{ borderBottom: '1px solid #F1F5F9', backgroundColor: '#F5F0E8' }}>
               <tr>
-                {['Subject Name', 'Code', ''].map(h => (
+                {['Subject Name', 'Code', 'Department', ''].map(h => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-semibold font-medium" style={{ color: '#94A3B8' }}>{h}</th>
                 ))}
               </tr>
@@ -164,6 +185,7 @@ function SubjectsTab() {
                   style={{ borderBottom: i < subjectRows.length - 1 ? '1px solid #F0EBE1' : 'none' }}>
                   <td className="px-4 py-3 font-medium" style={{ color: '#1C1208' }}>{s.name}</td>
                   <td className="px-4 py-3 font-mono text-xs" style={{ color: '#64748B' }}>{s.code ?? '—'}</td>
+                  <td className="px-4 py-3">{s.department_name ?? <span className="text-ink-muted">None</span>}</td>
                   <td className="px-4 py-3">
                     <div className="flex gap-2">
                       <Button variant="ghost" size="sm" onClick={() => openEdit(s)}>Edit</Button>
@@ -173,7 +195,7 @@ function SubjectsTab() {
                 </tr>
               ))}
               {subjects.length === 0 && (
-                <tr><td colSpan={3} className="px-4 py-8 text-center text-sm" style={{ color: '#94A3B8' }}>No subjects yet. Add one or upload an Excel file.</td></tr>
+                <tr><td colSpan={4} className="px-4 py-8 text-center text-sm" style={{ color: '#94A3B8' }}>No subjects yet. Add one or upload an Excel file.</td></tr>
               )}
             </tbody>
           </table>
@@ -193,6 +215,14 @@ function SubjectsTab() {
             <label className="text-xs font-semibold font-medium text-slate-500">Short Code</label>
             <input className={inputCls} value={form.code} onChange={e => setForm(f => ({ ...f, code: e.target.value }))} placeholder="e.g. Math" />
             <p className="mt-1 text-xs text-slate-400">Optional abbreviation used in reports.</p>
+          </div>
+          <div>
+            <label className="text-xs font-semibold font-medium text-slate-500">Department</label>
+            <select className={inputCls} value={form.department_id} onChange={e => setForm(f => ({ ...f, department_id: e.target.value }))}>
+              <option value="">No department</option>
+              {depts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+            </select>
+            <p className="mt-1 text-xs text-slate-400">The department&apos;s head sees every class taking this subject and reviews its results.</p>
           </div>
           {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
           <div className="flex justify-end gap-2 pt-2">
