@@ -4,6 +4,7 @@ import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getTeacherColors } from '@/lib/teacher-auth';
 import { teacherApi } from '@/lib/teacher-api';
+import { confirmAction, notify } from '@/components/ui/dialogs';
 
 interface AssessmentMode { id: string; name: string; ca_contribution: number; max_instances: number | null; }
 interface AcademicYear  { id: string; name: string; is_current: boolean }
@@ -316,13 +317,13 @@ function SubjectContent() {
   }
 
   async function deleteAssessment(id: string, label: string) {
-    if (!confirm(`Delete "${label}"? All scores will be lost.`)) return;
+    if (!await confirmAction(`Delete "${label}"? All scores will be lost.`)) return;
     setDeleting(id);
     try {
       await teacherApi.delete(`/api/assessments/${id}`);
       setAssessments(prev => prev.filter(a => a.id !== id));
     } catch {
-      alert('Failed to delete assessment.');
+      notify('Failed to delete assessment.');
     } finally { setDeleting(null); }
   }
 

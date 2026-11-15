@@ -233,6 +233,55 @@ for b, t in sorted(style_pairs | class_pairs):
              [f'[style*="background-color: {rgbs(b)}"]' + p for p in prop_sel('color', t)] +
              ['.' + esc(f'bg-[{b}]') + '.' + esc(f'text-[{t}]')], f'color: {t}')
 
+# ── Light mode: secondary text that fails 4.5:1 on white ───────────────────
+# Scoped to the page content (main) so the green sidebar and headers keep
+# their light-on-dark text. Very light colours (lum > 0.6) are left alone:
+# inside main they are text on dark or coloured fills.
+WHITE = '#FFFFFF'
+LIGHT = 'html:not(.dark) main[data-admin]'
+
+
+def light_text_map(h):
+    L = lum(h)
+    if contrast(h, WHITE) >= 4.5 or L > 0.6:
+        return None
+    if chroma(h) < 45:
+        return 'var(--ink-muted)'
+    hh, _, _ = hls(h)
+    if hh >= 330 or hh < 15:
+        return 'var(--bad-ink)'
+    if hh < 30:
+        return 'var(--warn-ink)'
+    if hh < 50:
+        return 'var(--gold-ink)'
+    if hh < 70:
+        return 'var(--warn-ink)'
+    if hh < 175:
+        return 'var(--ok-ink)'
+    if hh < 250:
+        return 'var(--brand-ink)'
+    return 'var(--gold-ink)'
+
+
+def light_rule(sels, decl):
+    out.append(',\n'.join(f'{LIGHT} {x}' for x in sels) + f' {{ {decl} !important; }}')
+
+
+out.append('\n/* ── Light mode: low-contrast text in page content ── */')
+for h in sorted(inline['text'], key=str.upper):
+    v = light_text_map(h)
+    if v:
+        light_rule(prop_sel('color', h), f'color: {v}')
+for var, h in sorted(classes['text'], key=lambda x: (x[1].upper(), x[0])):
+    v = light_text_map(h)
+    if v:
+        light_rule(['.' + esc(f'{var}text-[{h}]') + (':hover' if var else '')], f'color: {v}')
+for b, t in sorted(style_pairs | class_pairs):
+    if light_text_map(t) and lum(b) < 0.5:        # text on a solid fill keeps its colour
+        light_rule([f'[style*="background: {rgbs(b)}"]' + p for p in prop_sel('color', t)] +
+                   [f'[style*="background-color: {rgbs(b)}"]' + p for p in prop_sel('color', t)] +
+                   ['.' + esc(f'bg-[{b}]') + '.' + esc(f'text-[{t}]')], f'color: {t}')
+
 OUT.write_text('\n'.join(out) + '\n', encoding='utf-8')
 print(f'wrote {OUT.relative_to(ROOT)}: {len(out)} lines; inline bg {len(inline["bg"])}, text {len(inline["text"])}, '
       f'border {len(inline["border"])}; classes ' + ', '.join(f'{k} {len(v)}' for k, v in classes.items()))

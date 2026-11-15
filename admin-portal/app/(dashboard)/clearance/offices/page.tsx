@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { useTableControls } from '@/hooks/useTableControls';
 import { Pagination } from '@/components/ui/Pagination';
+import { confirmAction } from '@/components/ui/dialogs';
 
 interface Office {
   id: string; name: string; office_type: string;
@@ -97,7 +98,7 @@ export default function OfficesPage() {
   }
 
   async function deleteOffice(id: string) {
-    if (!confirm('Delete this office? This cannot be undone.')) return;
+    if (!await confirmAction('Delete this office? This cannot be undone.')) return;
     try {
       await api.delete(`/api/clearance-admin/offices/${id}`);
       setOffices(prev => prev.filter(o => o.id !== id));
@@ -144,7 +145,7 @@ export default function OfficesPage() {
   }
 
   async function deleteStaff(id: string) {
-    if (!confirm('Delete this staff account?')) return;
+    if (!await confirmAction('Delete this staff account?')) return;
     try {
       await api.delete(`/api/clearance-admin/staff/${id}`);
       setStaff(prev => prev.filter(s => s.id !== id));

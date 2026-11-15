@@ -6,6 +6,7 @@ import { api } from '@/lib/api';
 import { UnitsManager } from '@/components/inventory/UnitsManager';
 import { UnitPicker } from '@/components/inventory/UnitPicker';
 import type { InvUnit } from '@/components/inventory/units';
+import { confirmAction, notify } from '@/components/ui/dialogs';
 
 interface Category { id: string; name: string; }
 interface Department { id: string; name: string; }
@@ -183,11 +184,11 @@ export default function InventoryItemsPage() {
   }
 
   async function deleteItem(id: string) {
-    if (!confirm('Delete this item and all its transaction history?')) return;
+    if (!await confirmAction('Delete this item and all its transaction history?')) return;
     setDeletingId(id);
     try { await api.delete(`/api/inventory/items/${id}`); load(); }
     catch (err: unknown) {
-      alert((err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to delete');
+      notify((err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to delete');
     } finally { setDeletingId(''); }
   }
 

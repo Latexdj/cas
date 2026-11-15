@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback } from 'react';
 import type { AxiosInstance } from 'axios';
 import Link from 'next/link';
 import type { LessonObservationListItem, ObservableTeacher, ObservationAnalytics, AcademicYear, TeacherLessonOption } from '@/types/api';
+import { confirmAction, notify } from '@/components/ui/dialogs';
 
 const STATUS_STYLES: Record<string, string> = {
   Scheduled:    'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
@@ -127,13 +128,13 @@ export default function ObservationWorkspace({ apiClient, basePath }: { apiClien
   }
 
   async function deleteObservation(id: string) {
-    if (!confirm('Delete this scheduled observation? This cannot be undone.')) return;
+    if (!await confirmAction('Delete this scheduled observation? This cannot be undone.')) return;
     setDeletingId(id);
     try {
       await apiClient.delete(`/api/lesson-observation/${id}`);
       setObservations(obs => obs.filter(o => o.id !== id));
     } catch (e: unknown) {
-      alert((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to delete observation.');
+      notify((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to delete observation.');
     } finally { setDeletingId(null); }
   }
 
@@ -145,7 +146,7 @@ export default function ObservationWorkspace({ apiClient, basePath }: { apiClien
       a.href = url; a.download = 'lesson-observation-blank-form.pdf';
       a.click();
       window.URL.revokeObjectURL(url);
-    } catch { alert('Failed to download the blank form.'); }
+    } catch { notify('Failed to download the blank form.'); }
   }
 
   return (

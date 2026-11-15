@@ -4,6 +4,7 @@ import type { AxiosInstance } from 'axios';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { ObservationCriterion, LessonObservationDetail, AcademicYear, TeacherLessonOption } from '@/types/api';
+import { confirmAction, notify } from '@/components/ui/dialogs';
 
 const SCORE_LABELS: Record<number, string> = { 1: '1 — Ineffective', 2: '2 — Developing', 3: '3 — Effective', 4: '4 — Highly Effective' };
 
@@ -134,13 +135,13 @@ export default function ObservationDetail({ apiClient, backHref, observationId }
   }
 
   async function deleteObservation() {
-    if (!confirm('Delete this scheduled observation? This cannot be undone.')) return;
+    if (!await confirmAction('Delete this scheduled observation? This cannot be undone.')) return;
     setDeleting(true);
     try {
       await apiClient.delete(`/api/lesson-observation/${observationId}`);
       router.push(backHref);
     } catch (e: unknown) {
-      alert((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to delete observation.');
+      notify((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to delete observation.');
       setDeleting(false);
     }
   }
@@ -165,11 +166,11 @@ export default function ObservationDetail({ apiClient, backHref, observationId }
   }
 
   async function closeObservation() {
-    if (!confirm('Close this observation? This marks it as fully done.')) return;
+    if (!await confirmAction('Close this observation? This marks it as fully done.')) return;
     try {
       const { data } = await apiClient.patch<LessonObservationDetail>(`/api/lesson-observation/${observationId}`, { status: 'Closed' });
       await refreshObs(data);
-    } catch { alert('Failed to close.'); }
+    } catch { notify('Failed to close.'); }
   }
 
   async function addAction() {
@@ -178,14 +179,14 @@ export default function ObservationDetail({ apiClient, backHref, observationId }
       await apiClient.post(`/api/lesson-observation/${observationId}/actions`, { description: newActionDesc.trim(), due_date: newActionDue || undefined });
       setNewActionDesc(''); setNewActionDue('');
       load();
-    } catch { alert('Failed to add action item.'); }
+    } catch { notify('Failed to add action item.'); }
   }
 
   async function toggleAction(actionId: string, currentStatus: 'Open' | 'Done') {
     try {
       await apiClient.patch(`/api/lesson-observation/${observationId}/actions/${actionId}`, { status: currentStatus === 'Open' ? 'Done' : 'Open' });
       load();
-    } catch { alert('Failed to update action item.'); }
+    } catch { notify('Failed to update action item.'); }
   }
 
   async function uploadPhoto(e: React.ChangeEvent<HTMLInputElement>) {
@@ -201,14 +202,14 @@ export default function ObservationDetail({ apiClient, backHref, observationId }
       });
       await apiClient.post(`/api/lesson-observation/${observationId}/photos`, { photo_base64: base64 });
       load();
-    } catch { alert('Failed to upload photo.'); }
+    } catch { notify('Failed to upload photo.'); }
     finally { setUploadingPhoto(false); e.target.value = ''; }
   }
 
   async function removePhoto(photoId: string) {
-    if (!confirm('Remove this photo?')) return;
+    if (!await confirmAction('Remove this photo?')) return;
     try { await apiClient.delete(`/api/lesson-observation/${observationId}/photos/${photoId}`); load(); }
-    catch { alert('Failed to remove photo.'); }
+    catch { notify('Failed to remove photo.'); }
   }
 
   async function downloadPdf() {
@@ -219,7 +220,7 @@ export default function ObservationDetail({ apiClient, backHref, observationId }
       a.href = url; a.download = `lesson-observation-${observationId}.pdf`;
       a.click();
       window.URL.revokeObjectURL(url);
-    } catch { alert('Failed to download report.'); }
+    } catch { notify('Failed to download report.'); }
   }
 
   if (loading) return (

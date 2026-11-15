@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
 import { useTableControls } from '@/hooks/useTableControls';
 import { Pagination, Th } from '@/components/ui/Pagination';
+import { confirmAction, notify } from '@/components/ui/dialogs';
 
 interface Staff {
   id: string; name: string; email: string; is_active: boolean;
@@ -85,23 +86,23 @@ export default function SupportStaffPage() {
     try {
       const r = await api.put<Staff>(`/api/school-staff/${s.id}`, { is_active: !s.is_active });
       setStaff(prev => prev.map(x => x.id === s.id ? r.data : x));
-    } catch (e: any) { alert(e.response?.data?.error ?? 'Failed to update'); }
+    } catch (e: any) { notify(e.response?.data?.error ?? 'Failed to update'); }
   }
 
   async function deleteStaff(id: string) {
-    if (!confirm('Delete this staff account? This cannot be undone.')) return;
+    if (!await confirmAction('Delete this staff account? This cannot be undone.')) return;
     try {
       await api.delete(`/api/school-staff/${id}`);
       setStaff(prev => prev.filter(s => s.id !== id));
-    } catch (e: any) { alert(e.response?.data?.error ?? 'Failed to delete'); }
+    } catch (e: any) { notify(e.response?.data?.error ?? 'Failed to delete'); }
   }
 
   async function resendCredentials(id: string, name: string) {
-    if (!confirm(`Reset password and send new login credentials to ${name}?`)) return;
+    if (!await confirmAction(`Reset password and send new login credentials to ${name}?`)) return;
     try {
       const r = await api.post(`/api/school-staff/${id}/resend-credentials`);
-      alert((r.data as { message: string }).message);
-    } catch (e: any) { alert(e.response?.data?.error ?? 'Failed to send credentials'); }
+      notify((r.data as { message: string }).message);
+    } catch (e: any) { notify(e.response?.data?.error ?? 'Failed to send credentials'); }
   }
 
   const { displayRows, total, page, setPage, pageSize, setPageSize, sortKey, sortDir, handleSort } =

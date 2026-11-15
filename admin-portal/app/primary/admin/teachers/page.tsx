@@ -5,6 +5,7 @@ import { api } from '@/lib/api';
 import { useTableControls } from '@/hooks/useTableControls';
 import { Pagination, Th } from '@/components/ui/Pagination';
 import { validateMinAge } from '@/lib/validations';
+import { confirmAction } from '@/components/ui/dialogs';
 
 const TEACHER_MIN_AGE_YEARS = 18;
 
@@ -109,7 +110,7 @@ export default function PrimaryTeachersPage() {
   }
 
   async function del(id: string) {
-    if (!confirm('Delete this teacher? This cannot be undone.')) return;
+    if (!await confirmAction('Delete this teacher? This cannot be undone.')) return;
     try { await api.delete(`/api/teachers/${id}`); load(); }
     catch { setError('Delete failed.'); }
   }

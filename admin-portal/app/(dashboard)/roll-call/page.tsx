@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '@/lib/api';
+import { confirmAction, notify } from '@/components/ui/dialogs';
 
 interface RollCall {
   id: string; date: string; title: string | null; location: string | null;
@@ -169,12 +170,12 @@ export default function RollCallPage() {
   }
 
   async function deleteRollCall(id: string) {
-    if (!confirm('Delete this roll call and all its entries?')) return;
+    if (!await confirmAction('Delete this roll call and all its entries?')) return;
     try {
       await api.delete(`/api/roll-call/${id}`);
       setRollCalls(prev => prev.filter(r => r.id !== id));
       if (selectedId === id) { setSelectedId(null); setEntries([]); setMobileView('list'); }
-    } catch { alert('Failed to delete'); }
+    } catch { notify('Failed to delete'); }
   }
 
   async function addStudentsToRollCall() {
@@ -183,14 +184,14 @@ export default function RollCallPage() {
     const toAdd = allStudents
       .filter(s => !existing.has(s.id) && (!classFilter || s.class_name === classFilter))
       .map(s => ({ student_id: s.id, status: 'Present' as const }));
-    if (!toAdd.length) { alert('No new students to add.'); return; }
+    if (!toAdd.length) { notify('No new students to add.'); return; }
     setSaving(true);
     try {
       await api.put(`/api/roll-call/${selectedId}/entries`, { entries: toAdd });
       await loadDetail(selectedId);
       setSaveMsg(`Added ${toAdd.length} students.`);
       setTimeout(() => setSaveMsg(''), 3000);
-    } catch { alert('Failed to add students'); } finally { setSaving(false); }
+    } catch { notify('Failed to add students'); } finally { setSaving(false); }
   }
 
   async function saveEntries() {
@@ -204,7 +205,7 @@ export default function RollCallPage() {
       setSaveMsg('Saved.');
       setTimeout(() => setSaveMsg(''), 2000);
       await loadRollCalls();
-    } catch { alert('Failed to save'); } finally { setSaving(false); }
+    } catch { notify('Failed to save'); } finally { setSaving(false); }
   }
 
   function setEntryStatus(studentId: string, status: 'Present' | 'Absent' | 'Break Bounds') {

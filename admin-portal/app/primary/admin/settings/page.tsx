@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import { THEME_PRESETS } from '@/lib/theme-presets';
+import { confirmAction, notify } from '@/components/ui/dialogs';
 
 interface AssessmentMode {
   id: string; name: string; ca_weight: number;
@@ -138,7 +139,7 @@ export default function PrimarySettingsPage() {
   }
 
   async function deleteMode(id: string, name: string) {
-    if (!confirm(`Delete mode "${name}"? Existing assessments linked to it will lose their mode assignment.`)) return;
+    if (!await confirmAction(`Delete mode "${name}"? Existing assessments linked to it will lose their mode assignment.`)) return;
     await api.delete(`/api/primary/assessment-modes/${id}`);
     setModes(prev => prev.filter(m => m.id !== id));
   }
@@ -345,10 +346,10 @@ export default function PrimarySettingsPage() {
         </div>
         <button type="button"
           onClick={() => {
-            if (!navigator.geolocation) return alert('Geolocation not supported by your browser.');
+            if (!navigator.geolocation) return notify('Geolocation not supported by your browser.');
             navigator.geolocation.getCurrentPosition(
               pos => setForm(f => ({ ...f, school_latitude: pos.coords.latitude.toFixed(7), school_longitude: pos.coords.longitude.toFixed(7) })),
-              () => alert('Could not get your location. Please enter coordinates manually.')
+              () => notify('Could not get your location. Please enter coordinates manually.')
             );
           }}
           className="flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-lg border border-[#B8D9C8] text-[#145C44] bg-[#E8F4EE] hover:bg-[#D1EAD9] transition-colors">

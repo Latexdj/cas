@@ -6,6 +6,7 @@ import { Modal } from '@/components/ui/Modal';
 import { useTableControls } from '@/hooks/useTableControls';
 import { Pagination, Th } from '@/components/ui/Pagination';
 import { validateMinAge } from '@/lib/validations';
+import { confirmAction, notify } from '@/components/ui/dialogs';
 
 const APPLICANT_MIN_AGE_YEARS = 10;
 
@@ -268,7 +269,7 @@ export default function ApplicationsPage() {
   }
 
   async function del(id: string) {
-    if (!confirm('Delete this application? This cannot be undone.')) return;
+    if (!await confirmAction('Delete this application? This cannot be undone.')) return;
     await api.delete(`/api/admin/admissions/applications/${id}`);
     setSelected(null); load(); loadStats();
   }
@@ -279,7 +280,7 @@ export default function ApplicationsPage() {
       await api.post(`/api/admin/admissions/applications/${id}/migrate`, { default_class: defClass });
       load(); loadStats(); setSelected(null); setMigModal(false);
     } catch (err: unknown) {
-      alert((err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Migration failed');
+      notify((err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Migration failed');
     } finally { setMigrating(false); }
   }
 
@@ -289,7 +290,7 @@ export default function ApplicationsPage() {
       const { data } = await api.post('/api/admin/admissions/applications/migrate-bulk', { default_class: defClass });
       setMigResult(data); load(); loadStats();
     } catch (err: unknown) {
-      alert((err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Migration failed');
+      notify((err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Migration failed');
     } finally { setMigrating(false); }
   }
 
@@ -378,7 +379,7 @@ export default function ApplicationsPage() {
       window.open(data.url, '_blank');
       if (data.prospectus_url) window.open(data.prospectus_url, '_blank');
     } catch {
-      alert('Failed to generate admission letter. Please try again.');
+      notify('Failed to generate admission letter. Please try again.');
     } finally {
       setPrintingId(null);
     }

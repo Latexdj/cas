@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { useSessionFilter } from '@/hooks/useSessionFilter';
+import { confirmAction } from '@/components/ui/dialogs';
 
 interface AcademicYear { id: string; name: string; is_current: boolean; }
 interface Term {
@@ -80,7 +81,7 @@ export default function PrimaryTermsPage() {
   }
 
   async function del(id: string) {
-    if (!confirm('Delete this term?')) return;
+    if (!await confirmAction('Delete this term?')) return;
     try { await api.delete(`/api/primary/terms/${id}`); load(); }
     catch { setError('Delete failed.'); }
   }

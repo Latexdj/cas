@@ -22,15 +22,15 @@
   --elevated:    #FFFFFF;   /* modals, menus, headers: things that float */
   --ink:         #1C1208;   /* primary text */
   --ink-2:       #4A3F32;   /* secondary text */
-  --ink-muted:   #8C7E6E;   /* labels, hints */
-  --placeholder: #B5A898;
+  --ink-muted:   #6E6253;   /* labels, hints: 5.9:1 on white, 5.2:1 on parchment */
+  --placeholder: #8C7E6E;
   --line:        #E2D9CC;
   --line-strong: #C8BAA8;
   --brand-ink:   #145C44;   /* green text: links, counts */
-  --gold-ink:    #8A6420;
+  --gold-ink:    #8A6420;   /* gold as text: 5.4:1 (gold #C8973A is for fills only) */
   --ok-ink:      #2D7A4F;
   --bad-ink:     #B83232;
-  --warn-ink:    #A15F06;
+  --warn-ink:    #8F5506;   /* 6.1:1 */
 
   /* Chart series colors — validated for CVD-safety and contrast via the
      dataviz skill's validate_palette.js. Kept separate from the brand
@@ -271,3 +271,50 @@ select option {
   background-color: var(--elevated) !important;
 }
 .dark [role="menu"], .dark [role="listbox"] { background-color: var(--elevated); }
+
+/* ═══════════════════════════════════════════════════════════════
+   ADMIN PORTAL — accessibility floor (design review 2026-11-15)
+   Scoped to the admin content area: <main data-admin>.
+═══════════════════════════════════════════════════════════════ */
+
+/* Secondary text that failed 4.5:1 in light mode (slate-400 was 2.6:1). */
+html:not(.dark) main[data-admin] :is(.text-slate-300, .text-slate-400, .text-gray-300, .text-gray-400) { color: var(--ink-muted); }
+html:not(.dark) main[data-admin] :is(.text-amber-400, .text-amber-500, .text-yellow-500, .text-orange-400, .text-orange-500) { color: var(--warn-ink); }
+html:not(.dark) main[data-admin] :is(.text-green-400, .text-green-500, .text-emerald-400, .text-emerald-500) { color: var(--ok-ink); }
+html:not(.dark) main[data-admin] :is(.text-red-400, .text-red-500, .text-rose-500) { color: var(--bad-ink); }
+html:not(.dark) main[data-admin] :is(.text-blue-400, .text-blue-500, .text-sky-500, .text-indigo-500) { color: var(--brand-ink); }
+/* Text sitting on a solid fill keeps its own colour. */
+main[data-admin] :is([class*="bg-[#145C44]"], [class*="bg-[#0B3D2E]"], [class*="bg-[#B83232]"], .bg-red-600, .bg-green-700) :is(.text-slate-300, .text-slate-400, .text-gray-300, .text-gray-400) { color: rgba(255, 255, 255, 0.85); }
+
+/* Type floor: nothing under 12px, small text 13px, no shouting labels. */
+main[data-admin] {
+  --text-xs: 0.8125rem;
+  --text-xs--line-height: calc(1.125 / 0.8125);
+}
+main[data-admin] :is(.text-\[9px\], .text-\[10px\], .text-\[11px\]) { font-size: 12px; }
+main[data-admin] :is([style*="font-size: 9px"], [style*="font-size: 10px"], [style*="font-size: 11px"]) { font-size: 12px !important; }
+main[data-admin] .uppercase:is(.tracking-wide, .tracking-wider, .tracking-widest) { text-transform: none; letter-spacing: 0; }
+
+/* Control sizes: 28px minimum on desktop, 44px on phones (Apple's defaults). */
+main[data-admin] :is(button, select, input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]), [role="button"]):not(th *):not([role="switch"]) {
+  min-height: 28px;
+}
+@media (max-width: 767px) {
+  main[data-admin] :is(button, select, input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]), textarea, [role="button"]):not(th *):not([role="switch"]) {
+    min-height: 44px;
+  }
+  main[data-admin] :is(button, [role="button"]):not(th *):not([role="switch"]) { min-width: 44px; }
+  main[data-admin] :is(input, select, textarea) { font-size: 16px; }   /* stops iOS zooming into fields */
+  main[data-admin] input:is([type="checkbox"], [type="radio"]) { width: 20px; height: 20px; }
+}
+
+/* Wide tables on a phone: a soft shadow at the edge shows there is more to scroll to. */
+@media (max-width: 767px) {
+  main[data-admin] .overflow-x-auto {
+    background:
+      linear-gradient(to right, var(--surface) 30%, transparent) left center / 24px 100% no-repeat local,
+      linear-gradient(to left, var(--surface) 30%, transparent) right center / 24px 100% no-repeat local,
+      radial-gradient(farthest-side at 0 50%, rgba(28, 18, 8, 0.14), transparent) left center / 12px 100% no-repeat scroll,
+      radial-gradient(farthest-side at 100% 50%, rgba(28, 18, 8, 0.14), transparent) right center / 12px 100% no-repeat scroll var(--surface);
+  }
+}

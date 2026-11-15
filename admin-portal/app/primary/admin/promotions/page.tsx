@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '@/lib/api';
+import { confirmAction } from '@/components/ui/dialogs';
 
 interface ClassInfo {
   class_name: string;
@@ -168,7 +169,7 @@ export default function PrimaryPromotionsPage() {
 
   async function handleGraduate() {
     if (!gradClass || gradSelected.size === 0) return;
-    if (!confirm(`Graduate ${gradSelected.size} student(s) in ${gradClass}? They will be marked as Graduated. This cannot be undone.`)) return;
+    if (!await confirmAction(`Graduate ${gradSelected.size} student(s) in ${gradClass}? They will be marked as Graduated. This cannot be undone.`)) return;
     setGraduating(true); setGradResult('');
     try {
       const { data } = await api.post<{ graduated: number }>('/api/primary/students/graduate', {
@@ -193,7 +194,7 @@ export default function PrimaryPromotionsPage() {
         : `• Graduate all active students in ${r.class_name} (${r.student_count} students)`
     ).join('\n');
 
-    if (!confirm(`Run end-of-year promotions?\n\n${preview}\n\nThis cannot be undone.`)) return;
+    if (!await confirmAction(`Run end-of-year promotions?\n\n${preview}\n\nThis cannot be undone.`)) return;
 
     setWizardRunning(true); setWizardLog('');
     const lines: string[] = [];

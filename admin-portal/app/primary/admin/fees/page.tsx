@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { api } from '@/lib/api';
 import { useTableControls } from '@/hooks/useTableControls';
 import { Pagination } from '@/components/ui/Pagination';
+import { confirmAction, notify } from '@/components/ui/dialogs';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -119,11 +120,11 @@ function ItemsTab({ items, loading, onRefresh }: { items: FeeItem[]; loading: bo
   }
 
   async function del(id: string) {
-    if (!confirm('Delete this fee item?')) return;
+    if (!await confirmAction('Delete this fee item?')) return;
     try { await api.delete(`/api/fees/items/${id}`); onRefresh(); }
     catch (e: unknown) {
       const err = e as { response?: { data?: { error?: string } } };
-      alert(err?.response?.data?.error ?? 'Failed to delete.');
+      notify(err?.response?.data?.error ?? 'Failed to delete.');
     }
   }
 
@@ -227,16 +228,16 @@ function SchedulesTab({ schedules, items, years, classes, loading, onRefresh, on
   }
 
   async function del(id: string) {
-    if (!confirm('Delete this schedule?')) return;
+    if (!await confirmAction('Delete this schedule?')) return;
     try { await api.delete(`/api/fees/schedules/${id}`); onRefresh(); }
     catch (e: unknown) {
       const err = e as { response?: { data?: { error?: string } } };
-      alert(err?.response?.data?.error ?? 'Failed.');
+      notify(err?.response?.data?.error ?? 'Failed.');
     }
   }
 
   async function generate(id: string) {
-    if (!confirm('Generate bills for all matching active students? Existing bills for this schedule will be skipped.')) return;
+    if (!await confirmAction('Generate bills for all matching active students? Existing bills for this schedule will be skipped.')) return;
     setGenerating(id); setGenMsg(null);
     try {
       const r = await api.post(`/api/fees/schedules/${id}/generate`);
@@ -379,7 +380,7 @@ function CollectionsTab({ items }: { items: FeeItem[] }) {
   async function selectStudent(id: string) {
     setResults([]); setQuery(''); setLoadingSummary(true); setSelected(null);
     try { const r = await api.get(`/api/fees/student/${id}/summary`); setSelected(r.data); }
-    catch { alert('Could not load student data.'); }
+    catch { notify('Could not load student data.'); }
     finally { setLoadingSummary(false); }
   }
 
@@ -397,17 +398,17 @@ function CollectionsTab({ items }: { items: FeeItem[] }) {
   }
 
   async function voidPayment(id: string) {
-    if (!confirm('Void this payment? This cannot be undone.')) return;
+    if (!await confirmAction('Void this payment? This cannot be undone.')) return;
     try { await api.delete(`/api/fees/payments/${id}`); const r = await api.get(`/api/fees/student/${selected!.student.id}/summary`); setSelected(r.data); }
-    catch { alert('Failed to void payment.'); }
+    catch { notify('Failed to void payment.'); }
   }
 
   async function deleteBill(id: string) {
-    if (!confirm('Delete this bill?')) return;
+    if (!await confirmAction('Delete this bill?')) return;
     try { await api.delete(`/api/fees/bills/${id}`); const r = await api.get(`/api/fees/student/${selected!.student.id}/summary`); setSelected(r.data); }
     catch (e: unknown) {
       const err = e as { response?: { data?: { error?: string } } };
-      alert(err?.response?.data?.error ?? 'Failed.');
+      notify(err?.response?.data?.error ?? 'Failed.');
     }
   }
 
@@ -721,9 +722,9 @@ function ExpenditureTab({ onExpenseChange }: { onExpenseChange: () => void }) {
   }
 
   async function del(id: string) {
-    if (!confirm('Delete this expense record?')) return;
+    if (!await confirmAction('Delete this expense record?')) return;
     try { await api.delete(`/api/fees/expenses/${id}`); load(); onExpenseChange(); }
-    catch { alert('Failed to delete.'); }
+    catch { notify('Failed to delete.'); }
   }
 
   async function loadSummaryData() {
@@ -731,7 +732,7 @@ function ExpenditureTab({ onExpenseChange }: { onExpenseChange: () => void }) {
     try {
       const r = await api.get('/api/fees/reports/income-vs-expenditure', { params: { from: filters.from || undefined, to: filters.to || undefined } });
       setSummary(r.data); setShowSummary(true);
-    } catch { alert('Could not load summary.'); }
+    } catch { notify('Could not load summary.'); }
     finally { setLoadingSummary(false); }
   }
 

@@ -5,6 +5,7 @@ import { useTableControls } from '@/hooks/useTableControls';
 import { Pagination } from '@/components/ui/Pagination';
 import { api } from '@/lib/api';
 import { FeeReportsPanel } from '@/components/fees/FeeReportsPanel';
+import { confirmAction, notify } from '@/components/ui/dialogs';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -162,11 +163,11 @@ function ItemsTab({ items, loading, onRefresh }: { items: FeeItem[]; loading: bo
   }
 
   async function del(id: string) {
-    if (!confirm('Delete this fee item?')) return;
+    if (!await confirmAction('Delete this fee item?')) return;
     try { await api.delete(`/api/fees/items/${id}`); onRefresh(); }
     catch (e: unknown) {
       const err = e as { response?: { data?: { error?: string } } };
-      alert(err?.response?.data?.error ?? 'Failed to delete.');
+      notify(err?.response?.data?.error ?? 'Failed to delete.');
     }
   }
 
@@ -307,12 +308,12 @@ function SchedulesTab({
   // an overlapping class/year — surfacing that instead of silently creating
   // a second schedule is what stops the same fee from double-billing
   // students under two schedules at once.
-  function confirmDuplicateOrThrow(e: unknown): true {
+  async function confirmDuplicateOrThrow(e: unknown): Promise<true> {
     const resp = (e as { response?: { status?: number; data?: { error?: string; message?: string; conflicting_schedules?: { class_name: string | null; amount: string }[] } } })?.response;
     if (resp?.status === 409 && resp.data?.error === 'duplicate_schedule') {
       const list = (resp.data.conflicting_schedules ?? [])
         .map(c => `  • ${c.class_name ?? 'All Classes'} — ${fmt(c.amount)}`).join('\n');
-      if (confirm(`${resp.data.message}\n\nConflicting schedule(s):\n${list}\n\nCreate it anyway?`)) return true;
+      if (await confirmAction(`${resp.data.message}\n\nConflicting schedule(s):\n${list}\n\nCreate it anyway?`)) return true;
     }
     throw e;
   }
@@ -330,7 +331,7 @@ function SchedulesTab({
         try {
           await api.post('/api/fees/schedules/by-level', body);
         } catch (e) {
-          confirmDuplicateOrThrow(e);
+          await confirmDuplicateOrThrow(e);
           await api.post('/api/fees/schedules/by-level', { ...body, confirm_duplicate: true });
         }
         setShowModal(false); onRefresh();
@@ -346,7 +347,7 @@ function SchedulesTab({
         if (editing) await api.put(`/api/fees/schedules/${editing.id}`, body);
         else await api.post('/api/fees/schedules', body);
       } catch (e) {
-        confirmDuplicateOrThrow(e);
+        await confirmDuplicateOrThrow(e);
         const confirmedBody = { ...body, confirm_duplicate: true };
         if (editing) await api.put(`/api/fees/schedules/${editing.id}`, confirmedBody);
         else await api.post('/api/fees/schedules', confirmedBody);
@@ -359,16 +360,16 @@ function SchedulesTab({
   }
 
   async function del(id: string) {
-    if (!confirm('Delete this schedule?')) return;
+    if (!await confirmAction('Delete this schedule?')) return;
     try { await api.delete(`/api/fees/schedules/${id}`); onRefresh(); }
     catch (e: unknown) {
       const err = e as { response?: { data?: { error?: string } } };
-      alert(err?.response?.data?.error ?? 'Failed.');
+      notify(err?.response?.data?.error ?? 'Failed.');
     }
   }
 
   async function generate(id: string) {
-    if (!confirm('Generate bills for all matching active students? Students who already have a bill for this schedule will have it updated to match the current amount/due date, unless a payment has already been recorded against it.')) return;
+    if (!await confirmAction('Generate bills for all matching active students? Students who already have a bill for this schedule will have it updated to match the current amount/due date, unless a payment has already been recorded against it.')) return;
     setGenerating(id); setGenMsg(null);
     try {
       const r = await api.post(`/api/fees/schedules/${id}/generate`);
@@ -610,7 +611,7 @@ function CollectionsTab({ items }: { items: FeeItem[] }) {
     try {
       const r = await api.get(`/api/fees/student/${id}/summary`);
       setSelected(r.data);
-    } catch { alert('Could not load student data.'); }
+    } catch { notify('Could not load student data.'); }
     finally { setLoadingSummary(false); }
   }
 
@@ -628,23 +629,23 @@ function CollectionsTab({ items }: { items: FeeItem[] }) {
   }
 
   async function voidPayment(id: string) {
-    if (!confirm('Void this payment? This cannot be undone.')) return;
+    if (!await confirmAction('Void this payment? This cannot be undone.')) return;
     try {
       await api.delete(`/api/fees/payments/${id}`);
       const r = await api.get(`/api/fees/student/${selected!.student.id}/summary`);
       setSelected(r.data);
-    } catch { alert('Failed to void payment.'); }
+    } catch { notify('Failed to void payment.'); }
   }
 
   async function deleteBill(id: string) {
-    if (!confirm('Delete this bill?')) return;
+    if (!await confirmAction('Delete this bill?')) return;
     try {
       await api.delete(`/api/fees/bills/${id}`);
       const r = await api.get(`/api/fees/student/${selected!.student.id}/summary`);
       setSelected(r.data);
     } catch (e: unknown) {
       const err = e as { response?: { data?: { error?: string } } };
-      alert(err?.response?.data?.error ?? 'Failed.');
+      notify(err?.response?.data?.error ?? 'Failed.');
     }
   }
 
@@ -1138,7 +1139,7 @@ function BillCleanupTab({ onCleaned }: { onCleaned: () => void }) {
     const warning = g.paid_count > 0
       ? `${g.unpaid_count} unpaid bill(s) will be deleted. ${g.paid_count} bill(s) with a payment already recorded will be left untouched.`
       : `${g.unpaid_count} unpaid bill(s) will be deleted. This cannot be undone.`;
-    if (!confirm(
+    if (!await confirmAction(
       `Delete "${g.description}" (${fmt(g.amount)}) for ${g.student_count} student(s)?\n\n${warning}`
     )) return;
 
@@ -1245,7 +1246,7 @@ function MissingBillsTab({ onGenerated }: { onGenerated: () => void }) {
   useEffect(() => { load(); }, [load]);
 
   async function handleGenerate(g: MissingBillsGroup) {
-    if (!confirm(`Generate bills for the ${g.missing_count} student(s) missing "${g.fee_item_name}"?`)) return;
+    if (!await confirmAction(`Generate bills for the ${g.missing_count} student(s) missing "${g.fee_item_name}"?`)) return;
     setBusyId(g.schedule_id); setMsg(''); setErr('');
     try {
       const r = await api.post(`/api/fees/schedules/${g.schedule_id}/generate`);
@@ -1329,7 +1330,7 @@ function NeedsReviewTab() {
     const warning = diff > 0
       ? `This will raise the bill from ${fmt(row.billed_amount)} to ${fmt(row.current_amount)} — the student will show ${fmt(diff)} more owed.`
       : `This will lower the bill from ${fmt(row.billed_amount)} to ${fmt(row.current_amount)} — since ${fmt(row.amount_paid)} was already paid, the student will show as overpaid by ${fmt(Math.abs(diff))}. Handle any refund separately.`;
-    if (!confirm(`Sync ${row.student_name}'s bill to the current schedule?\n\n${warning}`)) return;
+    if (!await confirmAction(`Sync ${row.student_name}'s bill to the current schedule?\n\n${warning}`)) return;
 
     setBusyId(row.bill_id); setMsg(''); setErr('');
     try {
@@ -1451,9 +1452,9 @@ function ExpenditureTab({ onExpenseChange }: { onExpenseChange: () => void }) {
   }
 
   async function del(id: string) {
-    if (!confirm('Delete this expense record?')) return;
+    if (!await confirmAction('Delete this expense record?')) return;
     try { await api.delete(`/api/fees/expenses/${id}`); load(); onExpenseChange(); }
-    catch { alert('Failed to delete.'); }
+    catch { notify('Failed to delete.'); }
   }
 
   async function loadSummary() {
@@ -1463,7 +1464,7 @@ function ExpenditureTab({ onExpenseChange }: { onExpenseChange: () => void }) {
         params: { from: filters.from || undefined, to: filters.to || undefined },
       });
       setSummary(r.data); setShowSummary(true);
-    } catch { alert('Could not load summary.'); }
+    } catch { notify('Could not load summary.'); }
     finally { setLoadingSummary(false); }
   }
 

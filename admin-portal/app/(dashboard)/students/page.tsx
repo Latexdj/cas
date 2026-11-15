@@ -8,6 +8,7 @@ import { api } from '@/lib/api';
 import { validateStudentForm } from '@/lib/validations';
 import { Button } from '@/components/ui/Button';
 import type { Student, StudentProfile, Program, ClassItem, House } from '@/types/api';
+import { confirmAction, notify } from '@/components/ui/dialogs';
 
 interface UploadResult { inserted: number; errors: { row: number; message: string }[]; }
 interface UpdateResult { updated: number; notFound: { row: number; code: string }[]; errors: { row: number; message: string }[]; }
@@ -235,13 +236,13 @@ export default function StudentsPage() {
   }
 
   async function handleDelete(s: Student) {
-    if (!confirm(`Delete ${s.name}? This cannot be undone.`)) return;
+    if (!await confirmAction(`Delete ${s.name}? This cannot be undone.`)) return;
     try {
       await api.delete(`/api/students/${s.id}`);
       await load();
     } catch (err) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      alert(msg ?? 'Failed to delete student.');
+      notify(msg ?? 'Failed to delete student.');
     }
   }
 
@@ -265,7 +266,7 @@ export default function StudentsPage() {
       const a = document.createElement('a'); a.href = url; a.download = filename; a.click();
       URL.revokeObjectURL(url);
       setTmplOpen(false);
-    } catch { alert('Could not download template.'); }
+    } catch { notify('Could not download template.'); }
     finally { setTmplLoading(false); }
   }
 
@@ -332,7 +333,7 @@ export default function StudentsPage() {
   async function handleGraduate() {
     if (!fromClass) { setActionResult('Please select a class'); return; }
     if (rosterSelected.size === 0) { setActionResult('No students selected'); return; }
-    if (!confirm(`Graduate ${rosterSelected.size} student(s) in ${fromClass}? They will be marked as Graduated.`)) return;
+    if (!await confirmAction(`Graduate ${rosterSelected.size} student(s) in ${fromClass}? They will be marked as Graduated.`)) return;
     setSaving(true); setActionResult('');
     try {
       const ids = [...rosterSelected];

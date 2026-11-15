@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { useTableControls } from '@/hooks/useTableControls';
 import { Pagination } from '@/components/ui/Pagination';
+import { confirmAction } from '@/components/ui/dialogs';
 
 interface Excuse {
   id: string; date_from: string; date_to: string; excuse_type: string;
@@ -49,7 +50,7 @@ export default function TeacherLeavesPage() {
   }
 
   async function cancel(id: string) {
-    if (!confirm('Cancel this leave request?')) return;
+    if (!await confirmAction('Cancel this leave request?')) return;
     await api.delete(`/api/primary/excuses/${id}`);
     setExcuses(prev => prev.filter(e => e.id !== id));
   }

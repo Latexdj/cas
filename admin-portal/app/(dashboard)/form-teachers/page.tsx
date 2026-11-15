@@ -6,6 +6,7 @@ import { useTableControls } from '@/hooks/useTableControls';
 import { useSessionFilter } from '@/hooks/useSessionFilter';
 import { Pagination, Th } from '@/components/ui/Pagination';
 import type { AcademicYear, FormTeacherAssignment, Teacher } from '@/types/api';
+import { notify } from '@/components/ui/dialogs';
 
 interface AssignModalProps {
   className: string;
@@ -230,7 +231,7 @@ export default function FormTeachersPage() {
       const parts: string[] = [`${data.copied} assignment${data.copied !== 1 ? 's' : ''} copied.`];
       if (data.skipped_inactive) parts.push(`${data.skipped_inactive} skipped (teacher inactive).`);
       if (data.skipped_existing) parts.push(`${data.skipped_existing} already assigned — left unchanged.`);
-      alert(parts.join(' '));
+      notify(parts.join(' '));
     } catch { /* silent */ }
     setCopying(false);
     setCopyModal(false);

@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { api } from '@/lib/api';
 import { validateTeacherForm } from '@/lib/validations';
 import type { TeacherProfile } from '@/types/api';
+import { confirmAction, notify } from '@/components/ui/dialogs';
 
 const GES_RANKS = [
   'Pupil Teacher', 'Teacher II', 'Teacher I',
@@ -278,11 +279,11 @@ export default function TeacherProfilePage() {
   }
 
   async function deleteOtherDoc(docId: string) {
-    if (!confirm('Delete this document?')) return;
+    if (!await confirmAction('Delete this document?')) return;
     try {
       await api.delete(`/api/teachers/${id}/documents/${docId}`);
       setOtherDocs(prev => prev.filter(d => d.id !== docId));
-    } catch { alert('Could not delete this document.'); }
+    } catch { notify('Could not delete this document.'); }
   }
 
   if (loading) {

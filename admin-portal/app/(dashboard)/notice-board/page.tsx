@@ -1,6 +1,7 @@
 ﻿'use client';
 import { useEffect, useState, useCallback } from 'react';
 import { api } from '@/lib/api';
+import { confirmAction } from '@/components/ui/dialogs';
 
 interface Notice {
   id: string;
@@ -204,7 +205,7 @@ export default function NoticeBoardPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!window.confirm('Delete this notice?')) return;
+    if (!await confirmAction('Delete this notice?')) return;
     setDeleting(id); setError('');
     try {
       await api.delete(`/api/notices/${id}`);

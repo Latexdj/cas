@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
+import { confirmAction } from '@/components/ui/dialogs';
 
 interface Batch {
   id: string; exam_body: string; year: number; school_number: string | null;
@@ -20,7 +21,7 @@ export default function WaecResultsPage() {
   useEffect(() => { load(); }, [load]);
 
   async function remove(id: string) {
-    if (!confirm('Delete this year’s imported results? This cannot be undone.')) return;
+    if (!await confirmAction('Delete this year’s imported results? This cannot be undone.')) return;
     setDeleting(id);
     try { await api.delete(`/api/admin/exam-results/batches/${id}`); await load(); }
     finally { setDeleting(null); }

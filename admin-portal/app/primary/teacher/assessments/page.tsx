@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { useSessionFilter } from '@/hooks/useSessionFilter';
+import { confirmAction } from '@/components/ui/dialogs';
 
 interface Term    { id: string; name: string; is_current: boolean; }
 interface Subject { id: string; subject_name: string; class_name: string; max_class_score: number; max_exam_score: number; }
@@ -117,7 +118,7 @@ export default function TeacherAssessmentsPage() {
   }
 
   async function deleteAssessment(id: string) {
-    if (!confirm('Delete this assessment and all its scores?')) return;
+    if (!await confirmAction('Delete this assessment and all its scores?')) return;
     await api.delete(`/api/primary/assessments/${id}`);
     setAssessments(prev => prev.filter(a => a.id !== id));
     if (activeAssessment?.id === id) { setActiveAssessment(null); setRows([]); }

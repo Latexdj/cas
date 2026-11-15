@@ -2,6 +2,7 @@
 import { Suspense, useEffect, useState, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { teacherApi } from '@/lib/teacher-api';
+import { notify } from '@/components/ui/dialogs';
 
 interface TeacherQuery {
   id: string; category: string; category_other?: string; subject: string; body: string;
@@ -99,7 +100,7 @@ function ConductContent() {
       setQueries(prev => prev.map(q => q.id === id ? { ...q, ...data } : q));
     } catch (e: unknown) {
       const err = e as { response?: { data?: { error?: string } } };
-      alert(err.response?.data?.error ?? 'Failed to acknowledge');
+      notify(err.response?.data?.error ?? 'Failed to acknowledge');
     }
   }
 

@@ -6,6 +6,7 @@ import { getTeacher, getTeacherColors } from '@/lib/teacher-auth';
 import { teacherApi } from '@/lib/teacher-api';
 import { useTableControls } from '@/hooks/useTableControls';
 import { Pagination } from '@/components/ui/Pagination';
+import { confirmAction } from '@/components/ui/dialogs';
 
 interface TeacherExcuse {
   id: string;
@@ -73,7 +74,7 @@ function LeavesContent() {
   const [respondError, setRespondError] = useState<Record<string, string>>({});
 
   async function respondToCondition(id: string, action: 'accept' | 'decline') {
-    if (action === 'decline' && !confirm('Decline this condition? Your leave request will be rejected outright and cannot be undone.')) return;
+    if (action === 'decline' && !await confirmAction('Decline this condition? Your leave request will be rejected outright and cannot be undone.')) return;
     setRespondingId(id);
     setRespondError(prev => ({ ...prev, [id]: '' }));
     try {

@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { useTableControls } from '@/hooks/useTableControls';
 import { Pagination } from '@/components/ui/Pagination';
+import { confirmAction, notify } from '@/components/ui/dialogs';
 
 interface SchoolBreak {
   id: string;
@@ -105,14 +106,14 @@ export default function SchoolBreaksPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm('Delete this break? Period calculations will update immediately.')) return;
+    if (!await confirmAction('Delete this break? Period calculations will update immediately.')) return;
     setDeleting(id);
     try {
       await api.delete(`/api/school-breaks/${id}`);
       setBreaks(prev => prev.filter(b => b.id !== id));
       if (editId === id) cancelEdit();
     } catch {
-      alert('Failed to delete break.');
+      notify('Failed to delete break.');
     } finally {
       setDeleting(null);
     }

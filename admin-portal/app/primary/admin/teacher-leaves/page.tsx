@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { useTableControls } from '@/hooks/useTableControls';
 import { Pagination } from '@/components/ui/Pagination';
+import { confirmAction } from '@/components/ui/dialogs';
 
 interface Excuse {
   id: string; teacher_name: string; excuse_type: string;
@@ -46,7 +47,7 @@ export default function TeacherLeavesAdminPage() {
   }, []);
 
   async function approve(id: string) {
-    if (!confirm('Approve this leave request? Matching absences will be marked as excused.')) return;
+    if (!await confirmAction('Approve this leave request? Matching absences will be marked as excused.')) return;
     setSaving(true); setError('');
     try {
       const { data } = await api.patch<Excuse>(`/api/primary/excuses/${id}/approve`, {});
@@ -69,7 +70,7 @@ export default function TeacherLeavesAdminPage() {
   }
 
   async function remove(id: string) {
-    if (!confirm('Delete this leave request permanently?')) return;
+    if (!await confirmAction('Delete this leave request permanently?')) return;
     await api.delete(`/api/primary/excuses/${id}`);
     setExcuses(prev => prev.filter(e => e.id !== id));
   }

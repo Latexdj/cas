@@ -4,6 +4,7 @@ import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { getTeacherColors } from '@/lib/teacher-auth';
 import { teacherApi } from '@/lib/teacher-api';
+import { confirmAction, notify } from '@/components/ui/dialogs';
 
 const INPUT = 'w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-600';
 
@@ -161,18 +162,18 @@ function LessonsTab({ courseId, primary }: { courseId: string; primary: string }
   useEffect(() => { load(); }, [load]);
 
   async function deleteLesson(id: string) {
-    if (!confirm('Delete this lesson?')) return;
+    if (!await confirmAction('Delete this lesson?')) return;
     try {
       await teacherApi.delete(`/api/lms/lessons/${id}`);
       setLessons(prev => prev.filter(l => l.id !== id));
-    } catch { alert('Failed to delete.'); }
+    } catch { notify('Failed to delete.'); }
   }
 
   async function togglePublish(lesson: Lesson) {
     try {
       await teacherApi.put(`/api/lms/lessons/${lesson.id}`, { is_published: !lesson.is_published });
       setLessons(prev => prev.map(l => l.id === lesson.id ? { ...l, is_published: !l.is_published } : l));
-    } catch { alert('Failed to update.'); }
+    } catch { notify('Failed to update.'); }
   }
 
   return (
@@ -374,22 +375,22 @@ function AssignmentsTab({ courseId, primary }: { courseId: string; primary: stri
   useEffect(() => { load(); }, [load]);
 
   async function deleteAssignment(id: string) {
-    if (!confirm('Delete this assignment?')) return;
+    if (!await confirmAction('Delete this assignment?')) return;
     try {
       await teacherApi.delete(`/api/lms/assignments/${id}`);
       setAssignments(prev => prev.filter(a => a.id !== id));
-    } catch { alert('Failed to delete.'); }
+    } catch { notify('Failed to delete.'); }
   }
 
   async function syncToCA(a: Assignment) {
-    if (!confirm(`Sync "${a.title}" scores to CA? This will create or update a CA assessment record.`)) return;
+    if (!await confirmAction(`Sync "${a.title}" scores to CA? This will create or update a CA assessment record.`)) return;
     try {
       const { data } = await teacherApi.post<{ message: string; student_count: number }>(`/api/lms/assignments/${a.id}/sync-to-ca`, {});
-      alert(`${data.message}. ${data.student_count} student score(s) recorded.`);
+      notify(`${data.message}. ${data.student_count} student score(s) recorded.`);
       load();
     } catch (e: unknown) {
       const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      alert(msg ?? 'Sync failed.');
+      notify(msg ?? 'Sync failed.');
     }
   }
 
@@ -587,29 +588,29 @@ function QuizzesTab({ courseId, primary }: { courseId: string; primary: string }
   useEffect(() => { load(); }, [load]);
 
   async function deleteQuiz(id: string) {
-    if (!confirm('Delete this quiz?')) return;
+    if (!await confirmAction('Delete this quiz?')) return;
     try {
       await teacherApi.delete(`/api/lms/quizzes/${id}`);
       setQuizzes(prev => prev.filter(q => q.id !== id));
-    } catch { alert('Failed to delete.'); }
+    } catch { notify('Failed to delete.'); }
   }
 
   async function togglePublish(quiz: Quiz) {
     try {
       await teacherApi.put(`/api/lms/quizzes/${quiz.id}`, { is_published: !quiz.is_published });
       setQuizzes(prev => prev.map(q => q.id === quiz.id ? { ...q, is_published: !q.is_published } : q));
-    } catch { alert('Failed to update.'); }
+    } catch { notify('Failed to update.'); }
   }
 
   async function syncToCA(quiz: Quiz) {
-    if (!confirm(`Sync "${quiz.title}" scores to CA? This will create or update a CA assessment record.`)) return;
+    if (!await confirmAction(`Sync "${quiz.title}" scores to CA? This will create or update a CA assessment record.`)) return;
     try {
       const { data } = await teacherApi.post<{ message: string; student_count: number }>(`/api/lms/quizzes/${quiz.id}/sync-to-ca`, {});
-      alert(`${data.message}. ${data.student_count} student score(s) recorded.`);
+      notify(`${data.message}. ${data.student_count} student score(s) recorded.`);
       load();
     } catch (e: unknown) {
       const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      alert(msg ?? 'Sync failed.');
+      notify(msg ?? 'Sync failed.');
     }
   }
 
@@ -965,7 +966,7 @@ function SubmissionsTab({ courseId, primary }: { courseId: string; primary: stri
         return { ...prev, [submission.assignment_id]: list.map(s => s.id === submission.id ? { ...s, score: edit.score !== '' ? parseFloat(edit.score) : null, feedback: edit.feedback } : s) };
       });
       setGradeEdits(prev => { const n = { ...prev }; delete n[submission.id]; return n; });
-    } catch { alert('Failed to save grade.'); }
+    } catch { notify('Failed to save grade.'); }
     finally { setSavingId(null); }
   }
 
@@ -1098,11 +1099,11 @@ function AnnouncementsTab({ courseId, primary }: { courseId: string; primary: st
   useEffect(() => { load(); }, [load]);
 
   async function deleteAnnouncement(id: string) {
-    if (!confirm('Delete this announcement?')) return;
+    if (!await confirmAction('Delete this announcement?')) return;
     try {
       await teacherApi.delete(`/api/lms/announcements/${id}`);
       setAnnouncements(prev => prev.filter(a => a.id !== id));
-    } catch { alert('Failed to delete.'); }
+    } catch { notify('Failed to delete.'); }
   }
 
   return (

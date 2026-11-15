@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '@/lib/api';
+import { confirmAction } from '@/components/ui/dialogs';
 
 interface Student { id: string; surname: string; other_names: string | null; admission_number: string; }
 interface AttendanceRow {
@@ -71,8 +72,8 @@ export default function PrimaryAttendancePage() {
     setAttend(next); setSaved(false);
   }
 
-  function requestEdit() {
-    if (!confirm(
+  async function requestEdit() {
+    if (!await confirmAction(
       `Attendance for ${date} has already been submitted.\n\n` +
       `Are you sure you want to edit it? This will overwrite the saved records.`
     )) return;

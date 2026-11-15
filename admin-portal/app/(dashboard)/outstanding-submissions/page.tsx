@@ -6,6 +6,7 @@ import { useTableControls } from '@/hooks/useTableControls';
 import { useSessionFilter } from '@/hooks/useSessionFilter';
 import { Pagination } from '@/components/ui/Pagination';
 import type { AcademicYear } from '@/types/api';
+import { notify } from '@/components/ui/dialogs';
 
 interface NonSubmitter {
   teacher_id: string;
@@ -99,7 +100,7 @@ export default function OutstandingSubmissionsPage() {
       setNsDebug(data);
     } catch (e: unknown) {
       const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Diagnostic failed';
-      alert(msg);
+      notify(msg);
     } finally { setNsDebugLoading(false); }
   }
 

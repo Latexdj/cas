@@ -6,6 +6,7 @@ import { api } from '@/lib/api';
 import { markSessionExpired } from '@/lib/session-expiry';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { Header } from '@/components/layout/Header';
+import { ModuleTabs } from '@/components/layout/ModuleTabs';
 import { SessionExpiryWarning } from '@/components/SessionExpiryWarning';
 
 const pageTitles: Record<string, string> = {
@@ -71,7 +72,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     );
   }
 
-  const title = pageTitles[pathname] ?? 'Admin Portal';
+  // The header builds its breadcrumb from the menu; this names pages that
+  // aren't in the menu (such as a student's own page).
+  const title = pageTitles[pathname] ?? 'Details';
 
   function handleSessionExpire() {
     localStorage.removeItem('cas_token');
@@ -100,7 +103,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       <div className="flex-1 flex flex-col overflow-hidden print:overflow-visible" style={{ backgroundColor: 'var(--background)' }}>
         <Header title={title} onMenuClick={() => setSidebarOpen(o => !o)} />
-        <main className="flex-1 overflow-y-auto p-6 print:overflow-visible print:h-auto print:p-0">{children}</main>
+        <main data-admin className="flex-1 overflow-y-auto p-4 md:p-6 print:overflow-visible print:h-auto print:p-0"><ModuleTabs />{children}</main>
       </div>
     </div>
   );

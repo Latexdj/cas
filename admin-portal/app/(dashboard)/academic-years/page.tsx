@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
 import type { AcademicYear, Semester } from '@/types/api';
+import { confirmAction, notify } from '@/components/ui/dialogs';
 
 const inputCls = 'w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900'
   + ' focus:outline-none focus:ring-2 focus:ring-green-600 dark:border-slate-600 dark:bg-slate-700 dark:text-white';
@@ -74,9 +75,9 @@ export default function AcademicYearsPage() {
   }
 
   async function del(id: string, name: string) {
-    if (!confirm(`Delete academic year "${name}"? This cannot be undone.`)) return;
+    if (!await confirmAction(`Delete academic year "${name}"? This cannot be undone.`)) return;
     try { await api.delete(`/api/academic-years/${id}`); await load(); }
-    catch { alert('Failed to delete. It may have data attached.'); }
+    catch { notify('Failed to delete. It may have data attached.'); }
   }
 
   const { displayRows, total, page, setPage, pageSize, setPageSize, sortKey, sortDir, handleSort } = useTableControls(years);
@@ -260,9 +261,9 @@ function SemesterPanel({ yearId, onRefresh: _onRefresh }: { yearId: string; onRe
   }
 
   async function del(id: string, name: string) {
-    if (!confirm(`Remove "${name}"?`)) return;
+    if (!await confirmAction(`Remove "${name}"?`)) return;
     try { await api.delete(`/api/academic-years/${yearId}/semesters/${id}`); await loadSems(); }
-    catch { alert('Failed to delete.'); }
+    catch { notify('Failed to delete.'); }
   }
 
   const usedNumbers = new Set(semesters.filter(s => s.id !== editId).map(s => s.number));

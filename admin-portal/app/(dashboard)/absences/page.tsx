@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
 import type { AbsenceRecord, RemedialLesson, Teacher } from '@/types/api';
+import { confirmAction, notify } from '@/components/ui/dialogs';
 
 type Tab = 'absences' | 'remedials';
 
@@ -94,9 +95,9 @@ function AbsencesTab({ teachers }: { teachers: Teacher[] }) {
   }
 
   async function deleteAbsence(id: string) {
-    if (!confirm('Delete this absence record? This will allow the teacher to resubmit attendance.')) return;
+    if (!await confirmAction('Delete this absence record? This will allow the teacher to resubmit attendance.')) return;
     try { await api.delete(`/api/absences/${id}`); await load(); }
-    catch { alert('Failed to delete absence.'); }
+    catch { notify('Failed to delete absence.'); }
   }
 
   return (
@@ -365,7 +366,7 @@ function RemedialsTab({ teachers }: { teachers: Teacher[] }) {
     useTableControls(displayed);
 
   async function cancel(id: string) {
-    if (!confirm('Cancel this remedial lesson?')) return;
+    if (!await confirmAction('Cancel this remedial lesson?')) return;
     await api.patch(`/api/remedial/${id}/cancel`);
     await load();
   }

@@ -8,6 +8,7 @@ import { Modal } from '@/components/ui/Modal';
 import type { AttendanceRecord, Teacher } from '@/types/api';
 import { useTableControls } from '@/hooks/useTableControls';
 import { Pagination, Th } from '@/components/ui/Pagination';
+import { confirmAction, notify } from '@/components/ui/dialogs';
 
 function PhotoModal({ record, onClose }: { record: AttendanceRecord; onClose: () => void }) {
   const submittedAt = record.submitted_at
@@ -131,7 +132,7 @@ export default function AttendancePage() {
   async function approvePending(id: string) {
     setApprovingId(id);
     try { await api.patch(`/api/attendance/${id}/approve-pending`); await load(); }
-    catch { alert('Failed to approve submission.'); }
+    catch { notify('Failed to approve submission.'); }
     finally { setApprovingId(null); }
   }
 
@@ -155,9 +156,9 @@ export default function AttendancePage() {
   }
 
   async function deleteRecord(id: string) {
-    if (!confirm('Remove this record? The teacher will be notified and their student attendance records for this session will also be deleted.')) return;
+    if (!await confirmAction('Remove this record? The teacher will be notified and their student attendance records for this session will also be deleted.')) return;
     try { await api.delete(`/api/attendance/${id}`); await load(); }
-    catch { alert('Failed to delete attendance record.'); }
+    catch { notify('Failed to delete attendance record.'); }
   }
 
   async function confirmRevoke() {

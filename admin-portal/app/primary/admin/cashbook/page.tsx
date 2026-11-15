@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import { useTableControls } from '@/hooks/useTableControls';
 import { Pagination } from '@/components/ui/Pagination';
+import { confirmAction } from '@/components/ui/dialogs';
 
 const FUND_SOURCES = ['Capitation Grant', 'PTA Fund', 'IGF', 'Other'];
 
@@ -223,7 +224,7 @@ export default function CashBookPage() {
   }
 
   async function deleteEntry(id: string) {
-    if (!confirm('Delete this entry? This cannot be undone.')) return;
+    if (!await confirmAction('Delete this entry? This cannot be undone.')) return;
     try {
       await api.delete(`/api/primary/cashbook/${selectedId}/entries/${id}`);
       await loadEntries();

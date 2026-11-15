@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { publicApi } from '@/lib/api';
+import { notify } from '@/components/ui/dialogs';
 
 interface Application {
   id: string; admission_number: string; status: string;
@@ -56,7 +57,7 @@ export default function CompletePage() {
       const { data } = await publicApi.post(`/api/admissions/${slug}/apply/${token}/letter`, {}, { timeout: 120000 });
       window.open(data.url, '_blank');
     } catch {
-      alert('Failed to generate admission letter. Please try again.');
+      notify('Failed to generate admission letter. Please try again.');
     } finally {
       setDownloading(false);
     }

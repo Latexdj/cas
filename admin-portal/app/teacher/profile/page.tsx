@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { getTeacher, getTeacherColors, clearTeacher } from '@/lib/teacher-auth';
 import { validateGhanaCard, validateMinAge, validateNTC, validatePhone, validateSSF } from '@/lib/validations';
 import { teacherApi } from '@/lib/teacher-api';
+import { confirmAction, notify } from '@/components/ui/dialogs';
 
 const GENDERS   = ['Male', 'Female'];
 const RELIGIONS = ['Christianity', 'Islam', 'Traditional', 'Other'];
@@ -223,7 +224,7 @@ export default function ProfilePage() {
       });
       const res = await teacherApi.patch('/api/teachers/me/certificate', { documentBase64, documentFilename: file.name });
       setProfile(p => p ? { ...p, certificate_url: res.data.certificate_url, certificate_filename: res.data.certificate_filename } : p);
-    } catch { alert('Failed to upload certificate.'); }
+    } catch { notify('Failed to upload certificate.'); }
     finally { setCertLoading(false); if (certRef.current) certRef.current.value = ''; }
   }
 
@@ -240,7 +241,7 @@ export default function ProfilePage() {
       });
       const res = await teacherApi.patch('/api/teachers/me/promotion-letter', { documentBase64, documentFilename: file.name });
       setProfile(p => p ? { ...p, promotion_letter_url: res.data.promotion_letter_url, promotion_letter_filename: res.data.promotion_letter_filename } : p);
-    } catch { alert('Failed to upload promotion letter.'); }
+    } catch { notify('Failed to upload promotion letter.'); }
     finally { setPromoLoading(false); if (promoRef.current) promoRef.current.value = ''; }
   }
 
@@ -265,11 +266,11 @@ export default function ProfilePage() {
   }
 
   async function deleteOtherDoc(docId: string) {
-    if (!confirm('Delete this document?')) return;
+    if (!await confirmAction('Delete this document?')) return;
     try {
       await teacherApi.delete(`/api/teachers/me/documents/${docId}`);
       setOtherDocs(prev => prev.filter((d: any) => d.id !== docId));
-    } catch { alert('Could not delete this document.'); }
+    } catch { notify('Could not delete this document.'); }
   }
 
   function touchField(field: string) {

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { AxiosInstance } from 'axios';
 import { UnitsManager } from '@/components/inventory/UnitsManager';
+import { confirmAction, notify } from '@/components/ui/dialogs';
 
 const inputCls = 'w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]';
 const filterSelCls = 'border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]';
@@ -114,7 +115,7 @@ function ManageItemsTab({ api, primary, onItemsChanged }: { api: AxiosInstance; 
     if (editingId === 'new' && !form.track_units && (!qty || qty < 1)) { setError('Quantity must be at least 1.'); return; }
     const conditionChanged = editingOriginal && form.condition !== editingOriginal.condition;
     if (conditionChanged && form.condition === 'Written Off'
-      && !confirm('Writing off this item sets its available quantity to 0. Continue?')) return;
+      && !await confirmAction('Writing off this item sets its available quantity to 0. Continue?')) return;
 
     setSaving(true); setError('');
     const isGeneral = form.ownership_value === 'general';
@@ -147,9 +148,9 @@ function ManageItemsTab({ api, primary, onItemsChanged }: { api: AxiosInstance; 
   }
 
   async function remove(id: string) {
-    if (!confirm('Delete this item? This cannot be undone.')) return;
+    if (!await confirmAction('Delete this item? This cannot be undone.')) return;
     try { await api.delete(`/api/inventory/items/${id}`); load(); onItemsChanged(); }
-    catch (e: any) { alert(e?.response?.data?.error ?? 'Could not delete. Check your connection and try again.'); }
+    catch (e: any) { notify(e?.response?.data?.error ?? 'Could not delete. Check your connection and try again.'); }
   }
 
   return (
@@ -388,9 +389,9 @@ function CategoriesTab({ api, primary }: { api: AxiosInstance; primary: string }
   }
 
   async function remove(id: string) {
-    if (!confirm('Delete this category?')) return;
+    if (!await confirmAction('Delete this category?')) return;
     try { await api.delete(`/api/inventory/categories/${id}`); load(); }
-    catch (e: any) { alert(e?.response?.data?.error ?? 'Could not delete. Check your connection and try again.'); }
+    catch (e: any) { notify(e?.response?.data?.error ?? 'Could not delete. Check your connection and try again.'); }
   }
 
   return (

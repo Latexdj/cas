@@ -6,6 +6,7 @@ import {
   type FeeStatusRow, type BilledItem, type BilledItemsRow,
 } from '@/lib/fee-report-print';
 import type { SlSchool } from '@/lib/sign-list-print';
+import { notify } from '@/components/ui/dialogs';
 
 interface AcademicYear { id: string; name: string; is_current: boolean; }
 interface ClassLevel { id: string; name: string; }
@@ -51,7 +52,7 @@ export function FeeReportsPanel({ apiClient, years: yearsProp, levels: levelsPro
   apiClient: AxiosInstance; years?: AcademicYear[]; levels?: ClassLevel[];
 }) {
   const [subTab, setSubTab] = useState<'schedule' | 'student' | 'billed-items'>('schedule');
-  const [printErr, setPrintErr] = useState('');   // shown in the page instead of alert()
+  const [printErr, setPrintErr] = useState('');   // shown in the page instead of notify()
   const [years, setYears] = useState<AcademicYear[]>(yearsProp ?? []);
   const [levels, setLevels] = useState<ClassLevel[]>(levelsProp ?? []);
 

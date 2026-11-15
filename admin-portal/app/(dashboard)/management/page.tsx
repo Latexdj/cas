@@ -6,6 +6,7 @@ import { useTableControls } from '@/hooks/useTableControls';
 import { Pagination, Th } from '@/components/ui/Pagination';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
+import { notify } from '@/components/ui/dialogs';
 
 interface MgmtUser {
   id: string;
@@ -148,7 +149,7 @@ export default function ManagementUsersPage() {
       await api.delete(`/api/admin/management-users/${revokeId}`);
       setRevokeId(null);
       load();
-    } catch { alert('Failed to revoke access.'); }
+    } catch { notify('Failed to revoke access.'); }
     finally { setRevoking(false); }
   }
 

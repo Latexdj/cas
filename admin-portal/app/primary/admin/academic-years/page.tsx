@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '@/lib/api';
+import { confirmAction } from '@/components/ui/dialogs';
 
 interface AcademicYear {
   id: string; name: string; start_date: string | null; end_date: string | null;
@@ -60,7 +61,7 @@ export default function PrimaryAcademicYearsPage() {
   }
 
   async function del(id: string) {
-    if (!confirm('Delete this academic year?')) return;
+    if (!await confirmAction('Delete this academic year?')) return;
     try { await api.delete(`/api/academic-years/${id}`); load(); }
     catch { setError('Delete failed — terms or records may exist for this year.'); }
   }

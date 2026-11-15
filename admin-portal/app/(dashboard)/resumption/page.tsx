@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '@/lib/api';
+import { confirmAction, notify, promptText } from '@/components/ui/dialogs';
 
 interface SemesterConfig {
   id: string; resumption_date: string | null; max_days_home: number;
@@ -272,11 +273,11 @@ export default function ResumptionPage() {
   }
 
   async function deleteArrival(id: string) {
-    if (!confirm('Remove this arrival record?')) return;
+    if (!await confirmAction('Remove this arrival record?')) return;
     try {
       await api.delete(`/api/resumption/arrivals/${id}`);
       setArrivals(prev => prev.filter(a => a.id !== id));
-    } catch { alert('Failed to remove arrival'); }
+    } catch { notify('Failed to remove arrival'); }
   }
 
   async function addArrivalsFromMissing() {
@@ -287,17 +288,17 @@ export default function ResumptionPage() {
       setSelectedMissing(new Set());
       await loadMissing();
       setTab('arrivals');
-    } catch { alert('Failed to record arrivals'); } finally { setAddingArrivals(false); }
+    } catch { notify('Failed to record arrivals'); } finally { setAddingArrivals(false); }
   }
 
   async function resolveFlag(id: string) {
-    const note = prompt('Resolution note (optional):');
+    const note = await promptText('Resolution note (optional):');
     if (note === null) return;
     setResolvingFlag(id);
     try {
       await api.post(`/api/resumption/flags/${id}/resolve`, { resolution_note: note });
       await loadFlags();
-    } catch { alert('Failed to resolve flag'); } finally { setResolvingFlag(null); }
+    } catch { notify('Failed to resolve flag'); } finally { setResolvingFlag(null); }
   }
 
   function toggleMissing(id: string) {

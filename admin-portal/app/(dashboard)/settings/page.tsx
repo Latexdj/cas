@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import type { GradeBoundary } from '@/types/api';
 import { THEME_PRESETS } from '@/lib/theme-presets';
+import { confirmAction, notify } from '@/components/ui/dialogs';
 
 interface SchoolSettings {
   name: string;
@@ -185,16 +186,16 @@ function GradeBoundariesCard() {
   }
 
   async function del(id: string, grade: string) {
-    if (!confirm(`Delete grade "${grade}"?`)) return;
+    if (!await confirmAction(`Delete grade "${grade}"?`)) return;
     try { await api.delete(`/api/grade-boundaries/${id}`); await load(); }
-    catch { alert('Failed to delete.'); }
+    catch { notify('Failed to delete.'); }
   }
 
   async function seedDefaults() {
-    if (!confirm(`Reset ${activeBody} grades to defaults? This will overwrite current ${activeBody} boundaries.`)) return;
+    if (!await confirmAction(`Reset ${activeBody} grades to defaults? This will overwrite current ${activeBody} boundaries.`)) return;
     setSeeding(true);
     try { await api.post('/api/grade-boundaries/seed', { exam_body: activeBody }); await load(); }
-    catch { alert('Failed to reset.'); }
+    catch { notify('Failed to reset.'); }
     finally { setSeeding(false); }
   }
 

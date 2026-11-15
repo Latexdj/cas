@@ -4,6 +4,7 @@ import { api } from '@/lib/api';
 import type { Location, Teacher } from '@/types/api';
 import { useTableControls } from '@/hooks/useTableControls';
 import { Pagination, Th } from '@/components/ui/Pagination';
+import { confirmAction, notify } from '@/components/ui/dialogs';
 
 const DAYS = ['', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
@@ -340,21 +341,21 @@ export default function PlcPage() {
   }
 
   async function deleteSession(id: string) {
-    if (!confirm('Delete this PLC session? All attendance records for this session will also be deleted.')) return;
+    if (!await confirmAction('Delete this PLC session? All attendance records for this session will also be deleted.')) return;
     try { await api.delete(`/api/plc/sessions/${id}`); await loadSessions(); }
-    catch { alert('Failed to delete session.'); }
+    catch { notify('Failed to delete session.'); }
   }
 
   async function deleteAttendance(id: string) {
-    if (!confirm('Remove this PLC attendance record?')) return;
+    if (!await confirmAction('Remove this PLC attendance record?')) return;
     try { await api.delete(`/api/plc/attendance/${id}`); await loadAttendance(); }
-    catch { alert('Failed to delete record.'); }
+    catch { notify('Failed to delete record.'); }
   }
 
   async function approvePending(id: string) {
     setApprovingId(id);
     try { await api.patch(`/api/plc/attendance/${id}/approve-pending`); await loadAttendance(); }
-    catch { alert('Failed to approve submission.'); }
+    catch { notify('Failed to approve submission.'); }
     finally { setApprovingId(null); }
   }
 
@@ -373,9 +374,9 @@ export default function PlcPage() {
   }
 
   async function clearAbsence(id: string) {
-    if (!confirm('Clear this PLC absence record?')) return;
+    if (!await confirmAction('Clear this PLC absence record?')) return;
     try { await api.delete(`/api/plc/absences/${id}`); await loadAbsences(); }
-    catch { alert('Failed to clear absence.'); }
+    catch { notify('Failed to clear absence.'); }
   }
 
   async function openQr(session: PlcSession) {

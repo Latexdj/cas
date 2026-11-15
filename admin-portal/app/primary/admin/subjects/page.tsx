@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { useTableControls } from '@/hooks/useTableControls';
 import { Pagination } from '@/components/ui/Pagination';
+import { confirmAction } from '@/components/ui/dialogs';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -184,7 +185,7 @@ export default function PrimarySubjectsPage() {
     const warn = item.class_count > 0
       ? `"${item.subject_name}" is assigned to ${item.class_count} class(es). Deleting it will remove it from all classes and erase related scores. Continue?`
       : `Delete "${item.subject_name}" from the subject catalog?`;
-    if (!confirm(warn)) return;
+    if (!await confirmAction(warn)) return;
     try {
       await api.delete(`/api/primary/subject-catalog/${item.id}`);
       loadCatalog();
@@ -199,7 +200,7 @@ export default function PrimarySubjectsPage() {
       setAssignError('No GES defaults available for this class. Add subjects to the catalog manually.');
       return;
     }
-    if (!confirm(`Seed GES default subjects for ${selClass}? This will add missing subjects to the catalog and assign them to this class.`)) return;
+    if (!await confirmAction(`Seed GES default subjects for ${selClass}? This will add missing subjects to the catalog and assign them to this class.`)) return;
     setSeeding(true); setAssignError('');
     try {
       // Add any missing subjects to catalog first

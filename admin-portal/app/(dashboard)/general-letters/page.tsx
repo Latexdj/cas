@@ -7,6 +7,7 @@ import { StructuredIntake } from '@/components/StructuredIntake';
 import { INTAKE_FIELDS } from '@/lib/intake-fields';
 import { RichTextEditor } from '@/components/RichTextEditor';
 import { plainTextToHtml, isHtmlEmpty } from '@/lib/richText';
+import { notify } from '@/components/ui/dialogs';
 
 type ChatMsg = { role: 'user' | 'assistant'; content: string; intakeCard?: boolean; };
 type GroundingClause = { section_ref: string | null; document_title: string; chunk_preview?: string };
@@ -766,7 +767,7 @@ export function GeneralLettersModule({ apiClient = defaultApi, defaultStatusFilt
       setViewLetter(r.data);
       load();
     } catch (e: any) {
-      alert(e.response?.data?.error ?? 'Approval failed');
+      notify(e.response?.data?.error ?? 'Approval failed');
     }
   }
 

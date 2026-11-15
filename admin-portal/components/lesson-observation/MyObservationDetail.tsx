@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback } from 'react';
 import type { AxiosInstance } from 'axios';
 import Link from 'next/link';
 import type { LessonObservationDetail } from '@/types/api';
+import { notify } from '@/components/ui/dialogs';
 
 const inputCls = 'w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-600'
   + ' border-slate-200 bg-white text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-white resize-none';
@@ -51,7 +52,7 @@ export default function MyObservationDetail({ apiClient, backHref, observationId
     try {
       await apiClient.patch(`/api/lesson-observation/${observationId}/actions/${actionId}`, { status: currentStatus === 'Open' ? 'Done' : 'Open' });
       load();
-    } catch { alert('Failed to update action item.'); }
+    } catch { notify('Failed to update action item.'); }
   }
 
   if (loading) return (

@@ -5,6 +5,7 @@ import { api } from '@/lib/api';
 import { useTableControls } from '@/hooks/useTableControls';
 import { useSessionFilter } from '@/hooks/useSessionFilter';
 import { Pagination, Th } from '@/components/ui/Pagination';
+import { confirmAction, notify } from '@/components/ui/dialogs';
 
 interface AttRecord {
   id: string; teacher_id: string; teacher_name: string; teacher_code: string;
@@ -106,12 +107,12 @@ export default function PrimaryTeacherAttendancePage() {
       setManualModal(false); setManTeacher(''); setManNote('');
       loadLog();
     } catch (e: unknown) {
-      alert((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to save');
+      notify((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to save');
     } finally { setManSaving(false); }
   }
 
   async function deleteRecord(id: string) {
-    if (!confirm('Delete this attendance record?')) return;
+    if (!await confirmAction('Delete this attendance record?')) return;
     await api.delete(`/api/primary/admin/self-attendance/${id}`);
     setRecords(r => r.filter(x => x.id !== id));
   }

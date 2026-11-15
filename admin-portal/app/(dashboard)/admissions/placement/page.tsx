@@ -4,6 +4,7 @@ import { api } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
 import { useTableControls } from '@/hooks/useTableControls';
 import { Pagination, Th } from '@/components/ui/Pagination';
+import { confirmAction, notify } from '@/components/ui/dialogs';
 
 interface PlacementRow {
   id: string; index_number: string; full_name: string; gender: string;
@@ -48,12 +49,12 @@ export default function PlacementPage() {
       if (fileRef.current) fileRef.current.value = '';
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Upload failed';
-      alert(msg);
+      notify(msg);
     } finally { setUploading(false); }
   }
 
   async function del(id: string) {
-    if (!confirm('Remove this student from the placement list?')) return;
+    if (!await confirmAction('Remove this student from the placement list?')) return;
     await api.delete(`/api/admin/admissions/placement/${id}`);
     load();
   }

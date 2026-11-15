@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { api } from '@/lib/api';
 import { fmtDateDefault, parseApiDate } from '@/lib/dates';
 import type { SchoolCalendarEntry, ClassItem, ClassLevel } from '@/types/api';
+import { confirmAction, notify } from '@/components/ui/dialogs';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -348,17 +349,17 @@ function EventsTab({ entries, year, onRefresh, departments, classLevels, classes
   }
 
   async function del(id: string, name: string) {
-    if (!confirm(`Remove "${name}" from the school calendar?`)) return;
+    if (!await confirmAction(`Remove "${name}" from the school calendar?`)) return;
     try { await api.delete(`/api/school-calendar/${id}`); onRefresh(); }
-    catch { alert('Failed to delete.'); }
+    catch { notify('Failed to delete.'); }
   }
 
   async function reapply(id: string, name: string) {
     try {
       const { data } = await api.post<{ absences_excused: number }>(`/api/school-calendar/${id}/reapply`);
       const n = data.absences_excused;
-      alert(n > 0 ? `Done — ${n} absence record${n !== 1 ? 's' : ''} for "${name}" have been excused.` : `No outstanding absences found for "${name}".`);
-    } catch { alert('Failed to reapply. Please try again.'); }
+      notify(n > 0 ? `Done — ${n} absence record${n !== 1 ? 's' : ''} for "${name}" have been excused.` : `No outstanding absences found for "${name}".`);
+    } catch { notify('Failed to reapply. Please try again.'); }
   }
 
   const byMonth: Record<string, SchoolCalendarEntry[]> = {};
@@ -527,7 +528,7 @@ function PeriodTab({ periods, kind, year, onRefresh }: { periods: Period[]; kind
       setAdding(false);
       setForm({ name: '', start_date: '', end_date: '' });
       if (data.absences_excused > 0) {
-        alert(`Saved. ${data.absences_excused} false absence record${data.absences_excused !== 1 ? 's' : ''} from this period were automatically excused.`);
+        notify(`Saved. ${data.absences_excused} false absence record${data.absences_excused !== 1 ? 's' : ''} from this period were automatically excused.`);
       }
       onRefresh();
     } catch (err: unknown) {
@@ -557,9 +558,9 @@ function PeriodTab({ periods, kind, year, onRefresh }: { periods: Period[]; kind
   }
 
   async function del(id: string, name: string) {
-    if (!confirm(`Remove "${name}"? Absences from this period will not be un-excused.`)) return;
+    if (!await confirmAction(`Remove "${name}"? Absences from this period will not be un-excused.`)) return;
     try { await api.delete(`/api/school-calendar/vacations/${id}`); onRefresh(); }
-    catch { alert('Failed to delete.'); }
+    catch { notify('Failed to delete.'); }
   }
 
   const days = form.start_date && form.end_date && form.end_date >= form.start_date

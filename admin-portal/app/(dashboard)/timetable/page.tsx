@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { useSessionFilter } from '@/hooks/useSessionFilter';
 import type { TimetableEntry, Teacher, Subject, ClassItem } from '@/types/api';
+import { confirmAction, notify } from '@/components/ui/dialogs';
 
 const DAYS = ['', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const EMPTY_FORM = { teacher_id: '', day_of_week: '1', start_time: '08:00', end_time: '09:00', subject: '' };
@@ -220,7 +221,7 @@ export default function TimetablePage() {
       const a = document.createElement('a');
       a.href = URL.createObjectURL(data as Blob);
       a.download = 'timetable_template.csv'; a.click();
-    } catch { alert('Could not download template.'); }
+    } catch { notify('Could not download template.'); }
   }
 
   async function handleUpload() {
@@ -262,7 +263,7 @@ export default function TimetablePage() {
       const a = document.createElement('a');
       a.href = URL.createObjectURL(data as Blob);
       a.download = 'timetable_update_template.xlsx'; a.click();
-    } catch { alert('Could not download template.'); }
+    } catch { notify('Could not download template.'); }
   }
 
   async function handleBulkUpdate() {
@@ -314,7 +315,7 @@ export default function TimetablePage() {
   }
 
   async function del(id: string) {
-    if (!confirm('Delete this timetable entry?')) return;
+    if (!await confirmAction('Delete this timetable entry?')) return;
     await api.delete(`/api/timetable/${id}`);
     await load(selYearId, selSemester);
   }

@@ -2,6 +2,7 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { api } from '@/lib/api';
 import { parseApiDate, fmtDateShort } from '@/lib/dates';
+import { confirmAction, notify } from '@/components/ui/dialogs';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -279,10 +280,10 @@ function SessionsTab() {
   }
 
   async function del(id: string) {
-    if (!confirm('Delete this exam session and all its assigned duties?')) return;
+    if (!await confirmAction('Delete this exam session and all its assigned duties?')) return;
     setDeleting(id);
     try { await api.delete(`/api/exams/sessions/${id}`); await load(); }
-    catch { alert('Failed to delete.'); }
+    catch { notify('Failed to delete.'); }
     finally { setDeleting(null); }
   }
 
@@ -309,7 +310,7 @@ function SessionsTab() {
   async function doMerge() {
     if (mergeIds.length < 2) return;
     const names = mergeIds.map(id => sessions.find(s => s.id === id)?.class_name).filter(Boolean).join(', ');
-    if (!confirm(`Merge these sessions into one?\n\n${names}\n\nThe earliest session keeps its date/time/hall. Invigilator counts are summed.`)) return;
+    if (!await confirmAction(`Merge these sessions into one?\n\n${names}\n\nThe earliest session keeps its date/time/hall. Invigilator counts are summed.`)) return;
     setMerging(true);
     try {
       await api.post('/api/exams/sessions/merge', { session_ids: mergeIds });
@@ -318,7 +319,7 @@ function SessionsTab() {
     } catch (e: any) {
       const msg  = e?.response?.data?.error ?? 'Merge failed.';
       const code = e?.response?.data?.code;
-      alert(code ? `${msg} (${code})` : msg);
+      notify(code ? `${msg} (${code})` : msg);
     } finally { setMerging(false); }
   }
 
@@ -1302,7 +1303,7 @@ function PoolTab() {
         ? { ...p, is_excluded: excluded, excluded_reason: excluded ? (reason ?? p.excluded_reason) : null }
         : p
       ));
-    } catch { alert('Failed to update pool.'); }
+    } catch { notify('Failed to update pool.'); }
     finally { setSaving(null); }
   }
 

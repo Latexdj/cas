@@ -7,6 +7,7 @@ import { Pagination } from '@/components/ui/Pagination';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
+import { confirmAction } from '@/components/ui/dialogs';
 
 interface Department {
   id: string;
@@ -189,7 +190,7 @@ export default function DepartmentsPage() {
 
   async function handleRemoveHead() {
     if (modal?.type !== 'assign-head') return;
-    if (!confirm('Remove this teacher as HOD?')) return;
+    if (!await confirmAction('Remove this teacher as HOD?')) return;
     setSaving(true); setError('');
     try {
       await api.delete(`/api/departments/${modal.dept.id}/head`);
@@ -215,7 +216,7 @@ export default function DepartmentsPage() {
 
   async function handleRemoveStaff(teacherId: string, teacherName: string) {
     if (modal?.type !== 'staff') return;
-    if (!confirm(`Remove ${teacherName} from this department?`)) return;
+    if (!await confirmAction(`Remove ${teacherName} from this department?`)) return;
     try {
       await api.delete(`/api/departments/${modal.dept.id}/teachers/${teacherId}`);
       await loadStaff(modal.dept.id);
@@ -582,7 +583,7 @@ export default function DepartmentsPage() {
                             </div>
                             <button
                               onClick={async () => {
-                                if (s.department_name && !confirm(`Move "${s.subject}" from ${s.department_name} to ${modal.dept.name}?`)) return;
+                                if (s.department_name && !await confirmAction(`Move "${s.subject}" from ${s.department_name} to ${modal.dept.name}?`)) return;
                                 await handleAssignSubject(s.subject, modal.dept.id);
                               }}
                               className="text-xs text-[#145C44] hover:text-green-900 font-semibold shrink-0 ml-2"

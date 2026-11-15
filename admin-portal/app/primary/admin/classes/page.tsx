@@ -5,6 +5,7 @@ import { api } from '@/lib/api';
 import { useTableControls } from '@/hooks/useTableControls';
 import { useSessionFilter } from '@/hooks/useSessionFilter';
 import { Pagination } from '@/components/ui/Pagination';
+import { confirmAction } from '@/components/ui/dialogs';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -409,7 +410,7 @@ export default function PrimaryClassesPage() {
   }
 
   async function deleteClass(cls: ClassItem) {
-    if (!confirm(`Delete class "${cls.class_name}"? This cannot be undone.`)) return;
+    if (!await confirmAction(`Delete class "${cls.class_name}"? This cannot be undone.`)) return;
     try {
       await api.delete(`/api/primary/classes/${cls.id}`);
       if (selected?.id === cls.id) setSelected(null);

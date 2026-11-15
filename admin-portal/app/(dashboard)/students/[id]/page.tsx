@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { api } from '@/lib/api';
 import { validateStudentForm } from '@/lib/validations';
 import type { StudentProfile, Program, House } from '@/types/api';
+import { confirmAction } from '@/components/ui/dialogs';
 
 const GENDERS   = ['Male', 'Female'];
 const RELIGIONS = ['Christianity', 'Islam', 'Traditional', 'Other'];
@@ -597,8 +598,8 @@ export default function StudentProfilePage() {
               {activeCard && (
                 <button
                   disabled={cardLoading}
-                  onClick={() => {
-                    if (!confirm('Reissue card? The current card will be revoked immediately and a new one generated.')) return;
+                  onClick={async () => {
+                    if (!await confirmAction('Reissue card? The current card will be revoked immediately and a new one generated.')) return;
                     downloadCard(
                       `/api/id-cards/reissue-pdf/${id}`,
                       `ID_${profile.name.replace(/\s+/g, '_')}_Issue${activeCard.issue_number + 1}.pdf`,

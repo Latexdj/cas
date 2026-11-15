@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { studentApi } from '@/lib/student-api';
+import { notify } from '@/components/ui/dialogs';
 
 interface DisciplinaryLetter {
   id: string; letter_type: string; offense_category: string; offense_other?: string;
@@ -80,7 +81,7 @@ export default function StudentConductPage() {
       setLetters(prev => prev.map(l => l.id === id ? { ...l, ...data } : l));
     } catch (e: unknown) {
       const err = e as { response?: { data?: { error?: string } } };
-      alert(err.response?.data?.error ?? 'Failed to acknowledge');
+      notify(err.response?.data?.error ?? 'Failed to acknowledge');
     } finally { setAcknowledging(null); }
   }
 

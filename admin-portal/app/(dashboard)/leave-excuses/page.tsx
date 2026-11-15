@@ -4,6 +4,7 @@ import { useTableControls } from '@/hooks/useTableControls';
 import { Pagination, Th } from '@/components/ui/Pagination';
 import { api } from '@/lib/api';
 import type { Teacher, TeacherExcuse, AcademicYear } from '@/types/api';
+import { confirmAction, notify } from '@/components/ui/dialogs';
 
 const EXCUSE_COUNT_WARN_THRESHOLD = 3;
 
@@ -111,9 +112,9 @@ export default function LeaveExcusesPage() {
   }
 
   async function del(id: string) {
-    if (!confirm('Delete this excuse record?')) return;
+    if (!await confirmAction('Delete this excuse record?')) return;
     try { await api.delete(`/api/teacher-excuses/${id}`); await load(); }
-    catch { alert('Failed to delete.'); }
+    catch { notify('Failed to delete.'); }
   }
 
   async function saveExcuse() {

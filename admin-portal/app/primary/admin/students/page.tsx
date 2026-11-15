@@ -5,6 +5,7 @@ import { api } from '@/lib/api';
 import { useTableControls } from '@/hooks/useTableControls';
 import { Pagination, Th } from '@/components/ui/Pagination';
 import { validateMinAge } from '@/lib/validations';
+import { confirmAction } from '@/components/ui/dialogs';
 
 const PRIMARY_STUDENT_MIN_AGE_YEARS = 2;
 
@@ -151,7 +152,7 @@ export default function PrimaryStudentsPage() {
   }
 
   async function del(id: string) {
-    if (!confirm('Delete this student? All their scores and attendance will also be removed.')) return;
+    if (!await confirmAction('Delete this student? All their scores and attendance will also be removed.')) return;
     try { await api.delete(`/api/primary/students/${id}`); load(); }
     catch { setError('Delete failed.'); }
   }

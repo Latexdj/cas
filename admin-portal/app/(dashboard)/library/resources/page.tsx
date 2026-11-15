@@ -6,6 +6,7 @@ import { Pagination, Th } from '@/components/ui/Pagination';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
+import { confirmAction, notify } from '@/components/ui/dialogs';
 
 interface Resource {
   id: string; title: string; subject: string | null; resource_type: string;
@@ -80,11 +81,11 @@ export default function ResourcesPage() {
   }
 
   async function deleteResource(id: string) {
-    if (!confirm('Delete this resource?')) return;
+    if (!await confirmAction('Delete this resource?')) return;
     try {
       await api.delete(`/api/library-admin/resources/${id}`);
       setResources(prev => prev.filter(r => r.id !== id));
-    } catch (e: any) { alert(e.response?.data?.error ?? 'Failed to delete'); }
+    } catch (e: any) { notify(e.response?.data?.error ?? 'Failed to delete'); }
   }
 
   function formatSize(kb: number | null) {

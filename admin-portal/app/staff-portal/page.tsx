@@ -27,6 +27,7 @@ import { HealthProfiles } from '@/components/clinic/HealthProfiles';
 import { ClinicReports } from '@/components/clinic/ClinicReports';
 import { ClinicInventoryReport } from '@/components/clinic/ClinicInventoryReport';
 import { ClinicInventory } from '@/components/clinic/ClinicInventory';
+import { notify } from '@/components/ui/dialogs';
 
 // ─── Clearance types ──────────────────────────────────────────────────────────
 interface Office { id: string; name: string; office_type: string; sort_order: number; }
@@ -289,7 +290,7 @@ export default function StaffPortalPage() {
   const [acctSearching,  setAcctSearching]  = useState(false);
   const [acctSelected,   setAcctSelected]   = useState<AcctStudentSummary | null>(null);
   const [acctLoadingSum, setAcctLoadingSum] = useState(false);
-  const [acctErr, setAcctErr] = useState('');                       // shown in the page instead of alert()
+  const [acctErr, setAcctErr] = useState('');                       // shown in the page instead of notify()
   const [voidId, setVoidId] = useState<string | null>(null);         // payment awaiting void confirmation
   const [voiding, setVoiding] = useState(false);
 
@@ -558,8 +559,8 @@ export default function StaffPortalPage() {
       });
       setIssueStudent(null); setIssueCode(''); setSelectedBook(''); setSelectedCopy(''); setIssueNote('');
       loadBooks();
-      alert('Book issued successfully!');
-    } catch (e: any) { alert(e.response?.data?.error ?? 'Failed to issue'); }
+      notify('Book issued successfully!');
+    } catch (e: any) { notify(e.response?.data?.error ?? 'Failed to issue'); }
     finally { setIssuing(false); }
   }
 
@@ -580,7 +581,7 @@ export default function StaffPortalPage() {
       setReturnResult(r.data);
       const updated = await api.get<StudentInfo>(`/api/library/student/${returnCode.trim()}`);
       setReturnStudent(updated.data);
-    } catch (e: any) { alert(e.response?.data?.error ?? 'Failed to return'); }
+    } catch (e: any) { notify(e.response?.data?.error ?? 'Failed to return'); }
     finally { setReturning(null); }
   }
 

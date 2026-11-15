@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
 import type { Location } from '@/types/api';
+import { confirmAction } from '@/components/ui/dialogs';
 
 const EMPTY = { name: '', type: 'classroom', latitude: '', longitude: '', radius_meters: '50' };
 
@@ -60,7 +61,7 @@ export default function LocationsPage() {
   }
 
   async function del(id: string, name: string) {
-    if (!confirm(`Delete location "${name}"?`)) return;
+    if (!await confirmAction(`Delete location "${name}"?`)) return;
     await api.delete(`/api/locations/${id}`);
     await load();
   }

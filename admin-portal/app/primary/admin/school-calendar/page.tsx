@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '@/lib/api';
+import { confirmAction, notify } from '@/components/ui/dialogs';
 
 interface CalEvent {
   id: string; date: string; name: string; type: string; notes: string | null;
@@ -62,19 +63,19 @@ export default function PrimarySchoolCalendarPage() {
       setForm({ date: '', name: '', type: 'Holiday', notes: '', start_time: '', end_time: '', whole_day: true });
       loadEvents();
     } catch (e: unknown) {
-      alert((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to save event');
+      notify((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to save event');
     } finally { setSaving(false); }
   }
 
   async function deleteEvent(id: string) {
-    if (!confirm('Delete this calendar event?')) return;
+    if (!await confirmAction('Delete this calendar event?')) return;
     await api.delete(`/api/school-calendar/${id}`);
     setEvents(ev => ev.filter(e => e.id !== id));
   }
 
   async function reapply(id: string) {
     await api.post(`/api/school-calendar/${id}/reapply`, {});
-    alert('Absences on this date have been updated to Excused.');
+    notify('Absences on this date have been updated to Excused.');
   }
 
   const monthName = new Date(year, month - 1).toLocaleString('en-GB', { month: 'long', year: 'numeric' });

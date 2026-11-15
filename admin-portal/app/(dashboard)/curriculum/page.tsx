@@ -7,6 +7,7 @@ import { Pagination } from '@/components/ui/Pagination';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import type { Subject, ClassItem, ClassLevel, Program, House, AssessmentMode } from '@/types/api';
+import { confirmAction, notify } from '@/components/ui/dialogs';
 
 /* ── Tab bar ── */
 type Tab = 'subjects' | 'classes' | 'levels' | 'programs' | 'houses' | 'assessment-modes' | 'allocations';
@@ -104,11 +105,11 @@ function SubjectsTab() {
   }
 
   async function del(id: string, name: string) {
-    if (!confirm(`Delete subject "${name}"?`)) return;
+    if (!await confirmAction(`Delete subject "${name}"?`)) return;
     try { await api.delete(`/api/subjects/${id}`); await load(); }
     catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      alert(msg ?? 'Failed to delete.');
+      notify(msg ?? 'Failed to delete.');
     }
   }
 
@@ -286,11 +287,11 @@ function ClassesTab() {
   }
 
   async function del(id: string, n: string) {
-    if (!confirm(`Delete class "${n}"?`)) return;
+    if (!await confirmAction(`Delete class "${n}"?`)) return;
     try { await api.delete(`/api/classes/${id}`); await load(); }
     catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      alert(msg ?? 'Failed to delete.');
+      notify(msg ?? 'Failed to delete.');
     }
   }
 
@@ -403,11 +404,11 @@ function LevelsTab() {
   }
 
   async function del(l: ClassLevel) {
-    if (!confirm(`Delete level "${l.name}"? Its ${l.class_count} class(es) will become unassigned, not deleted.`)) return;
+    if (!await confirmAction(`Delete level "${l.name}"? Its ${l.class_count} class(es) will become unassigned, not deleted.`)) return;
     try { await api.delete(`/api/class-levels/${l.id}`); await load(); }
     catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      alert(msg ?? 'Failed to delete.');
+      notify(msg ?? 'Failed to delete.');
     }
   }
 
@@ -416,10 +417,10 @@ function LevelsTab() {
     try {
       const { data } = await api.post<{ levels_created: number; classes_assigned: number }>('/api/class-levels/auto-detect');
       await load();
-      alert(`Detected ${data.levels_created} level(s), assigned ${data.classes_assigned} class(es). Review the assignments below and correct anything that's wrong.`);
+      notify(`Detected ${data.levels_created} level(s), assigned ${data.classes_assigned} class(es). Review the assignments below and correct anything that's wrong.`);
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      alert(msg ?? 'Auto-detect failed.');
+      notify(msg ?? 'Auto-detect failed.');
     } finally { setDetecting(false); }
   }
 
@@ -612,11 +613,11 @@ function ProgramsTab() {
   }
 
   async function del(id: string, name: string) {
-    if (!confirm(`Delete program "${name}"? Students assigned to it will have no program.`)) return;
+    if (!await confirmAction(`Delete program "${name}"? Students assigned to it will have no program.`)) return;
     try { await api.delete(`/api/programs/${id}`); await load(); }
     catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      alert(msg ?? 'Failed to delete.');
+      notify(msg ?? 'Failed to delete.');
     }
   }
 
@@ -762,11 +763,11 @@ function HousesTab() {
   }
 
   async function del(id: string, name: string) {
-    if (!confirm(`Delete house "${name}"? Students assigned to it will retain the name but it will no longer appear in the dropdown.`)) return;
+    if (!await confirmAction(`Delete house "${name}"? Students assigned to it will retain the name but it will no longer appear in the dropdown.`)) return;
     try { await api.delete(`/api/houses/${id}`); await load(); }
     catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      alert(msg ?? 'Failed to delete.');
+      notify(msg ?? 'Failed to delete.');
     }
   }
 
@@ -889,11 +890,11 @@ function AssessmentModesTab() {
   }
 
   async function del(id: string, name: string) {
-    if (!confirm(`Delete assessment mode "${name}"? All assessments using this mode will also be deleted.`)) return;
+    if (!await confirmAction(`Delete assessment mode "${name}"? All assessments using this mode will also be deleted.`)) return;
     try { await api.delete(`/api/assessment-modes/${id}`); await load(); }
     catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      alert(msg ?? 'Failed to delete.');
+      notify(msg ?? 'Failed to delete.');
     }
   }
 
@@ -1162,7 +1163,7 @@ function AllocationsTab({ onGapChange }: { onGapChange: (n: number) => void }) {
       const { data } = await api.post<{ seeded: number }>('/api/timetable/class-subjects/seed', {});
       setSeedMsg(`✓ ${data.seeded} allocation${data.seeded !== 1 ? 's' : ''} seeded from current timetable.`);
       await loadClass(selectedClass);
-    } catch { alert('Seed failed.'); }
+    } catch { notify('Seed failed.'); }
     finally { setSeeding(false); }
   }
 
@@ -1178,12 +1179,12 @@ function AllocationsTab({ onGapChange }: { onGapChange: (n: number) => void }) {
       await loadClass(selectedClass);
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      alert(msg ?? 'Failed to add.');
+      notify(msg ?? 'Failed to add.');
     } finally { setAdding(false); }
   }
 
   async function remove(id: string) {
-    if (!confirm('Remove this subject from the class curriculum?')) return;
+    if (!await confirmAction('Remove this subject from the class curriculum?')) return;
     await api.delete(`/api/timetable/class-subjects/${id}`);
     await loadClass(selectedClass);
   }

@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { api } from '@/lib/api';
 import { useTableControls } from '@/hooks/useTableControls';
 import { Pagination, Th } from '@/components/ui/Pagination';
+import { confirmAction, notify } from '@/components/ui/dialogs';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -779,7 +780,7 @@ function MinutesModal({ meeting, onClose, onSaved }: { meeting: Meeting; onClose
   }
 
   async function handleRemove() {
-    if (!confirm('Remove the uploaded minutes for this meeting?')) return;
+    if (!await confirmAction('Remove the uploaded minutes for this meeting?')) return;
     setRemoving(true);
     try {
       await api.delete(`/api/meetings/${meeting.id}/minutes`);
@@ -1602,7 +1603,7 @@ export default function MeetingsPage() {
   async function approvePending(id: string) {
     setApprovingId(id);
     try { await api.patch(`/api/meetings/attendance/${id}/approve-pending`); await loadAttendance(); }
-    catch { alert('Failed to approve submission.'); }
+    catch { notify('Failed to approve submission.'); }
     finally { setApprovingId(null); }
   }
 
@@ -1668,7 +1669,7 @@ export default function MeetingsPage() {
   const reportDetailHeaders = ['Date', 'Meeting', 'Type', 'Teacher', 'Gender', 'Status'];
 
   async function doExportMeetings(kind: 'xlsx' | 'pdf') {
-    if (!aFrom && !aTo && !aYear) { alert('Select a From/To date range or an academic year first.'); return; }
+    if (!aFrom && !aTo && !aYear) { notify('Select a From/To date range or an academic year first.'); return; }
     setExporting(kind);
     try {
       const rows = await loadReport();
@@ -1692,19 +1693,19 @@ export default function MeetingsPage() {
   // ── Actions ────────────────────────────────────────────────────
 
   async function deleteMeeting(id: string) {
-    if (!confirm('Delete this meeting? All attendance records for this meeting will also be deleted.')) return;
+    if (!await confirmAction('Delete this meeting? All attendance records for this meeting will also be deleted.')) return;
     try {
       await api.delete(`/api/meetings/${id}`);
       await loadMeetings();
-    } catch { alert('Failed to delete meeting.'); }
+    } catch { notify('Failed to delete meeting.'); }
   }
 
   async function deleteAttendanceRecord(id: string) {
-    if (!confirm('Remove this attendance record?')) return;
+    if (!await confirmAction('Remove this attendance record?')) return;
     try {
       await api.delete(`/api/meetings/attendance/${id}`);
       await loadAttendance();
-    } catch { alert('Failed to delete attendance record.'); }
+    } catch { notify('Failed to delete attendance record.'); }
   }
 
   // ── Table controls ─────────────────────────────────────────────

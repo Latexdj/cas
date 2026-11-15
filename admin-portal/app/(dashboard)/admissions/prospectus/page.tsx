@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
+import { confirmAction } from '@/components/ui/dialogs';
 
 interface Program { id: string; name: string; }
 interface ProspectusRow {
@@ -68,7 +69,7 @@ export default function ProspectusPage() {
   }
 
   async function del(id: string) {
-    if (!confirm('Delete this prospectus file?')) return;
+    if (!await confirmAction('Delete this prospectus file?')) return;
     await api.delete(`/api/admin/admissions/prospectus/${id}`);
     load();
   }

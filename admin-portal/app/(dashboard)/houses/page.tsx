@@ -6,6 +6,7 @@ import { Pagination, Th } from '@/components/ui/Pagination';
 import { Button } from '@/components/ui/Button';
 import { Input }  from '@/components/ui/Input';
 import { Modal }  from '@/components/ui/Modal';
+import { confirmAction, notify } from '@/components/ui/dialogs';
 
 interface House {
   id:               string;
@@ -75,13 +76,13 @@ export default function HousesPage() {
   }
 
   async function remove(h: House) {
-    if (!confirm(`Delete "${h.name}"? This cannot be undone.`)) return;
+    if (!await confirmAction(`Delete "${h.name}"? This cannot be undone.`)) return;
     try {
       await api.delete(`/api/houses/${h.id}`);
       setHouses(prev => prev.filter(x => x.id !== h.id));
     } catch (e: unknown) {
       const err = e as { response?: { data?: { error?: string } } };
-      alert(err.response?.data?.error ?? 'Failed to delete');
+      notify(err.response?.data?.error ?? 'Failed to delete');
     }
   }
 

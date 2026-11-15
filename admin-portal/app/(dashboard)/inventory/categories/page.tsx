@@ -1,6 +1,7 @@
 ﻿'use client';
 import { useEffect, useState, useCallback } from 'react';
 import { api } from '@/lib/api';
+import { confirmAction, notify } from '@/components/ui/dialogs';
 
 interface Category {
   id: string; name: string; description: string | null; item_count: number; created_at: string;
@@ -53,14 +54,14 @@ export default function InventoryCategoriesPage() {
   }
 
   async function remove(cat: Category) {
-    if (!confirm(`Delete category "${cat.name}"?`)) return;
+    if (!await confirmAction(`Delete category "${cat.name}"?`)) return;
     setDeletingId(cat.id);
     try {
       await api.delete(`/api/inventory/categories/${cat.id}`);
       load();
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      alert(msg ?? 'Failed to delete');
+      notify(msg ?? 'Failed to delete');
     } finally { setDeletingId(''); }
   }
 

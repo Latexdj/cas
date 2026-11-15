@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
+import { notify } from '@/components/ui/dialogs';
 
 const STATUS_OPTIONS = ['Pending', 'Approved', 'Rejected'];
 
@@ -70,7 +71,7 @@ export default function TeacherProfileRequestsPage() {
   async function handleAction(id: string, action: 'approve' | 'reject') {
     const note = (reviewNotes[id] || '').trim();
     if (action === 'reject' && !note) {
-      alert('Please add a rejection note before rejecting the request.');
+      notify('Please add a rejection note before rejecting the request.');
       return;
     }
 
@@ -82,7 +83,7 @@ export default function TeacherProfileRequestsPage() {
       setReviewNotes((prev) => ({ ...prev, [id]: '' }));
       await load();
     } catch (err: any) {
-      alert(err?.response?.data?.error || 'The request could not be updated.');
+      notify(err?.response?.data?.error || 'The request could not be updated.');
     } finally {
       setBusyId(null);
     }

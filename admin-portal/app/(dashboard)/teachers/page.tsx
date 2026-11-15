@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
 import { Badge } from '@/components/ui/Badge';
 import type { Teacher, TeacherProfile } from '@/types/api';
+import { confirmAction, notify } from '@/components/ui/dialogs';
 
 const GES_RANKS = ['Pupil Teacher','Teacher II','Teacher I','Senior Teacher II','Senior Teacher I','Assistant Superintendent II','Assistant Superintendent I','Superintendent','Senior Superintendent','Principal Superintendent','Assistant Director II','Assistant Director I','Deputy Director','Director'];
 
@@ -130,7 +131,7 @@ export default function TeachersPage() {
       a.download = tmplMode === 'populated' ? `teachers_${tmplStatus}.xlsx` : 'teachers_template.xlsx';
       a.click();
       setTmplOpen(false);
-    } catch { alert('Could not download template.'); }
+    } catch { notify('Could not download template.'); }
     finally { setTmplLoading(false); }
   }
 
@@ -243,7 +244,7 @@ export default function TeachersPage() {
   }
 
   async function deleteTeacher(id: string, name: string) {
-    if (!confirm(`Delete teacher "${name}"? This cannot be undone.`)) return;
+    if (!await confirmAction(`Delete teacher "${name}"? This cannot be undone.`)) return;
     await api.delete(`/api/teachers/${id}`);
     await load();
   }
@@ -300,14 +301,14 @@ export default function TeachersPage() {
   }
 
   async function doBulkSend() {
-    if (!confirm('This will generate new PINs and email all active teachers who have email addresses. Continue?')) return;
+    if (!await confirmAction('This will generate new PINs and email all active teachers who have email addresses. Continue?')) return;
     setBulkSending(true); setBulkResult(null);
     try {
       const { data } = await api.post<SendResult>('/api/admin/teachers/send-credentials-bulk');
       setBulkResult(data);
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      alert(msg ?? 'Bulk send failed.');
+      notify(msg ?? 'Bulk send failed.');
     } finally { setBulkSending(false); }
   }
 

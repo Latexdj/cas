@@ -1,6 +1,7 @@
 ﻿'use client';
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
+import { confirmAction, notify } from '@/components/ui/dialogs';
 
 const MODULE_LABELS: Record<string, { label: string; color: string }> = {
   library: { label: 'Library', color: 'bg-[#D1EAD9] text-[#145C44]' },
@@ -58,13 +59,13 @@ export default function ResponsibilitiesPage() {
   }
 
   async function remove(r: Responsibility) {
-    if (!confirm(`Delete "${r.name}"? This will also remove all teacher assignments.`)) return;
+    if (!await confirmAction(`Delete "${r.name}"? This will also remove all teacher assignments.`)) return;
     try {
       await api.delete(`/api/responsibilities/${r.id}`);
       await load();
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      alert(msg ?? 'Failed to delete');
+      notify(msg ?? 'Failed to delete');
     }
   }
 

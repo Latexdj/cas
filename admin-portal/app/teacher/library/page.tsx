@@ -2,6 +2,7 @@
 import NameOrIdSearch from '@/components/NameOrIdSearch';
 import { useEffect, useState, useCallback } from 'react';
 import { teacherApi } from '@/lib/teacher-api';
+import { confirmAction, notify } from '@/components/ui/dialogs';
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? '';
 
@@ -496,12 +497,12 @@ function Catalogue() {
   }
 
   async function deleteBook(id: string) {
-    if (!confirm('Delete this book and all its copies?')) return;
+    if (!await confirmAction('Delete this book and all its copies?')) return;
     try {
       await teacherApi.delete(`/api/library/books/${id}`);
       setBooks(prev => prev.filter(b => b.id !== id));
       if (selBook?.id === id) setSelBook(null);
-    } catch (e: any) { alert(e.response?.data?.error ?? 'Failed to delete'); }
+    } catch (e: any) { notify(e.response?.data?.error ?? 'Failed to delete'); }
   }
 
   async function addCopy() {
@@ -513,7 +514,7 @@ function Catalogue() {
       });
       setCopies(prev => [...prev, data]);
       setNewCopy({ copy_number: '', condition: 'Good', shelf_location: '' });
-    } catch (e: any) { alert(e.response?.data?.error ?? 'Failed to add copy'); }
+    } catch (e: any) { notify(e.response?.data?.error ?? 'Failed to add copy'); }
     finally { setCopySaving(false); }
   }
 
@@ -521,15 +522,15 @@ function Catalogue() {
     try {
       await teacherApi.delete(`/api/library/books/${bookId}/copies/${copyId}`);
       setCopies(prev => prev.filter(c => c.id !== copyId));
-    } catch (e: any) { alert(e.response?.data?.error ?? 'Failed to delete copy'); }
+    } catch (e: any) { notify(e.response?.data?.error ?? 'Failed to delete copy'); }
   }
 
   async function markCopyLost(copyId: string, bookId: string) {
-    if (!confirm('Mark this copy as lost? It will be removed from circulation.')) return;
+    if (!await confirmAction('Mark this copy as lost? It will be removed from circulation.')) return;
     try {
       await teacherApi.put(`/api/library/books/${bookId}/copies/${copyId}`, { status: 'lost' });
       setCopies(prev => prev.map(c => c.id === copyId ? { ...c, status: 'lost', is_available: false } : c));
-    } catch (e: any) { alert(e.response?.data?.error ?? 'Failed to update copy'); }
+    } catch (e: any) { notify(e.response?.data?.error ?? 'Failed to update copy'); }
   }
 
   const filtered = books.filter(b => {

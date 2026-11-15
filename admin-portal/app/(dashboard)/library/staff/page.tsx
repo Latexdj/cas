@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { useTableControls } from '@/hooks/useTableControls';
 import { Pagination, Th } from '@/components/ui/Pagination';
+import { confirmAction, notify } from '@/components/ui/dialogs';
 
 interface LibraryStaff {
   id: string; name: string; email: string; is_active: boolean; created_at: string;
@@ -79,11 +80,11 @@ export default function LibraryStaffPage() {
   }
 
   async function deleteStaff(id: string) {
-    if (!confirm('Delete this librarian account?')) return;
+    if (!await confirmAction('Delete this librarian account?')) return;
     try {
       await api.delete(`/api/library-admin/staff/${id}`);
       setStaff(prev => prev.filter(s => s.id !== id));
-    } catch (e: any) { alert(e.response?.data?.error ?? 'Failed to delete'); }
+    } catch (e: any) { notify(e.response?.data?.error ?? 'Failed to delete'); }
   }
 
   async function assignTeacher(teacherId: string) {
@@ -92,16 +93,16 @@ export default function LibraryStaffPage() {
       const r = await api.post<LibraryTeacher>('/api/school-staff/library-teachers', { teacher_id: teacherId });
       setLibTeachers(prev => [...prev, r.data]);
       setTSearch('');
-    } catch (e: any) { alert(e.response?.data?.error ?? 'Failed to assign'); }
+    } catch (e: any) { notify(e.response?.data?.error ?? 'Failed to assign'); }
     finally { setAssigning(false); }
   }
 
   async function removeTeacher(id: string) {
-    if (!confirm('Remove this teacher from library duty?')) return;
+    if (!await confirmAction('Remove this teacher from library duty?')) return;
     try {
       await api.delete(`/api/school-staff/library-teachers/${id}`);
       setLibTeachers(prev => prev.filter(t => t.id !== id));
-    } catch (e: any) { alert(e.response?.data?.error ?? 'Failed to remove'); }
+    } catch (e: any) { notify(e.response?.data?.error ?? 'Failed to remove'); }
   }
 
   const { displayRows, total, page, setPage, pageSize, setPageSize, sortKey, sortDir, handleSort } = useTableControls(staff);

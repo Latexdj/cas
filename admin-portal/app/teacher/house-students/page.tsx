@@ -3,6 +3,7 @@ import { useEffect, useState, useMemo, useCallback } from 'react';
 import { teacherApi } from '@/lib/teacher-api';
 import { useTableControls } from '@/hooks/useTableControls';
 import { Pagination } from '@/components/ui/Pagination';
+import { confirmAction } from '@/components/ui/dialogs';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -351,7 +352,7 @@ function RoomsTab({
   }
 
   async function deleteRoom(r: RoomSummary) {
-    if (!confirm(`Delete "${r.room_name}"? All student assignments in this room will be removed.`)) return;
+    if (!await confirmAction(`Delete "${r.room_name}"? All student assignments in this room will be removed.`)) return;
     try {
       await teacherApi.delete(`/api/houses/my-rooms/${r.id}${houseParam}`);
       setRooms(prev => prev.filter(x => x.id !== r.id));

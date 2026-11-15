@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
 import { useTableControls } from '@/hooks/useTableControls';
 import { Pagination, Th } from '@/components/ui/Pagination';
+import { confirmAction, notify } from '@/components/ui/dialogs';
 
 interface Book {
   id: string; title: string; author: string | null; isbn: string | null;
@@ -101,12 +102,12 @@ export default function BookCatalogPage() {
   }
 
   async function deleteBook(id: string) {
-    if (!confirm('Delete this book and all its copies?')) return;
+    if (!await confirmAction('Delete this book and all its copies?')) return;
     try {
       await api.delete(`/api/library-admin/books/${id}`);
       setBooks(prev => prev.filter(b => b.id !== id));
       if (selectedBook?.id === id) setSelectedBook(null);
-    } catch (e: any) { alert(e.response?.data?.error ?? 'Failed to delete'); }
+    } catch (e: any) { notify(e.response?.data?.error ?? 'Failed to delete'); }
   }
 
   async function addCopy() {
@@ -118,7 +119,7 @@ export default function BookCatalogPage() {
       setCopies(prev => [...prev, r.data]);
       setNewCopy({ copy_number: '', condition: 'Good', shelf_location: '' });
       setBooks(prev => prev.map(b => b.id === selectedBook.id ? { ...b, total_copies: b.total_copies + 1, available_copies: b.available_copies + 1 } : b));
-    } catch (e: any) { alert(e.response?.data?.error ?? 'Failed to add copy'); }
+    } catch (e: any) { notify(e.response?.data?.error ?? 'Failed to add copy'); }
     finally { setCopySaving(false); }
   }
 
@@ -133,7 +134,7 @@ export default function BookCatalogPage() {
       } else {
         setBooks(prev => prev.map(b => b.id === selectedBook.id ? { ...b, total_copies: b.total_copies - 1 } : b));
       }
-    } catch (e: any) { alert(e.response?.data?.error ?? 'Failed to delete copy'); }
+    } catch (e: any) { notify(e.response?.data?.error ?? 'Failed to delete copy'); }
   }
 
   const filtered = books.filter(b =>
