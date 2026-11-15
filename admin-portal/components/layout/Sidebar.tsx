@@ -11,7 +11,6 @@ import { filterByModules, type NavItem, type NavSection } from './admin-nav';
 // Per-viewer preferences, kept in this browser only (like the theme).
 const OPEN_KEY   = 'cas_sidebar_open_section';
 const PINS_KEY   = 'cas_nav_pins';
-const RECENT_KEY = 'cas_nav_recent';
 
 function read<T>(key: string, fallback: T): T {
   if (typeof window === 'undefined') return fallback;
@@ -48,7 +47,6 @@ export function Sidebar({ open, onClose }: SidebarProps) {
   const enabledModules = useEnabledModules(api, schoolId, userId);
   const [openSection, setOpenSection] = useState<string | null>(null);
   const [pins, setPins] = useState<string[]>([]);
-  const [recent, setRecent] = useState<string[]>([]);
 
   const sections = filterByModules(enabledModules);
   const entries = sections.flatMap(s => s.items);
@@ -62,14 +60,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname, activeHref]);
 
-  // Pins load once; recent pages update on every navigation.
   useEffect(() => { setPins(read<string[]>(PINS_KEY, [])); }, []);
-  useEffect(() => {
-    if (!activeHref) return;
-    const next = [activeHref, ...read<string[]>(RECENT_KEY, []).filter(h => h !== activeHref)].slice(0, 6);
-    write(RECENT_KEY, next);
-    setRecent(next);
-  }, [activeHref]);
 
   useEffect(() => {
     setSchoolId(getUser()?.schoolId);
@@ -89,7 +80,6 @@ export function Sidebar({ open, onClose }: SidebarProps) {
 
   const byHref = Object.fromEntries(entries.map(i => [i.href, i]));
   const pinned = pins.map(h => byHref[h]).filter(Boolean) as NavItem[];
-  const recentItems = recent.filter(h => h !== activeHref && !pins.includes(h)).map(h => byHref[h]).filter(Boolean).slice(0, 4) as NavItem[];
 
   const row = (item: NavItem, key: string) => {
     const active = item.href === activeHref;
@@ -158,8 +148,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
 
       <nav className="flex-1 overflow-y-auto no-scrollbar py-4 px-3">
         {pinned.length > 0 && group('Pinned', pinned)}
-        {recentItems.length > 0 && group('Recent', recentItems)}
-        {(pinned.length > 0 || recentItems.length > 0) && <div className="mx-3 mb-3 h-px bg-white/[0.08]" />}
+        {pinned.length > 0 && <div className="mx-3 mb-3 h-px bg-white/[0.08]" />}
 
         {sections.map(section => {
           const isOpen = openSection === section.label;
