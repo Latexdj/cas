@@ -74,7 +74,7 @@ export function LettersSection({ api, primary }: { api: AxiosInstance; primary: 
         <p className="text-xs text-slate-400 mt-0.5">Fee reminders and other letters to parents or guardians. Only your own letters are shown here.</p>
       </div>
 
-      <button onClick={() => { setComposing(true); setError(''); }} className="py-2.5 px-4 rounded-xl text-sm font-semibold text-white" style={{ background: primary }}>+ New Letter</button>
+      <button onClick={() => { setComposing(true); setError(''); }} className="py-2.5 px-4 rounded-xl text-sm font-semibold text-white" style={{ background: primary }}>Write letter</button>
 
       {composing && (
         <div className={`${cardCls} p-4 space-y-3`}>

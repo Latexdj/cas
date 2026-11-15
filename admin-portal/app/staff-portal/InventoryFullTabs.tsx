@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { AxiosInstance } from 'axios';
 import { UnitsManager } from '@/components/inventory/UnitsManager';
 import { confirmAction, notify } from '@/components/ui/dialogs';
+import { ActionMenu } from '@/components/ui/ActionMenu';
 
 const inputCls = 'w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]';
 const filterSelCls = 'border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]';
@@ -155,7 +156,7 @@ function ManageItemsTab({ api, primary, onItemsChanged }: { api: AxiosInstance; 
 
   return (
     <div className="space-y-4">
-      <button onClick={openNew} className="py-2.5 px-4 rounded-xl text-sm font-semibold text-white" style={{ background: primary }}>+ Add Item</button>
+      <button onClick={openNew} className="py-2.5 px-4 rounded-xl text-sm font-semibold text-white" style={{ background: primary }}>Add item</button>
 
       {editingId && (
         <div ref={formRef} className={`${cardCls} p-4 space-y-3 scroll-mt-4`}>
@@ -342,11 +343,11 @@ function ManageItemsTab({ api, primary, onItemsChanged }: { api: AxiosInstance; 
                   </div>
                 </div>
                 <p className="text-sm font-bold text-slate-900 dark:text-white shrink-0">{i.quantity_available}/{i.quantity_total}</p>
-                {i.track_units && (
-                  <button onClick={() => setUnitsFor({ id: i.id, name: i.name })} className="text-xs font-semibold text-[#145C44] dark:text-[#2ab289] hover:underline shrink-0">Units</button>
-                )}
-                <button onClick={() => openEdit(i)} className="text-xs text-[#145C44] dark:text-[#2ab289] hover:underline shrink-0">Edit</button>
-                <button onClick={() => remove(i.id)} className="text-xs text-red-600 dark:text-red-400 hover:underline shrink-0">Delete</button>
+                <button onClick={() => openEdit(i)} className="px-3 text-sm font-semibold text-brand-ink hover:underline shrink-0">Edit</button>
+                <ActionMenu label={`More for ${i.name}`} items={[
+                  ...(i.track_units ? [{ label: 'Units (tags and IMEIs)', onClick: () => setUnitsFor({ id: i.id, name: i.name }) }] : []),
+                  { label: 'Delete item', destructive: true, onClick: () => remove(i.id) },
+                ]} />
               </div>
             ))}
           </div>
@@ -396,7 +397,7 @@ function CategoriesTab({ api, primary }: { api: AxiosInstance; primary: string }
 
   return (
     <div className="space-y-4">
-      <button onClick={openNew} className="py-2.5 px-4 rounded-xl text-sm font-semibold text-white" style={{ background: primary }}>+ Add Category</button>
+      <button onClick={openNew} className="py-2.5 px-4 rounded-xl text-sm font-semibold text-white" style={{ background: primary }}>Add category</button>
 
       {editingId && (
         <div className={`${cardCls} p-4 space-y-3`}>
@@ -422,8 +423,8 @@ function CategoriesTab({ api, primary }: { api: AxiosInstance; primary: string }
                   {c.description && <p className="text-xs text-slate-400">{c.description}</p>}
                 </div>
                 <span className="text-xs text-slate-400 shrink-0">{c.item_count} item(s)</span>
-                <button onClick={() => openEdit(c)} className="text-xs text-[#145C44] dark:text-[#2ab289] hover:underline shrink-0">Edit</button>
-                <button onClick={() => remove(c.id)} className="text-xs text-red-600 dark:text-red-400 hover:underline shrink-0">Delete</button>
+                <button onClick={() => openEdit(c)} className="px-3 text-sm font-semibold text-brand-ink hover:underline shrink-0">Edit</button>
+                <ActionMenu label={`More for ${c.name}`} items={[{ label: 'Delete category', destructive: true, onClick: () => remove(c.id) }]} />
               </div>
             ))}
           </div>

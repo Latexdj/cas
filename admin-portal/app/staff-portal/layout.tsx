@@ -1,6 +1,6 @@
 'use client';
 
-import { ReactNode, useEffect, useState } from 'react';
+import { ReactNode, useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -44,6 +44,16 @@ export default function StaffPortalLayout({ children }: { children: ReactNode })
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
 
   const [showCredModal, setShowCredModal] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!menuOpen) return;
+    const close = (e: MouseEvent) => { if (!menuRef.current?.contains(e.target as Node)) setMenuOpen(false); };
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenuOpen(false); };
+    document.addEventListener('mousedown', close);
+    document.addEventListener('keydown', esc);
+    return () => { document.removeEventListener('mousedown', close); document.removeEventListener('keydown', esc); };
+  }, [menuOpen]);
   const [credForm, setCredForm] = useState({ currentPassword: '', newEmail: '', newPassword: '', confirmPassword: '' });
   const [credSaving, setCredSaving] = useState(false);
   const [credError,  setCredError]  = useState('');
@@ -122,36 +132,43 @@ export default function StaffPortalLayout({ children }: { children: ReactNode })
   }
 
   return (
-    <div className={`min-h-screen ${isDark ? 'bg-slate-900' : 'bg-slate-50'}`}>
+    <div className="min-h-screen bg-canvas">
       <SessionExpiryWarning
         apiClient={staffApi}
         tokenKey="cas_st_token"
         refreshPath="/api/auth/refresh"
         onExpire={handleSessionExpire}
       />
-      <header className={`px-4 md:px-6 py-3 flex items-center gap-3 ${isDark ? 'bg-slate-800 border-b border-slate-700' : 'bg-white border-b border-slate-200'}`}>
+      <header className="sticky top-0 z-30 h-14 px-4 md:px-6 flex items-center gap-3 bg-surface border-b border-line print:hidden">
         {logoUrl ? (
-          <img src={logoUrl} alt="logo" className="w-8 h-8 rounded-lg object-cover shrink-0" />
+          <img src={logoUrl} alt="" className="w-8 h-8 rounded-lg object-cover shrink-0" />
         ) : (
           <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-sm font-bold shrink-0" style={{ background: primary }}>S</div>
         )}
-        <span className={`font-bold text-sm flex-1 ${isDark ? 'text-slate-100' : 'text-slate-800'}`}>Staff Portal</span>
-        <span className={`text-xs hidden sm:block ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{name}</span>
+        <span className="font-semibold text-sm flex-1 text-ink">Staff portal</span>
         <ThemeToggle />
-        <button
-          onClick={openCredModal}
-          className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${isDark ? 'text-slate-400 hover:text-slate-100 hover:bg-slate-700' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'}`}
-        >
-          Account
-        </button>
-        <button
-          onClick={handleLogout}
-          className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${isDark ? 'text-slate-400 hover:text-slate-100 hover:bg-slate-700' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'}`}
-        >
-          Logout
-        </button>
+        <div className="relative" ref={menuRef}>
+          <button type="button" onClick={() => setMenuOpen(o => !o)} aria-haspopup="menu" aria-expanded={menuOpen}
+            aria-label={`Account: ${name || 'staff'}`}
+            className="w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold text-white focus:outline-none focus:ring-2 focus:ring-offset-2"
+            style={{ background: primary }}>
+            {name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() || 'S'}
+          </button>
+          {menuOpen && (
+            <div role="menu" className="absolute right-0 top-12 z-50 w-64 rounded-xl border border-line bg-elevated shadow-lg py-2">
+              <div className="px-4 py-2 border-b border-line mb-1">
+                <p className="text-sm font-semibold text-ink truncate">{name}</p>
+                <p className="text-sm text-ink-muted truncate">{email}</p>
+              </div>
+              <button role="menuitem" type="button" onClick={() => { setMenuOpen(false); openCredModal(); }}
+                className="w-full text-left px-4 min-h-[44px] text-sm text-ink hover:bg-sunken">Change email or password</button>
+              <button role="menuitem" type="button" onClick={handleLogout}
+                className="w-full text-left px-4 min-h-[44px] text-sm text-ink hover:bg-sunken">Sign out</button>
+            </div>
+          )}
+        </div>
       </header>
-      <main>
+      <main data-staff>
         {children}
       </main>
 

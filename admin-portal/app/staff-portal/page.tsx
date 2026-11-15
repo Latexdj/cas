@@ -16,7 +16,7 @@ import { InventoryLoans } from './InventoryLoans';
 import { BulkIssuePanel } from '@/components/inventory/BulkIssuePanel';
 import { IssueRecordsPanel } from '@/components/inventory/IssueRecordsPanel';
 import { LettersSection } from './LettersSection';
-import { StaffSidebar, type StaffSidebarGroup } from './StaffSidebar';
+import { StaffSidebar, SectionHeader, type StaffSidebarGroup } from './StaffSidebar';
 import { HelpWidget, type HelpNavItem } from '@/components/HelpWidget';
 import { StaffDashboard, type DashTarget } from './StaffDashboard';
 import { SchoolReports } from './SchoolReports';
@@ -859,7 +859,7 @@ export default function StaffPortalPage() {
       onClick: () => setSection('home'),
     },
     hasCl && {
-      key: 'clearance', label: 'Clearance',
+      key: 'clearance', label: 'Clearance', onClick: () => setSection('clearance'),
       items: ([
         ['pending', `Pending${pending.length > 0 ? ` (${pending.length})` : ''}`],
         ['lookup',  'Student Lookup'],
@@ -870,7 +870,7 @@ export default function StaffPortalPage() {
       })),
     },
     hasLib && {
-      key: 'library', label: 'Library',
+      key: 'library', label: 'Library', onClick: () => setSection('library'),
       items: ([
         ['issue',     'Issue Book'],
         ['return',    'Return Book'],
@@ -881,7 +881,7 @@ export default function StaffPortalPage() {
       })),
     },
     hasInv && {
-      key: 'inventory', label: isStores ? 'Stores' : 'Inventory',
+      key: 'inventory', label: isStores ? 'Stores' : 'Inventory', onClick: () => setSection('inventory'),
       items: ([
         ['items', 'Items'], ['issue', 'Issue'], ['bulk-issue', 'Bulk Issue'], ['records', 'Issue Records'],
         ['return', 'Return'], ['loans', 'Loans'], ['sign-list', 'Sign List'],
@@ -900,7 +900,7 @@ export default function StaffPortalPage() {
       })),
     },
     hasAcc && {
-      key: 'accounts', label: isAccountant ? 'Accountant' : 'Accounts',
+      key: 'accounts', label: 'Accounts', onClick: () => setSection('accounts'),
       items: ([
         ['dashboard', 'Dashboard'],
         ['collect',   'Collect Payment'],
@@ -918,7 +918,7 @@ export default function StaffPortalPage() {
       })),
     },
     hasClinic && {
-      key: 'clinic', label: 'Clinic',
+      key: 'clinic', label: 'Clinic', onClick: () => { setSection('clinic'); setClinicVisitId(null); },
       items: ([
         ['open',       `Open${clinicDash && clinicDash.open_visits.length > 0 ? ` (${clinicDash.open_visits.length})` : ''}`],
         ['new-visit',  'New Visit'],
@@ -961,23 +961,14 @@ export default function StaffPortalPage() {
         onMobileClose={() => setSidebarOpen(false)}
       />
 
-      <div className="flex-1 min-w-0 space-y-5 p-4 md:p-6">
-        <button onClick={() => setSidebarOpen(true)} className="flex items-center gap-3 md:hidden">
-          <span className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-5 h-5">
-              <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" />
-            </svg>
-          </span>
-          <span className="text-sm font-semibold text-slate-600 dark:text-slate-300">Menu</span>
-        </button>
+      <div className="flex-1 min-w-0 space-y-5 p-4 pb-28 md:p-6">
+        <SectionHeader group={sidebarGroups.find(g => g.key === section)} primary={primary} />
 
         {section === 'home' && (
           <div>
-            <h1 className="text-xl font-bold text-slate-800 dark:text-white">
-              {user?.name ?? 'Staff'}&apos;s Desk
-            </h1>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-              {staffRoles.map(r => r.charAt(0).toUpperCase() + r.slice(1)).join(' & ')} Portal
+            <h1 className="text-xl font-semibold text-ink">Today</h1>
+            <p className="text-sm text-ink-muted mt-0.5">
+              {user?.name ? `${user.name}: ` : ''}{sidebarGroups.filter(g => !['home', 'scan', 'reports'].includes(g.key)).map(g => g.label.toLowerCase()).join(', ').replace(/^./, c => c.toUpperCase())}
             </p>
           </div>
         )}
@@ -1934,7 +1925,7 @@ export default function StaffPortalPage() {
                       </button>
                       <div className="flex gap-2">
                         <select value={cvDispenseItem[v.id] ?? ''} onChange={e => setCvDispenseItem(p => ({ ...p, [v.id]: e.target.value }))}
-                          className="flex-1 border border-slate-200 dark:border-slate-600 rounded-lg px-2 py-1.5 text-xs bg-white dark:bg-slate-700 text-slate-900 dark:text-white">
+                          className="flex-1 min-w-0 border border-slate-200 dark:border-slate-600 rounded-lg px-2 py-1.5 text-xs bg-white dark:bg-slate-700 text-slate-900 dark:text-white">
                           <option value="">Dispense item…</option>
                           {clinicInvItems.map(it => <option key={it.id} value={it.id} disabled={it.quantity_on_hand <= 0}>{it.name} ({it.quantity_on_hand} {it.unit})</option>)}
                         </select>
@@ -1947,7 +1938,7 @@ export default function StaffPortalPage() {
                       </div>
                       <div className="flex gap-2">
                         <select value={cvOutcome[v.id] ?? 'returned_to_class'} onChange={e => setCvOutcome(p => ({ ...p, [v.id]: e.target.value }))}
-                          className="flex-1 border border-slate-200 dark:border-slate-600 rounded-lg px-2 py-1.5 text-xs bg-white dark:bg-slate-700 text-slate-900 dark:text-white">
+                          className="flex-1 min-w-0 border border-slate-200 dark:border-slate-600 rounded-lg px-2 py-1.5 text-xs bg-white dark:bg-slate-700 text-slate-900 dark:text-white">
                           {CLINIC_OUTCOMES.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                         </select>
                         <button onClick={() => closeClinicVisit(v.id)} disabled={cvClosing === v.id}

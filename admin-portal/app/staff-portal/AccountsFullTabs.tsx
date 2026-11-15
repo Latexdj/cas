@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import type { AxiosInstance } from 'axios';
+import { ActionMenu } from '@/components/ui/ActionMenu';
+import { confirmAction } from '@/components/ui/dialogs';
 
 const inputCls = 'w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]';
 const cardCls  = 'bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden';
@@ -90,8 +92,8 @@ function FeeItemsTab({ api, primary }: { api: AxiosInstance; primary: string }) 
     finally { setSaving(false); }
   }
 
-  async function remove(id: string) {
-    if (confirmDel !== id) { setConfirmDel(id); return; }
+  async function remove(id: string, name?: string) {
+    if (!await confirmAction(`Delete the fee item ${name ?? ''}? Bills already issued for it are not changed.`.replace('  ', ' '))) return;
     setConfirmDel(null); setListErr('');
     try { await api.delete(`/api/fees/items/${id}`); load(); }
     catch (e: any) { setListErr(e?.response?.data?.error ?? 'Could not delete. Try again.'); }
@@ -99,7 +101,7 @@ function FeeItemsTab({ api, primary }: { api: AxiosInstance; primary: string }) 
 
   return (
     <div className="space-y-4">
-      <button onClick={openNew} className="py-2.5 px-4 rounded-xl text-sm font-semibold text-white" style={{ background: primary }}>+ Add Fee Item</button>
+      <button onClick={openNew} className="py-2.5 px-4 rounded-xl text-sm font-semibold text-white" style={{ background: primary }}>Add fee item</button>
 
       {editingId && (
         <div className={`${cardCls} p-4 space-y-3`}>
@@ -130,8 +132,8 @@ function FeeItemsTab({ api, primary }: { api: AxiosInstance; primary: string }) 
                   <p className="text-sm font-semibold text-slate-800 dark:text-white">{i.name}{!i.is_active && <span className="ml-2 text-xs text-slate-400">(inactive)</span>}</p>
                   {i.description && <p className="text-xs text-slate-400">{i.description}</p>}
                 </div>
-                <button onClick={() => openEdit(i)} className="text-xs font-semibold text-[#145C44] dark:text-[#2ab289] hover:underline shrink-0">Edit</button>
-                <button onClick={() => remove(i.id)} onBlur={() => setConfirmDel(null)} className="text-xs font-semibold text-[#B83232] dark:text-red-400 hover:underline shrink-0">{confirmDel === i.id ? 'Tap again to delete' : 'Delete'}</button>
+                <button onClick={() => openEdit(i)} className="px-3 text-sm font-semibold text-brand-ink hover:underline shrink-0">Edit</button>
+                <ActionMenu label={`More for ${i.name}`} items={[{ label: 'Delete fee item', destructive: true, onClick: () => remove(i.id, i.name) }]} />
               </div>
             ))}
           </div>
@@ -204,7 +206,7 @@ function SchedulesTab({ api, primary }: { api: AxiosInstance; primary: string })
 
   return (
     <div className="space-y-4">
-      <button onClick={() => { setAdding(true); setError(''); setConflict(null); }} className="py-2.5 px-4 rounded-xl text-sm font-semibold text-white" style={{ background: primary }}>+ New Schedule</button>
+      <button onClick={() => { setAdding(true); setError(''); setConflict(null); }} className="py-2.5 px-4 rounded-xl text-sm font-semibold text-white" style={{ background: primary }}>Add schedule</button>
 
       {adding && (
         <div className={`${cardCls} p-4 space-y-3`}>
@@ -309,7 +311,7 @@ function ExpenditureTab({ api, primary }: { api: AxiosInstance; primary: string 
 
   return (
     <div className="space-y-4">
-      <button onClick={() => { setAdding(true); setError(''); }} className="py-2.5 px-4 rounded-xl text-sm font-semibold text-white" style={{ background: primary }}>+ Add Expense</button>
+      <button onClick={() => { setAdding(true); setError(''); }} className="py-2.5 px-4 rounded-xl text-sm font-semibold text-white" style={{ background: primary }}>Add expense</button>
 
       {adding && (
         <div className={`${cardCls} p-4 space-y-3`}>

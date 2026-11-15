@@ -1894,14 +1894,14 @@
 .dark [style*="border-top: 1px solid rgb(196, 181, 253)"],
 .dark [style*="border-left: 1px solid rgb(196, 181, 253)"],
 .dark [style*="border-right: 1px solid rgb(196, 181, 253)"],
-.dark [style*="#C4B5FD" i][style*="border" i] { border-color: var(--line) !important; }
+.dark [style*="#c4b5fd" i][style*="border" i] { border-color: var(--line) !important; }
 .dark [style*="border: 1px solid rgb(196, 181, 253)"],
 .dark [style*="border-color: rgb(196, 181, 253)"],
 .dark [style*="border-bottom: 1px solid rgb(196, 181, 253)"],
 .dark [style*="border-top: 1px solid rgb(196, 181, 253)"],
 .dark [style*="border-left: 1px solid rgb(196, 181, 253)"],
 .dark [style*="border-right: 1px solid rgb(196, 181, 253)"],
-.dark [style*="#c4b5fd" i][style*="border" i] { border-color: var(--line) !important; }
+.dark [style*="#C4B5FD" i][style*="border" i] { border-color: var(--line) !important; }
 .dark [style*="border: 1px solid rgb(198, 232, 216)"],
 .dark [style*="border-color: rgb(198, 232, 216)"],
 .dark [style*="border-bottom: 1px solid rgb(198, 232, 216)"],
@@ -2847,255 +2847,255 @@
 .dark .bg-\[\#DC2626\].text-\[\#64748B\] { color: #64748B !important; }
 
 /* ── Light mode: low-contrast text in page content ── */
-html:not(.dark) main[data-admin] [style^="color: rgb(2, 132, 199)"],
-html:not(.dark) main[data-admin] [style*="; color: rgb(2, 132, 199)"],
-html:not(.dark) main[data-admin] [style^="color:#0284C7" i],
-html:not(.dark) main[data-admin] [style*=";color:#0284C7" i] { color: var(--brand-ink) !important; }
-html:not(.dark) main[data-admin] [style^="color: rgb(8, 145, 178)"],
-html:not(.dark) main[data-admin] [style*="; color: rgb(8, 145, 178)"],
-html:not(.dark) main[data-admin] [style^="color:#0891B2" i],
-html:not(.dark) main[data-admin] [style*=";color:#0891B2" i] { color: var(--brand-ink) !important; }
-html:not(.dark) main[data-admin] [style^="color: rgb(12, 163, 12)"],
-html:not(.dark) main[data-admin] [style*="; color: rgb(12, 163, 12)"],
-html:not(.dark) main[data-admin] [style^="color:#0ca30c" i],
-html:not(.dark) main[data-admin] [style*=";color:#0ca30c" i] { color: var(--ok-ink) !important; }
-html:not(.dark) main[data-admin] [style^="color: rgb(13, 148, 136)"],
-html:not(.dark) main[data-admin] [style*="; color: rgb(13, 148, 136)"],
-html:not(.dark) main[data-admin] [style^="color:#0D9488" i],
-html:not(.dark) main[data-admin] [style*=";color:#0D9488" i] { color: var(--ok-ink) !important; }
-html:not(.dark) main[data-admin] [style^="color: rgb(22, 163, 74)"],
-html:not(.dark) main[data-admin] [style*="; color: rgb(22, 163, 74)"],
-html:not(.dark) main[data-admin] [style^="color:#16A34A" i],
-html:not(.dark) main[data-admin] [style*=";color:#16A34A" i] { color: var(--ok-ink) !important; }
-html:not(.dark) main[data-admin] [style^="color: rgb(26, 138, 106)"],
-html:not(.dark) main[data-admin] [style*="; color: rgb(26, 138, 106)"],
-html:not(.dark) main[data-admin] [style^="color:#1a8a6a" i],
-html:not(.dark) main[data-admin] [style*=";color:#1a8a6a" i] { color: var(--ok-ink) !important; }
-html:not(.dark) main[data-admin] [style^="color: rgb(28, 138, 98)"],
-html:not(.dark) main[data-admin] [style*="; color: rgb(28, 138, 98)"],
-html:not(.dark) main[data-admin] [style^="color:#1C8A62" i],
-html:not(.dark) main[data-admin] [style*=";color:#1C8A62" i] { color: var(--ok-ink) !important; }
-html:not(.dark) main[data-admin] [style^="color: rgb(42, 178, 137)"],
-html:not(.dark) main[data-admin] [style*="; color: rgb(42, 178, 137)"],
-html:not(.dark) main[data-admin] [style^="color:#2ab289" i],
-html:not(.dark) main[data-admin] [style*=";color:#2ab289" i] { color: var(--ok-ink) !important; }
-html:not(.dark) main[data-admin] [style^="color: rgb(52, 211, 153)"],
-html:not(.dark) main[data-admin] [style*="; color: rgb(52, 211, 153)"],
-html:not(.dark) main[data-admin] [style^="color:#34D399" i],
-html:not(.dark) main[data-admin] [style*=";color:#34D399" i] { color: var(--ok-ink) !important; }
-html:not(.dark) main[data-admin] [style^="color: rgb(59, 130, 246)"],
-html:not(.dark) main[data-admin] [style*="; color: rgb(59, 130, 246)"],
-html:not(.dark) main[data-admin] [style^="color:#3B82F6" i],
-html:not(.dark) main[data-admin] [style*=";color:#3B82F6" i] { color: var(--brand-ink) !important; }
-html:not(.dark) main[data-admin] [style^="color: rgb(74, 222, 128)"],
-html:not(.dark) main[data-admin] [style*="; color: rgb(74, 222, 128)"],
-html:not(.dark) main[data-admin] [style^="color:#4ADE80" i],
-html:not(.dark) main[data-admin] [style*=";color:#4ADE80" i] { color: var(--ok-ink) !important; }
-html:not(.dark) main[data-admin] [style^="color: rgb(93, 170, 130)"],
-html:not(.dark) main[data-admin] [style*="; color: rgb(93, 170, 130)"],
-html:not(.dark) main[data-admin] [style^="color:#5DAA82" i],
-html:not(.dark) main[data-admin] [style*=";color:#5DAA82" i] { color: var(--ok-ink) !important; }
-html:not(.dark) main[data-admin] [style^="color: rgb(96, 165, 250)"],
-html:not(.dark) main[data-admin] [style*="; color: rgb(96, 165, 250)"],
-html:not(.dark) main[data-admin] [style^="color:#60A5FA" i],
-html:not(.dark) main[data-admin] [style*=";color:#60A5FA" i] { color: var(--brand-ink) !important; }
-html:not(.dark) main[data-admin] [style^="color: rgb(99, 102, 241)"],
-html:not(.dark) main[data-admin] [style*="; color: rgb(99, 102, 241)"],
-html:not(.dark) main[data-admin] [style^="color:#6366f1" i],
-html:not(.dark) main[data-admin] [style*=";color:#6366f1" i] { color: var(--brand-ink) !important; }
-html:not(.dark) main[data-admin] [style^="color: rgb(129, 140, 248)"],
-html:not(.dark) main[data-admin] [style*="; color: rgb(129, 140, 248)"],
-html:not(.dark) main[data-admin] [style^="color:#818cf8" i],
-html:not(.dark) main[data-admin] [style*=";color:#818cf8" i] { color: var(--brand-ink) !important; }
-html:not(.dark) main[data-admin] [style^="color: rgb(136, 136, 136)"],
-html:not(.dark) main[data-admin] [style*="; color: rgb(136, 136, 136)"],
-html:not(.dark) main[data-admin] [style^="color:#888" i],
-html:not(.dark) main[data-admin] [style*=";color:#888" i] { color: var(--ink-muted) !important; }
-html:not(.dark) main[data-admin] [style^="color: rgb(139, 92, 246)"],
-html:not(.dark) main[data-admin] [style*="; color: rgb(139, 92, 246)"],
-html:not(.dark) main[data-admin] [style^="color:#8B5CF6" i],
-html:not(.dark) main[data-admin] [style*=";color:#8B5CF6" i] { color: var(--gold-ink) !important; }
-html:not(.dark) main[data-admin] [style^="color: rgb(140, 126, 110)"],
-html:not(.dark) main[data-admin] [style*="; color: rgb(140, 126, 110)"],
-html:not(.dark) main[data-admin] [style^="color:#8C7E6E" i],
-html:not(.dark) main[data-admin] [style*=";color:#8C7E6E" i] { color: var(--ink-muted) !important; }
-html:not(.dark) main[data-admin] [style^="color: rgb(140, 175, 156)"],
-html:not(.dark) main[data-admin] [style*="; color: rgb(140, 175, 156)"],
-html:not(.dark) main[data-admin] [style^="color:#8CAF9C" i],
-html:not(.dark) main[data-admin] [style*=";color:#8CAF9C" i] { color: var(--ink-muted) !important; }
-html:not(.dark) main[data-admin] [style^="color: rgb(147, 197, 253)"],
-html:not(.dark) main[data-admin] [style*="; color: rgb(147, 197, 253)"],
-html:not(.dark) main[data-admin] [style^="color:#93c5fd" i],
-html:not(.dark) main[data-admin] [style*=";color:#93c5fd" i] { color: var(--brand-ink) !important; }
-html:not(.dark) main[data-admin] [style^="color: rgb(148, 163, 184)"],
-html:not(.dark) main[data-admin] [style*="; color: rgb(148, 163, 184)"],
-html:not(.dark) main[data-admin] [style^="color:#94A3B8" i],
-html:not(.dark) main[data-admin] [style*=";color:#94A3B8" i] { color: var(--ink-muted) !important; }
-html:not(.dark) main[data-admin] [style^="color: rgb(153, 153, 153)"],
-html:not(.dark) main[data-admin] [style*="; color: rgb(153, 153, 153)"],
-html:not(.dark) main[data-admin] [style^="color:#999" i],
-html:not(.dark) main[data-admin] [style*=";color:#999" i] { color: var(--ink-muted) !important; }
-html:not(.dark) main[data-admin] [style^="color: rgb(156, 163, 175)"],
-html:not(.dark) main[data-admin] [style*="; color: rgb(156, 163, 175)"],
-html:not(.dark) main[data-admin] [style^="color:#9CA3AF" i],
-html:not(.dark) main[data-admin] [style*=";color:#9CA3AF" i] { color: var(--ink-muted) !important; }
-html:not(.dark) main[data-admin] [style^="color: rgb(159, 200, 180)"],
-html:not(.dark) main[data-admin] [style*="; color: rgb(159, 200, 180)"],
-html:not(.dark) main[data-admin] [style^="color:#9FC8B4" i],
-html:not(.dark) main[data-admin] [style*=";color:#9FC8B4" i] { color: var(--ink-muted) !important; }
-html:not(.dark) main[data-admin] [style^="color: rgb(160, 146, 130)"],
-html:not(.dark) main[data-admin] [style*="; color: rgb(160, 146, 130)"],
-html:not(.dark) main[data-admin] [style^="color:#A09282" i],
-html:not(.dark) main[data-admin] [style*=";color:#A09282" i] { color: var(--ink-muted) !important; }
-html:not(.dark) main[data-admin] [style^="color: rgb(167, 139, 250)"],
-html:not(.dark) main[data-admin] [style*="; color: rgb(167, 139, 250)"],
-html:not(.dark) main[data-admin] [style^="color:#A78BFA" i],
-html:not(.dark) main[data-admin] [style*=";color:#A78BFA" i] { color: var(--gold-ink) !important; }
-html:not(.dark) main[data-admin] [style^="color: rgb(168, 124, 46)"],
-html:not(.dark) main[data-admin] [style*="; color: rgb(168, 124, 46)"],
-html:not(.dark) main[data-admin] [style^="color:#A87C2E" i],
-html:not(.dark) main[data-admin] [style*=";color:#A87C2E" i] { color: var(--gold-ink) !important; }
-html:not(.dark) main[data-admin] [style^="color: rgb(170, 170, 170)"],
-html:not(.dark) main[data-admin] [style*="; color: rgb(170, 170, 170)"],
-html:not(.dark) main[data-admin] [style^="color:#aaa" i],
-html:not(.dark) main[data-admin] [style*=";color:#aaa" i] { color: var(--ink-muted) !important; }
-html:not(.dark) main[data-admin] [style^="color: rgb(176, 160, 144)"],
-html:not(.dark) main[data-admin] [style*="; color: rgb(176, 160, 144)"],
-html:not(.dark) main[data-admin] [style^="color:#B0A090" i],
-html:not(.dark) main[data-admin] [style*=";color:#B0A090" i] { color: var(--ink-muted) !important; }
-html:not(.dark) main[data-admin] [style^="color: rgb(184, 132, 46)"],
-html:not(.dark) main[data-admin] [style*="; color: rgb(184, 132, 46)"],
-html:not(.dark) main[data-admin] [style^="color:#B8842E" i],
-html:not(.dark) main[data-admin] [style*=";color:#B8842E" i] { color: var(--gold-ink) !important; }
-html:not(.dark) main[data-admin] [style^="color: rgb(187, 187, 187)"],
-html:not(.dark) main[data-admin] [style*="; color: rgb(187, 187, 187)"],
-html:not(.dark) main[data-admin] [style^="color:#bbb" i],
-html:not(.dark) main[data-admin] [style*=";color:#bbb" i] { color: var(--ink-muted) !important; }
-html:not(.dark) main[data-admin] [style^="color: rgb(196, 181, 165)"],
-html:not(.dark) main[data-admin] [style*="; color: rgb(196, 181, 165)"],
-html:not(.dark) main[data-admin] [style^="color:#C4B5A5" i],
-html:not(.dark) main[data-admin] [style*=";color:#C4B5A5" i] { color: var(--ink-muted) !important; }
-html:not(.dark) main[data-admin] [style^="color: rgb(196, 181, 253)"],
-html:not(.dark) main[data-admin] [style*="; color: rgb(196, 181, 253)"],
-html:not(.dark) main[data-admin] [style^="color:#c4b5fd" i],
-html:not(.dark) main[data-admin] [style*=";color:#c4b5fd" i] { color: var(--gold-ink) !important; }
-html:not(.dark) main[data-admin] [style^="color: rgb(200, 120, 10)"],
-html:not(.dark) main[data-admin] [style*="; color: rgb(200, 120, 10)"],
-html:not(.dark) main[data-admin] [style^="color:#C8780A" i],
-html:not(.dark) main[data-admin] [style*=";color:#C8780A" i] { color: var(--gold-ink) !important; }
-html:not(.dark) main[data-admin] [style^="color: rgb(200, 151, 58)"],
-html:not(.dark) main[data-admin] [style*="; color: rgb(200, 151, 58)"],
-html:not(.dark) main[data-admin] [style^="color:#C8973A" i],
-html:not(.dark) main[data-admin] [style*=";color:#C8973A" i] { color: var(--gold-ink) !important; }
-html:not(.dark) main[data-admin] [style^="color: rgb(200, 191, 181)"],
-html:not(.dark) main[data-admin] [style*="; color: rgb(200, 191, 181)"],
-html:not(.dark) main[data-admin] [style^="color:#C8BFB5" i],
-html:not(.dark) main[data-admin] [style*=";color:#C8BFB5" i] { color: var(--ink-muted) !important; }
-html:not(.dark) main[data-admin] [style^="color: rgb(201, 162, 39)"],
-html:not(.dark) main[data-admin] [style*="; color: rgb(201, 162, 39)"],
-html:not(.dark) main[data-admin] [style^="color:#C9A227" i],
-html:not(.dark) main[data-admin] [style*=";color:#C9A227" i] { color: var(--gold-ink) !important; }
-html:not(.dark) main[data-admin] [style^="color: rgb(213, 177, 74)"],
-html:not(.dark) main[data-admin] [style*="; color: rgb(213, 177, 74)"],
-html:not(.dark) main[data-admin] [style^="color:#D5B14A" i],
-html:not(.dark) main[data-admin] [style*=";color:#D5B14A" i] { color: var(--gold-ink) !important; }
-html:not(.dark) main[data-admin] [style^="color: rgb(214, 166, 78)"],
-html:not(.dark) main[data-admin] [style*="; color: rgb(214, 166, 78)"],
-html:not(.dark) main[data-admin] [style^="color:#D6A64E" i],
-html:not(.dark) main[data-admin] [style*=";color:#D6A64E" i] { color: var(--gold-ink) !important; }
-html:not(.dark) main[data-admin] [style^="color: rgb(217, 119, 6)"],
-html:not(.dark) main[data-admin] [style*="; color: rgb(217, 119, 6)"],
-html:not(.dark) main[data-admin] [style^="color:#D97706" i],
-html:not(.dark) main[data-admin] [style*=";color:#D97706" i] { color: var(--gold-ink) !important; }
-html:not(.dark) main[data-admin] [style^="color: rgb(234, 88, 12)"],
-html:not(.dark) main[data-admin] [style*="; color: rgb(234, 88, 12)"],
-html:not(.dark) main[data-admin] [style^="color:#EA580C" i],
-html:not(.dark) main[data-admin] [style*=";color:#EA580C" i] { color: var(--warn-ink) !important; }
-html:not(.dark) main[data-admin] [style^="color: rgb(236, 72, 153)"],
-html:not(.dark) main[data-admin] [style*="; color: rgb(236, 72, 153)"],
-html:not(.dark) main[data-admin] [style^="color:#ec4899" i],
-html:not(.dark) main[data-admin] [style*=";color:#ec4899" i] { color: var(--bad-ink) !important; }
-html:not(.dark) main[data-admin] [style^="color: rgb(239, 68, 68)"],
-html:not(.dark) main[data-admin] [style*="; color: rgb(239, 68, 68)"],
-html:not(.dark) main[data-admin] [style^="color:#EF4444" i],
-html:not(.dark) main[data-admin] [style*=";color:#EF4444" i] { color: var(--bad-ink) !important; }
-html:not(.dark) main[data-admin] [style^="color: rgb(240, 171, 252)"],
-html:not(.dark) main[data-admin] [style*="; color: rgb(240, 171, 252)"],
-html:not(.dark) main[data-admin] [style^="color:#f0abfc" i],
-html:not(.dark) main[data-admin] [style*=";color:#f0abfc" i] { color: var(--gold-ink) !important; }
-html:not(.dark) main[data-admin] [style^="color: rgb(245, 158, 11)"],
-html:not(.dark) main[data-admin] [style*="; color: rgb(245, 158, 11)"],
-html:not(.dark) main[data-admin] [style^="color:#F59E0B" i],
-html:not(.dark) main[data-admin] [style*=";color:#F59E0B" i] { color: var(--gold-ink) !important; }
-html:not(.dark) main[data-admin] [style^="color: rgb(248, 113, 113)"],
-html:not(.dark) main[data-admin] [style*="; color: rgb(248, 113, 113)"],
-html:not(.dark) main[data-admin] [style^="color:#F87171" i],
-html:not(.dark) main[data-admin] [style*=";color:#F87171" i] { color: var(--bad-ink) !important; }
-html:not(.dark) main[data-admin] [style^="color: rgb(249, 168, 212)"],
-html:not(.dark) main[data-admin] [style*="; color: rgb(249, 168, 212)"],
-html:not(.dark) main[data-admin] [style^="color:#f9a8d4" i],
-html:not(.dark) main[data-admin] [style*=";color:#f9a8d4" i] { color: var(--gold-ink) !important; }
-html:not(.dark) main[data-admin] [style^="color: rgb(250, 178, 25)"],
-html:not(.dark) main[data-admin] [style*="; color: rgb(250, 178, 25)"],
-html:not(.dark) main[data-admin] [style^="color:#fab219" i],
-html:not(.dark) main[data-admin] [style*=";color:#fab219" i] { color: var(--gold-ink) !important; }
-html:not(.dark) main[data-admin] [style^="color: rgb(251, 191, 36)"],
-html:not(.dark) main[data-admin] [style*="; color: rgb(251, 191, 36)"],
-html:not(.dark) main[data-admin] [style^="color:#fbbf24" i],
-html:not(.dark) main[data-admin] [style*=";color:#fbbf24" i] { color: var(--gold-ink) !important; }
-html:not(.dark) main[data-admin] [style^="color: rgb(252, 165, 165)"],
-html:not(.dark) main[data-admin] [style*="; color: rgb(252, 165, 165)"],
-html:not(.dark) main[data-admin] [style^="color:#FCA5A5" i],
-html:not(.dark) main[data-admin] [style*=";color:#FCA5A5" i] { color: var(--bad-ink) !important; }
-html:not(.dark) main[data-admin] [style^="color: rgb(255, 144, 144)"],
-html:not(.dark) main[data-admin] [style*="; color: rgb(255, 144, 144)"],
-html:not(.dark) main[data-admin] [style^="color:#FF9090" i],
-html:not(.dark) main[data-admin] [style*=";color:#FF9090" i] { color: var(--bad-ink) !important; }
-html:not(.dark) main[data-admin] .text-\[\#2ab289\] { color: var(--ok-ink) !important; }
-html:not(.dark) main[data-admin] .text-\[\#3B82F6\] { color: var(--brand-ink) !important; }
-html:not(.dark) main[data-admin] .text-\[\#5DAA82\] { color: var(--ok-ink) !important; }
-html:not(.dark) main[data-admin] .text-\[\#8C7E6E\] { color: var(--ink-muted) !important; }
-html:not(.dark) main[data-admin] .text-\[\#94A3B8\] { color: var(--ink-muted) !important; }
-html:not(.dark) main[data-admin] .text-\[\#C0B5A5\] { color: var(--ink-muted) !important; }
-html:not(.dark) main[data-admin] .text-\[\#C8780A\] { color: var(--gold-ink) !important; }
-html:not(.dark) main[data-admin] .text-\[\#C8973A\] { color: var(--gold-ink) !important; }
-html:not(.dark) main[data-admin] .hover\:text-\[\#C8973A\]:hover { color: var(--gold-ink) !important; }
-html:not(.dark) main[data-admin] .text-\[\#C8BFB5\] { color: var(--ink-muted) !important; }
-html:not(.dark) main[data-admin] .text-\[\#D6A64E\] { color: var(--gold-ink) !important; }
-html:not(.dark) main[data-admin] .text-\[\#FF9090\] { color: var(--bad-ink) !important; }
-html:not(.dark) main[data-admin] [style*="background: rgb(11, 61, 46)"][style^="color: rgb(200, 151, 58)"],
-html:not(.dark) main[data-admin] [style*="background: rgb(11, 61, 46)"][style*="; color: rgb(200, 151, 58)"],
-html:not(.dark) main[data-admin] [style*="background: rgb(11, 61, 46)"][style^="color:#C8973A" i],
-html:not(.dark) main[data-admin] [style*="background: rgb(11, 61, 46)"][style*=";color:#C8973A" i],
-html:not(.dark) main[data-admin] [style*="background-color: rgb(11, 61, 46)"][style^="color: rgb(200, 151, 58)"],
-html:not(.dark) main[data-admin] [style*="background-color: rgb(11, 61, 46)"][style*="; color: rgb(200, 151, 58)"],
-html:not(.dark) main[data-admin] [style*="background-color: rgb(11, 61, 46)"][style^="color:#C8973A" i],
-html:not(.dark) main[data-admin] [style*="background-color: rgb(11, 61, 46)"][style*=";color:#C8973A" i],
-html:not(.dark) main[data-admin] .bg-\[\#0B3D2E\].text-\[\#C8973A\] { color: #C8973A !important; }
-html:not(.dark) main[data-admin] [style*="background: rgb(20, 83, 45)"][style^="color: rgb(252, 165, 165)"],
-html:not(.dark) main[data-admin] [style*="background: rgb(20, 83, 45)"][style*="; color: rgb(252, 165, 165)"],
-html:not(.dark) main[data-admin] [style*="background: rgb(20, 83, 45)"][style^="color:#FCA5A5" i],
-html:not(.dark) main[data-admin] [style*="background: rgb(20, 83, 45)"][style*=";color:#FCA5A5" i],
-html:not(.dark) main[data-admin] [style*="background-color: rgb(20, 83, 45)"][style^="color: rgb(252, 165, 165)"],
-html:not(.dark) main[data-admin] [style*="background-color: rgb(20, 83, 45)"][style*="; color: rgb(252, 165, 165)"],
-html:not(.dark) main[data-admin] [style*="background-color: rgb(20, 83, 45)"][style^="color:#FCA5A5" i],
-html:not(.dark) main[data-admin] [style*="background-color: rgb(20, 83, 45)"][style*=";color:#FCA5A5" i],
-html:not(.dark) main[data-admin] .bg-\[\#14532D\].text-\[\#FCA5A5\] { color: #FCA5A5 !important; }
-html:not(.dark) main[data-admin] [style*="background: rgb(20, 92, 68)"][style^="color: rgb(148, 163, 184)"],
-html:not(.dark) main[data-admin] [style*="background: rgb(20, 92, 68)"][style*="; color: rgb(148, 163, 184)"],
-html:not(.dark) main[data-admin] [style*="background: rgb(20, 92, 68)"][style^="color:#94A3B8" i],
-html:not(.dark) main[data-admin] [style*="background: rgb(20, 92, 68)"][style*=";color:#94A3B8" i],
-html:not(.dark) main[data-admin] [style*="background-color: rgb(20, 92, 68)"][style^="color: rgb(148, 163, 184)"],
-html:not(.dark) main[data-admin] [style*="background-color: rgb(20, 92, 68)"][style*="; color: rgb(148, 163, 184)"],
-html:not(.dark) main[data-admin] [style*="background-color: rgb(20, 92, 68)"][style^="color:#94A3B8" i],
-html:not(.dark) main[data-admin] [style*="background-color: rgb(20, 92, 68)"][style*=";color:#94A3B8" i],
-html:not(.dark) main[data-admin] .bg-\[\#145C44\].text-\[\#94A3B8\] { color: #94A3B8 !important; }
-html:not(.dark) main[data-admin] [style*="background: rgb(127, 29, 29)"][style^="color: rgb(252, 165, 165)"],
-html:not(.dark) main[data-admin] [style*="background: rgb(127, 29, 29)"][style*="; color: rgb(252, 165, 165)"],
-html:not(.dark) main[data-admin] [style*="background: rgb(127, 29, 29)"][style^="color:#FCA5A5" i],
-html:not(.dark) main[data-admin] [style*="background: rgb(127, 29, 29)"][style*=";color:#FCA5A5" i],
-html:not(.dark) main[data-admin] [style*="background-color: rgb(127, 29, 29)"][style^="color: rgb(252, 165, 165)"],
-html:not(.dark) main[data-admin] [style*="background-color: rgb(127, 29, 29)"][style*="; color: rgb(252, 165, 165)"],
-html:not(.dark) main[data-admin] [style*="background-color: rgb(127, 29, 29)"][style^="color:#FCA5A5" i],
-html:not(.dark) main[data-admin] [style*="background-color: rgb(127, 29, 29)"][style*=";color:#FCA5A5" i],
-html:not(.dark) main[data-admin] .bg-\[\#7F1D1D\].text-\[\#FCA5A5\] { color: #FCA5A5 !important; }
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color: rgb(2, 132, 199)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="; color: rgb(2, 132, 199)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color:#0284C7" i],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*=";color:#0284C7" i] { color: var(--brand-ink) !important; }
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color: rgb(8, 145, 178)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="; color: rgb(8, 145, 178)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color:#0891B2" i],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*=";color:#0891B2" i] { color: var(--brand-ink) !important; }
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color: rgb(12, 163, 12)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="; color: rgb(12, 163, 12)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color:#0ca30c" i],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*=";color:#0ca30c" i] { color: var(--ok-ink) !important; }
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color: rgb(13, 148, 136)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="; color: rgb(13, 148, 136)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color:#0D9488" i],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*=";color:#0D9488" i] { color: var(--ok-ink) !important; }
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color: rgb(22, 163, 74)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="; color: rgb(22, 163, 74)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color:#16A34A" i],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*=";color:#16A34A" i] { color: var(--ok-ink) !important; }
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color: rgb(26, 138, 106)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="; color: rgb(26, 138, 106)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color:#1a8a6a" i],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*=";color:#1a8a6a" i] { color: var(--ok-ink) !important; }
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color: rgb(28, 138, 98)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="; color: rgb(28, 138, 98)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color:#1C8A62" i],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*=";color:#1C8A62" i] { color: var(--ok-ink) !important; }
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color: rgb(42, 178, 137)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="; color: rgb(42, 178, 137)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color:#2ab289" i],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*=";color:#2ab289" i] { color: var(--ok-ink) !important; }
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color: rgb(52, 211, 153)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="; color: rgb(52, 211, 153)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color:#34D399" i],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*=";color:#34D399" i] { color: var(--ok-ink) !important; }
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color: rgb(59, 130, 246)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="; color: rgb(59, 130, 246)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color:#3B82F6" i],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*=";color:#3B82F6" i] { color: var(--brand-ink) !important; }
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color: rgb(74, 222, 128)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="; color: rgb(74, 222, 128)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color:#4ADE80" i],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*=";color:#4ADE80" i] { color: var(--ok-ink) !important; }
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color: rgb(93, 170, 130)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="; color: rgb(93, 170, 130)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color:#5DAA82" i],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*=";color:#5DAA82" i] { color: var(--ok-ink) !important; }
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color: rgb(96, 165, 250)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="; color: rgb(96, 165, 250)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color:#60A5FA" i],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*=";color:#60A5FA" i] { color: var(--brand-ink) !important; }
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color: rgb(99, 102, 241)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="; color: rgb(99, 102, 241)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color:#6366f1" i],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*=";color:#6366f1" i] { color: var(--brand-ink) !important; }
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color: rgb(129, 140, 248)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="; color: rgb(129, 140, 248)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color:#818cf8" i],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*=";color:#818cf8" i] { color: var(--brand-ink) !important; }
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color: rgb(136, 136, 136)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="; color: rgb(136, 136, 136)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color:#888" i],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*=";color:#888" i] { color: var(--ink-muted) !important; }
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color: rgb(139, 92, 246)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="; color: rgb(139, 92, 246)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color:#8B5CF6" i],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*=";color:#8B5CF6" i] { color: var(--gold-ink) !important; }
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color: rgb(140, 126, 110)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="; color: rgb(140, 126, 110)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color:#8C7E6E" i],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*=";color:#8C7E6E" i] { color: var(--ink-muted) !important; }
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color: rgb(140, 175, 156)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="; color: rgb(140, 175, 156)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color:#8CAF9C" i],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*=";color:#8CAF9C" i] { color: var(--ink-muted) !important; }
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color: rgb(147, 197, 253)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="; color: rgb(147, 197, 253)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color:#93c5fd" i],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*=";color:#93c5fd" i] { color: var(--brand-ink) !important; }
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color: rgb(148, 163, 184)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="; color: rgb(148, 163, 184)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color:#94A3B8" i],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*=";color:#94A3B8" i] { color: var(--ink-muted) !important; }
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color: rgb(153, 153, 153)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="; color: rgb(153, 153, 153)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color:#999" i],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*=";color:#999" i] { color: var(--ink-muted) !important; }
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color: rgb(156, 163, 175)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="; color: rgb(156, 163, 175)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color:#9CA3AF" i],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*=";color:#9CA3AF" i] { color: var(--ink-muted) !important; }
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color: rgb(159, 200, 180)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="; color: rgb(159, 200, 180)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color:#9FC8B4" i],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*=";color:#9FC8B4" i] { color: var(--ink-muted) !important; }
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color: rgb(160, 146, 130)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="; color: rgb(160, 146, 130)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color:#A09282" i],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*=";color:#A09282" i] { color: var(--ink-muted) !important; }
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color: rgb(167, 139, 250)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="; color: rgb(167, 139, 250)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color:#A78BFA" i],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*=";color:#A78BFA" i] { color: var(--gold-ink) !important; }
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color: rgb(168, 124, 46)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="; color: rgb(168, 124, 46)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color:#A87C2E" i],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*=";color:#A87C2E" i] { color: var(--gold-ink) !important; }
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color: rgb(170, 170, 170)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="; color: rgb(170, 170, 170)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color:#aaa" i],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*=";color:#aaa" i] { color: var(--ink-muted) !important; }
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color: rgb(176, 160, 144)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="; color: rgb(176, 160, 144)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color:#B0A090" i],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*=";color:#B0A090" i] { color: var(--ink-muted) !important; }
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color: rgb(184, 132, 46)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="; color: rgb(184, 132, 46)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color:#B8842E" i],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*=";color:#B8842E" i] { color: var(--gold-ink) !important; }
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color: rgb(187, 187, 187)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="; color: rgb(187, 187, 187)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color:#bbb" i],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*=";color:#bbb" i] { color: var(--ink-muted) !important; }
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color: rgb(196, 181, 165)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="; color: rgb(196, 181, 165)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color:#C4B5A5" i],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*=";color:#C4B5A5" i] { color: var(--ink-muted) !important; }
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color: rgb(196, 181, 253)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="; color: rgb(196, 181, 253)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color:#c4b5fd" i],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*=";color:#c4b5fd" i] { color: var(--gold-ink) !important; }
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color: rgb(200, 120, 10)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="; color: rgb(200, 120, 10)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color:#C8780A" i],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*=";color:#C8780A" i] { color: var(--gold-ink) !important; }
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color: rgb(200, 151, 58)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="; color: rgb(200, 151, 58)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color:#C8973A" i],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*=";color:#C8973A" i] { color: var(--gold-ink) !important; }
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color: rgb(200, 191, 181)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="; color: rgb(200, 191, 181)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color:#C8BFB5" i],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*=";color:#C8BFB5" i] { color: var(--ink-muted) !important; }
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color: rgb(201, 162, 39)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="; color: rgb(201, 162, 39)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color:#C9A227" i],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*=";color:#C9A227" i] { color: var(--gold-ink) !important; }
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color: rgb(213, 177, 74)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="; color: rgb(213, 177, 74)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color:#D5B14A" i],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*=";color:#D5B14A" i] { color: var(--gold-ink) !important; }
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color: rgb(214, 166, 78)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="; color: rgb(214, 166, 78)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color:#D6A64E" i],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*=";color:#D6A64E" i] { color: var(--gold-ink) !important; }
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color: rgb(217, 119, 6)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="; color: rgb(217, 119, 6)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color:#D97706" i],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*=";color:#D97706" i] { color: var(--gold-ink) !important; }
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color: rgb(234, 88, 12)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="; color: rgb(234, 88, 12)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color:#EA580C" i],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*=";color:#EA580C" i] { color: var(--warn-ink) !important; }
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color: rgb(236, 72, 153)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="; color: rgb(236, 72, 153)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color:#ec4899" i],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*=";color:#ec4899" i] { color: var(--bad-ink) !important; }
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color: rgb(239, 68, 68)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="; color: rgb(239, 68, 68)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color:#EF4444" i],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*=";color:#EF4444" i] { color: var(--bad-ink) !important; }
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color: rgb(240, 171, 252)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="; color: rgb(240, 171, 252)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color:#f0abfc" i],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*=";color:#f0abfc" i] { color: var(--gold-ink) !important; }
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color: rgb(245, 158, 11)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="; color: rgb(245, 158, 11)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color:#F59E0B" i],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*=";color:#F59E0B" i] { color: var(--gold-ink) !important; }
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color: rgb(248, 113, 113)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="; color: rgb(248, 113, 113)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color:#F87171" i],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*=";color:#F87171" i] { color: var(--bad-ink) !important; }
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color: rgb(249, 168, 212)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="; color: rgb(249, 168, 212)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color:#f9a8d4" i],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*=";color:#f9a8d4" i] { color: var(--gold-ink) !important; }
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color: rgb(250, 178, 25)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="; color: rgb(250, 178, 25)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color:#fab219" i],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*=";color:#fab219" i] { color: var(--gold-ink) !important; }
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color: rgb(251, 191, 36)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="; color: rgb(251, 191, 36)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color:#fbbf24" i],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*=";color:#fbbf24" i] { color: var(--gold-ink) !important; }
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color: rgb(252, 165, 165)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="; color: rgb(252, 165, 165)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color:#FCA5A5" i],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*=";color:#FCA5A5" i] { color: var(--bad-ink) !important; }
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color: rgb(255, 144, 144)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="; color: rgb(255, 144, 144)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style^="color:#FF9090" i],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*=";color:#FF9090" i] { color: var(--bad-ink) !important; }
+html:not(.dark) main:is([data-admin], [data-staff]) .text-\[\#2ab289\] { color: var(--ok-ink) !important; }
+html:not(.dark) main:is([data-admin], [data-staff]) .text-\[\#3B82F6\] { color: var(--brand-ink) !important; }
+html:not(.dark) main:is([data-admin], [data-staff]) .text-\[\#5DAA82\] { color: var(--ok-ink) !important; }
+html:not(.dark) main:is([data-admin], [data-staff]) .text-\[\#8C7E6E\] { color: var(--ink-muted) !important; }
+html:not(.dark) main:is([data-admin], [data-staff]) .text-\[\#94A3B8\] { color: var(--ink-muted) !important; }
+html:not(.dark) main:is([data-admin], [data-staff]) .text-\[\#C0B5A5\] { color: var(--ink-muted) !important; }
+html:not(.dark) main:is([data-admin], [data-staff]) .text-\[\#C8780A\] { color: var(--gold-ink) !important; }
+html:not(.dark) main:is([data-admin], [data-staff]) .text-\[\#C8973A\] { color: var(--gold-ink) !important; }
+html:not(.dark) main:is([data-admin], [data-staff]) .hover\:text-\[\#C8973A\]:hover { color: var(--gold-ink) !important; }
+html:not(.dark) main:is([data-admin], [data-staff]) .text-\[\#C8BFB5\] { color: var(--ink-muted) !important; }
+html:not(.dark) main:is([data-admin], [data-staff]) .text-\[\#D6A64E\] { color: var(--gold-ink) !important; }
+html:not(.dark) main:is([data-admin], [data-staff]) .text-\[\#FF9090\] { color: var(--bad-ink) !important; }
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="background: rgb(11, 61, 46)"][style^="color: rgb(200, 151, 58)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="background: rgb(11, 61, 46)"][style*="; color: rgb(200, 151, 58)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="background: rgb(11, 61, 46)"][style^="color:#C8973A" i],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="background: rgb(11, 61, 46)"][style*=";color:#C8973A" i],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="background-color: rgb(11, 61, 46)"][style^="color: rgb(200, 151, 58)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="background-color: rgb(11, 61, 46)"][style*="; color: rgb(200, 151, 58)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="background-color: rgb(11, 61, 46)"][style^="color:#C8973A" i],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="background-color: rgb(11, 61, 46)"][style*=";color:#C8973A" i],
+html:not(.dark) main:is([data-admin], [data-staff]) .bg-\[\#0B3D2E\].text-\[\#C8973A\] { color: #C8973A !important; }
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="background: rgb(20, 83, 45)"][style^="color: rgb(252, 165, 165)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="background: rgb(20, 83, 45)"][style*="; color: rgb(252, 165, 165)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="background: rgb(20, 83, 45)"][style^="color:#FCA5A5" i],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="background: rgb(20, 83, 45)"][style*=";color:#FCA5A5" i],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="background-color: rgb(20, 83, 45)"][style^="color: rgb(252, 165, 165)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="background-color: rgb(20, 83, 45)"][style*="; color: rgb(252, 165, 165)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="background-color: rgb(20, 83, 45)"][style^="color:#FCA5A5" i],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="background-color: rgb(20, 83, 45)"][style*=";color:#FCA5A5" i],
+html:not(.dark) main:is([data-admin], [data-staff]) .bg-\[\#14532D\].text-\[\#FCA5A5\] { color: #FCA5A5 !important; }
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="background: rgb(20, 92, 68)"][style^="color: rgb(148, 163, 184)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="background: rgb(20, 92, 68)"][style*="; color: rgb(148, 163, 184)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="background: rgb(20, 92, 68)"][style^="color:#94A3B8" i],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="background: rgb(20, 92, 68)"][style*=";color:#94A3B8" i],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="background-color: rgb(20, 92, 68)"][style^="color: rgb(148, 163, 184)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="background-color: rgb(20, 92, 68)"][style*="; color: rgb(148, 163, 184)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="background-color: rgb(20, 92, 68)"][style^="color:#94A3B8" i],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="background-color: rgb(20, 92, 68)"][style*=";color:#94A3B8" i],
+html:not(.dark) main:is([data-admin], [data-staff]) .bg-\[\#145C44\].text-\[\#94A3B8\] { color: #94A3B8 !important; }
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="background: rgb(127, 29, 29)"][style^="color: rgb(252, 165, 165)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="background: rgb(127, 29, 29)"][style*="; color: rgb(252, 165, 165)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="background: rgb(127, 29, 29)"][style^="color:#FCA5A5" i],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="background: rgb(127, 29, 29)"][style*=";color:#FCA5A5" i],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="background-color: rgb(127, 29, 29)"][style^="color: rgb(252, 165, 165)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="background-color: rgb(127, 29, 29)"][style*="; color: rgb(252, 165, 165)"],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="background-color: rgb(127, 29, 29)"][style^="color:#FCA5A5" i],
+html:not(.dark) main:is([data-admin], [data-staff]) [style*="background-color: rgb(127, 29, 29)"][style*=";color:#FCA5A5" i],
+html:not(.dark) main:is([data-admin], [data-staff]) .bg-\[\#7F1D1D\].text-\[\#FCA5A5\] { color: #FCA5A5 !important; }
