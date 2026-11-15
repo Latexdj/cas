@@ -18,7 +18,7 @@ interface Teacher {
 }
 
 export default function PersonnelPage() {
-  const { theme }               = useTheme();
+  const { resolvedTheme: theme }               = useTheme();
   const [exportErr, setExportErr] = useState('');
   const [mounted, setMounted]   = useState(false);
   const [scope,   setScope]     = useState<Scope>('students');

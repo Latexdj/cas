@@ -37,7 +37,7 @@ export default function StudentSetupPage() {
     <div className="min-h-screen flex items-center justify-center px-4 py-10 bg-[#F5F0E8]">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <div className="w-16 h-16 rounded-xl bg-blue-600 flex items-center justify-center mx-auto mb-4">
+          <div className="w-16 h-16 rounded-xl bg-[#145C44] flex items-center justify-center mx-auto mb-4">
             <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-8 h-8">
               <path d="M22 10v6M2 10l10-5 10 5-10 5z" />
               <path d="M6 12v5c3 3 9 3 12 0v-5" />
@@ -60,7 +60,7 @@ export default function StudentSetupPage() {
             </div>
             {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
             <button type="submit" disabled={loading || !code.trim()}
-              className="w-full py-3 rounded-xl text-white font-semibold text-sm bg-blue-600 hover:bg-blue-700 disabled:opacity-40 transition-colors">
+              className="w-full py-3 rounded-xl text-white font-semibold text-sm bg-[#145C44] hover:bg-[#0B3D2E] disabled:opacity-40 transition-colors">
               {loading ? (
                 <span className="flex items-center justify-center gap-2">
                   <span className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
@@ -78,7 +78,7 @@ export default function StudentSetupPage() {
                 <p className="text-sm text-slate-500 font-mono">{school.code}</p>
               </div>
               <button onClick={handleConfirm}
-                className="w-full py-3 rounded-xl text-white font-semibold text-sm bg-blue-600 hover:bg-blue-700 transition-colors">
+                className="w-full py-3 rounded-xl text-white font-semibold text-sm bg-[#145C44] hover:bg-[#0B3D2E] transition-colors">
                 Confirm &amp; Continue
               </button>
             </div>

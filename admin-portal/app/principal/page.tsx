@@ -50,7 +50,7 @@ function StatCard({ label, value, sub, color, href, dark }: StatCardProps) {
 }
 
 export default function PrincipalDashboard() {
-  const { theme }        = useTheme();
+  const { resolvedTheme: theme }        = useTheme();
   const [mounted, setMounted] = useState(false);
   const [snap, setSnap]       = useState<Snapshot | null>(null);
   const [finance, setFinance] = useState<FinanceSummary | null>(null);

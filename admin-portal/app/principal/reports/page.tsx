@@ -33,7 +33,7 @@ interface ReportData {
 }
 
 export default function ReportsPage() {
-  const { theme }             = useTheme();
+  const { resolvedTheme: theme }             = useTheme();
   const [mounted, setMounted] = useState(false);
   const [scope,   setScope]   = useState<Scope>('students');
   const [type,    setType]    = useState('program_distribution');

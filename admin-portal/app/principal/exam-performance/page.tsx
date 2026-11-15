@@ -33,7 +33,7 @@ type EnrollmentStatus = 'Active' | 'Graduated' | 'all';
 const fmtPct = (n: number | null) => (n === null || n === undefined ? '—' : `${n}%`);
 
 export default function PrincipalExamPerformancePage() {
-  const { theme }               = useTheme();
+  const { resolvedTheme: theme }               = useTheme();
   const [mounted, setMounted]   = useState(false);
   const [years, setYears]       = useState<AcademicYear[]>([]);
   const [yearId, setYearId]     = useState('');

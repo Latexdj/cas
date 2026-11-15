@@ -1711,7 +1711,7 @@ export default function FeesPage() {
               color: stats.net_position >= 0 ? '#145C44' : '#dc2626',
               bg: stats.net_position >= 0 ? '#f0fdf4' : '#fef2f2' },
             { label: 'Fees Outstanding', value: fmt(stats.outstanding), color: stats.outstanding > 0 ? '#f59e0b' : '#145C44', bg: stats.outstanding > 0 ? '#fffbeb' : '#f0fdf4' },
-            { label: 'Students Billed', value: stats.students_with_bills.toLocaleString(), color: '#7c3aed', bg: '#f5f3ff' },
+            { label: 'Students Billed', value: stats.students_with_bills.toLocaleString(), color: '#4A3F32', bg: '#F5F0E8' },
           ].map(c => (
             <div key={c.label} style={{ background: c.bg, borderRadius: 12, padding: '14px 18px', border: `1px solid ${c.color}22` }}>
               <p style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 4 }}>{c.label}</p>

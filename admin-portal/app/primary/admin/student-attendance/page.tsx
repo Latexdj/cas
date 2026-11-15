@@ -24,7 +24,7 @@ const STATUS_STYLE: Record<Status, string> = {
   present: 'bg-[#145C44] text-white border-transparent',
   absent:  'bg-red-600 text-white border-transparent',
   late:    'bg-amber-500 text-white border-transparent',
-  excused: 'bg-blue-600 text-white border-transparent',
+  excused: 'bg-[#145C44] text-white border-transparent',
 };
 
 function today() { return new Date().toISOString().slice(0, 10); }

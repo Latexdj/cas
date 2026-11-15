@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./dark-theme.css";
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
@@ -12,35 +13,116 @@
   --cas-border:      #E2D9CC;
   --cas-muted:       #8C7E6E;
 
+  /* Semantic colour tokens, named by job. Light values here, dark values in
+     .dark below. Use these (bg-canvas, bg-surface, text-ink, text-brand-ink
+     ...) in new code instead of literal hex values. */
+  --canvas:      #F5F0E8;   /* page background */
+  --sunken:      #F4EFE6;   /* wells, table heads, tracks */
+  --surface:     #FFFFFF;   /* cards, tables */
+  --elevated:    #FFFFFF;   /* modals, menus, headers: things that float */
+  --ink:         #1C1208;   /* primary text */
+  --ink-2:       #4A3F32;   /* secondary text */
+  --ink-muted:   #8C7E6E;   /* labels, hints */
+  --placeholder: #B5A898;
+  --line:        #E2D9CC;
+  --line-strong: #C8BAA8;
+  --brand-ink:   #145C44;   /* green text: links, counts */
+  --gold-ink:    #8A6420;
+  --ok-ink:      #2D7A4F;
+  --bad-ink:     #B83232;
+  --warn-ink:    #A15F06;
+
   /* Chart series colors — validated for CVD-safety and contrast via the
-     dataviz skill's validate_palette.js against both the warm light surface
-     and the (dashboard) section's slate dark-mode surface (#1E293B). Kept
-     separate from --cas-primary/--cas-accent since those are unused
-     elsewhere and chart marks need their own lightness/chroma tuning to
-     actually pass the categorical checks (the raw brand hexes don't). */
+     dataviz skill's validate_palette.js. Kept separate from the brand
+     colours because chart marks need their own lightness and chroma. */
   --chart-green: #1C8A62;
   --chart-gold:  #C8973A;
   --chart-grid:  #E2D9CC;
 }
 
+/* ── CAS dark palette ────────────────────────────────────────────────────────
+   Warm green-black, not cold slate. Three background levels so things that
+   float (modals, menus, the header) sit visibly above cards, and cards above
+   the page. Every text token is at least 4.5:1 on all three levels. */
 .dark {
   --background: #0E1A0C;
   --foreground: #EEE8DF;
 
-  --cas-surface:  #152210;
-  --cas-border:   #2A3D28;
-  --cas-muted:    #7A8F76;
+  --cas-surface:  #16241A;
+  --cas-border:   #2E4230;
+  --cas-muted:    #A8A091;
 
-  --chart-green: #1C8A62;
-  --chart-gold:  #B8842E;
-  --chart-grid:  #334155;
+  --canvas:      #0E1A0C;
+  --sunken:      #122013;
+  --surface:     #16241A;
+  --elevated:    #1F3024;
+  --ink:         #EEE8DF;   /* 13.3:1 on surface */
+  --ink-2:       #B8B0A2;   /*  7.5:1 */
+  --ink-muted:   #A8A091;   /*  6.2:1 */
+  --placeholder: #9C9385;   /*  4.6:1 on elevated inputs */
+  --line:        #2E4230;
+  --line-strong: #3E5440;
+  --brand-ink:   #4FBF8F;   /*  7.1:1 */
+  --gold-ink:    #D6A64E;   /*  7.2:1 */
+  --ok-ink:      #6CC48F;   /*  7.6:1 */
+  --bad-ink:     #F08B7E;   /*  6.7:1 */
+  --warn-ink:    #E8A63C;   /*  7.6:1 */
+
+  --chart-green: #4FBF8F;
+  --chart-gold:  #D6A64E;
+  --chart-grid:  #2E4230;
+
+  /* Tailwind 4 reads its palette from these variables, so remapping them
+     here moves every dark:bg-slate-800, dark:text-slate-400 ... onto the
+     warm palette without touching the 3,000 classes that use them. */
+  --color-slate-50:  #F5F0E8;  --color-gray-50:  #F5F0E8;
+  --color-slate-100: #EEE8DF;  --color-gray-100: #EEE8DF;
+  --color-slate-200: #DDD6CA;  --color-gray-200: #DDD6CA;
+  --color-slate-300: #B8B0A2;  --color-gray-300: #B8B0A2;
+  --color-slate-400: #A8A091;  --color-gray-400: #A8A091;
+  --color-slate-500: #9C9385;  --color-gray-500: #9C9385;
+  --color-slate-600: #3E5440;  --color-gray-600: #3E5440;
+  --color-slate-700: #26392A;  --color-gray-700: #26392A;
+  --color-slate-800: #16241A;  --color-gray-800: #16241A;
+  --color-slate-900: #0E1A0C;  --color-gray-900: #0E1A0C;
+  --color-slate-950: #0A1308;  --color-gray-950: #0A1308;
+  --color-white:     #F5F0E8;
+
+  color-scheme: dark;
+}
+
+/* Increase Contrast: lift secondary text and lines a step. */
+@media (prefers-contrast: more) {
+  :root { --ink-2: #2C2218; --ink-muted: #5C4F42; --line: #B5A898; --line-strong: #8C7E6E; }
+  .dark { --ink-2: #DDD6CA; --ink-muted: #C9C1B4; --placeholder: #B8B0A2; --line: #4A6048; --line-strong: #5E765C; }
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-canvas: var(--canvas);
+  --color-sunken: var(--sunken);
+  --color-surface: var(--surface);
+  --color-elevated: var(--elevated);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-muted: var(--ink-muted);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-brand-ink: var(--brand-ink);
+  --color-gold-ink: var(--gold-ink);
+  --color-ok-ink: var(--ok-ink);
+  --color-bad-ink: var(--bad-ink);
+  --color-warn-ink: var(--warn-ink);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+}
+
+/* Tailwind 4 colours un-coloured borders (border-b, divide-y ...) with the
+   text colour, which turns them into bright lines in dark mode. Give them
+   the line token instead, as Tailwind's upgrade guide recommends. */
+@layer base {
+  *, ::after, ::before, ::backdrop, ::file-selector-button { border-color: var(--line); }
 }
 
 body {
@@ -52,29 +134,29 @@ body {
 /* Form controls: light */
 select,
 textarea {
-  color: #0F172A;
-  background-color: #ffffff;
+  color: #1C1208;
+  background-color: #FFFFFF;
   font-size: 0.875rem;
   color-scheme: light;
 }
 
 select option {
-  color: #0F172A;
-  background-color: #ffffff;
+  color: #1C1208;
+  background-color: #FFFFFF;
 }
 
 /* Form controls: dark */
 .dark select,
 .dark textarea {
-  color: #F1F5F9;
-  background-color: #1E293B;
-  border-color: #475569;
+  color: var(--ink);
+  background-color: var(--elevated);
+  border-color: var(--line-strong);
   color-scheme: dark;
 }
 
 .dark select option {
-  color: #F1F5F9;
-  background-color: #1E293B;
+  color: var(--ink);
+  background-color: var(--elevated);
 }
 
 /* Hide scrollbar while keeping scroll functionality */
@@ -83,178 +165,109 @@ select option {
 
 
 /* ═══════════════════════════════════════════════════════════════
-   DARK MODE — COMPREHENSIVE PAGE THEMING
-   Matches the super-admin portal design language:
-   slate-900 page background · slate-800 cards · white text
-   CSS !important beats React inline styles (which don't use it)
+   DARK MODE — LIGHT-ONLY TAILWIND CLASSES
+   Classes written for light mode without a dark: partner, mapped onto the
+   warm dark tokens. Literal hex colours (inline styles and arbitrary
+   classes) are handled by dark-theme.css, generated by
+   scripts/gen-dark-theme.py.
 ═══════════════════════════════════════════════════════════════ */
 
-/* ── Tailwind background class overrides ── */
-.dark .bg-white                  { background-color: #1E293B !important; }
+.dark .bg-white                  { background-color: var(--surface) !important; }
 .dark .bg-gray-50,
-.dark .bg-slate-50               { background-color: #0F172A !important; }
+.dark .bg-slate-50,
 .dark .bg-gray-100,
-.dark .bg-slate-100              { background-color: #1E293B !important; }
+.dark .bg-slate-100              { background-color: var(--sunken) !important; }
 .dark .bg-gray-200,
-.dark .bg-slate-200              { background-color: #334155 !important; }
+.dark .bg-slate-200              { background-color: var(--line) !important; }
 
-/* ── Tailwind border class overrides ── */
+.dark .border-slate-50,
+.dark .border-gray-50,
+.dark .border-white,
 .dark .border-slate-100,
 .dark .border-gray-100,
 .dark .border-slate-200,
-.dark .border-gray-200           { border-color: #334155 !important; }
+.dark .border-gray-200           { border-color: var(--line) !important; }
 .dark .border-slate-300,
-.dark .border-gray-300           { border-color: #475569 !important; }
-.dark .divide-slate-100,
-.dark .divide-gray-100,
-.dark .divide-slate-200,
-.dark .divide-gray-200           { border-color: #334155 !important; }
+.dark .border-gray-300           { border-color: var(--line-strong) !important; }
+.dark .divide-slate-50 > :not(:last-child),
+.dark .divide-slate-100 > :not(:last-child),
+.dark .divide-gray-100 > :not(:last-child),
+.dark .divide-slate-200 > :not(:last-child),
+.dark .divide-gray-200 > :not(:last-child) { border-color: var(--line) !important; }
 
-/* ── Tailwind text class overrides ── */
 .dark .text-slate-900,
-.dark .text-gray-900             { color: #F1F5F9 !important; }
+.dark .text-gray-900,
 .dark .text-slate-800,
-.dark .text-gray-800             { color: #E2E8F0 !important; }
+.dark .text-gray-800             { color: var(--ink) !important; }
 .dark .text-slate-700,
-.dark .text-gray-700             { color: #CBD5E1 !important; }
+.dark .text-gray-700,
 .dark .text-slate-600,
-.dark .text-gray-600             { color: #94A3B8 !important; }
+.dark .text-gray-600             { color: var(--ink-2) !important; }
 .dark .text-slate-500,
-.dark .text-gray-500             { color: #94A3B8 !important; }
+.dark .text-gray-500             { color: var(--ink-muted) !important; }
 
-/* ── Tailwind row-hover overrides ── */
-.dark .hover\:bg-white:hover     { background-color: #334155 !important; }
+.dark .hover\:bg-white:hover,
 .dark .hover\:bg-slate-50:hover,
-.dark .hover\:bg-gray-50:hover   { background-color: rgba(30, 41, 59, 0.7) !important; }
+.dark .hover\:bg-gray-50:hover,
 .dark .hover\:bg-slate-100:hover,
-.dark .hover\:bg-gray-100:hover  { background-color: #334155 !important; }
+.dark .hover\:bg-gray-100:hover  { background-color: var(--elevated) !important; }
 
-/* ── Tailwind semantic badge overrides (light badges → dark equivalents) ── */
-.dark .bg-green-50               { background-color: rgba(20,  83,  45,  0.3) !important; }
-.dark .bg-blue-50                { background-color: rgba(30,  58,  138, 0.3) !important; }
-.dark .bg-red-50                 { background-color: rgba(127, 29,  29,  0.3) !important; }
+/* Light status tints → dark tints of the same hue */
+.dark .bg-green-50,
+.dark .bg-emerald-50,
+.dark .bg-green-100              { background-color: #153721 !important; }
+.dark .bg-red-50,
+.dark .bg-red-100                { background-color: #371515 !important; }
 .dark .bg-amber-50,
-.dark .bg-yellow-50              { background-color: rgba(120, 53,  15,  0.3) !important; }
-.dark .bg-purple-50              { background-color: rgba(76,  29,  149, 0.3) !important; }
-.dark .bg-indigo-50              { background-color: rgba(49,  46,  129, 0.3) !important; }
+.dark .bg-yellow-50,
+.dark .bg-amber-100,
+.dark .bg-orange-50              { background-color: #372C15 !important; }
+.dark .bg-blue-50,
+.dark .bg-sky-50,
+.dark .bg-indigo-50,
+.dark .bg-purple-50,
+.dark .bg-violet-50              { background-color: var(--sunken) !important; }
 
-.dark .text-green-700            { color: #4ade80 !important; }
-.dark .text-green-600            { color: #4ade80 !important; }
-.dark .text-blue-700             { color: #60a5fa !important; }
-.dark .text-blue-600             { color: #60a5fa !important; }
-.dark .text-red-700              { color: #f87171 !important; }
-.dark .text-red-600              { color: #f87171 !important; }
-.dark .text-amber-700,
-.dark .text-yellow-700           { color: #fbbf24 !important; }
-.dark .text-amber-600,
-.dark .text-yellow-600           { color: #fbbf24 !important; }
-.dark .text-purple-700           { color: #c084fc !important; }
-.dark .text-indigo-700           { color: #818cf8 !important; }
+/* Status and label text → the CAS dark text colours. Blue and purple are
+   not CAS colours: blue reads as the brand link green, purple as gold. */
+.dark .text-green-600, .dark .text-green-700, .dark .text-green-800,
+.dark .text-emerald-600, .dark .text-emerald-700,
+.dark .text-blue-600, .dark .text-blue-700, .dark .text-blue-800,
+.dark .text-sky-600, .dark .text-sky-700        { color: var(--brand-ink) !important; }
+.dark .text-red-600, .dark .text-red-700, .dark .text-red-800 { color: var(--bad-ink) !important; }
+.dark .text-amber-600, .dark .text-amber-700, .dark .text-amber-800,
+.dark .text-yellow-600, .dark .text-yellow-700,
+.dark .text-orange-600, .dark .text-orange-700  { color: var(--warn-ink) !important; }
+.dark .text-purple-600, .dark .text-purple-700,
+.dark .text-indigo-600, .dark .text-indigo-700,
+.dark .text-violet-600, .dark .text-violet-700  { color: var(--gold-ink) !important; }
 
-/* ── Tables (bare <table>, <thead>, <th>, <td>) ── */
-.dark table                      { color: #CBD5E1; }
-.dark thead                      { background-color: #0F172A !important; }
-.dark th                         { color: #94A3B8 !important; border-color: #334155 !important; }
-.dark td                         { border-color: #334155 !important; }
-.dark tr:hover                   { background-color: rgba(30, 41, 59, 0.5) !important; }
+/* Tables */
+.dark table                      { color: var(--ink-2); }
+.dark thead                      { background-color: var(--sunken) !important; }
+.dark th                         { color: var(--ink-muted) !important; border-color: var(--line) !important; }
+.dark td                         { border-color: var(--line) !important; }
+.dark tbody tr:hover             { background-color: rgba(238, 232, 223, 0.04) !important; }
 
-/* ── Inline style: white / near-white backgrounds → slate-800 or slate-900 ──
-   React renders hex colors as rgb() in the DOM style attribute,
-   and CSS !important overrides inline styles that lack !important.         */
-.dark [style*="background-color: rgb(255, 255, 255)"]  { background-color: #1E293B !important; } /* #ffffff   */
-.dark [style*="background-color: rgb(248, 250, 252)"]  { background-color: #0F172A !important; } /* #F8FAFC   */
-.dark [style*="background-color: rgb(241, 245, 249)"]  { background-color: #1E293B !important; } /* #F1F5F9   */
-.dark [style*="background-color: rgb(250, 250, 250)"]  { background-color: #1E293B !important; } /* #FAFAFA   */
-.dark [style*="background-color: rgb(249, 250, 251)"]  { background-color: #0F172A !important; } /* #F9FAFB   */
-.dark [style*="background-color: rgb(244, 239, 230)"]  { background-color: #0F172A !important; } /* #F4EFE6   */
-.dark [style*="background-color: rgb(253, 250, 245)"]  { background-color: #1E293B !important; } /* #FDFAF5   */
-
-/* ── Inline style: semantic badge / section tinted backgrounds → dark equivalents ── */
-.dark [style*="background-color: rgb(240, 253, 244)"]  { background-color: rgba(20,  83,  45,  0.35) !important; } /* #F0FDF4 green  */
-.dark [style*="background-color: rgb(239, 246, 255)"]  { background-color: rgba(30,  58,  138, 0.35) !important; } /* #EFF6FF blue   */
-.dark [style*="background-color: rgb(224, 242, 254)"]  { background-color: rgba(30,  58,  138, 0.35) !important; } /* #E0F2FE blue   */
-.dark [style*="background-color: rgb(255, 251, 235)"]  { background-color: rgba(120, 53,  15,  0.35) !important; } /* #FFFBEB yellow */
-.dark [style*="background-color: rgb(254, 243, 220)"]  { background-color: rgba(120, 53,  15,  0.35) !important; } /* #FEF3DC yellow */
-.dark [style*="background-color: rgb(254, 242, 242)"]  { background-color: rgba(127, 29,  29,  0.35) !important; } /* #FEF2F2 red    */
-.dark [style*="background-color: rgb(220, 252, 231)"]  { background-color: rgba(20,  83,  45,  0.35) !important; } /* #DCFCE7 green  */
-.dark [style*="background-color: rgb(245, 243, 255)"]  { background-color: rgba(76,  29,  149, 0.35) !important; } /* #F5F3FF purple */
-
-/* ── Inline style: near-black text → near-white ── */
-.dark [style*="color: rgb(15, 23, 42)"]                { color: #F1F5F9  !important; } /* #0F172A   */
-.dark [style*="color: rgb(30, 41, 59)"]                { color: #F1F5F9  !important; } /* #1E293B   */
-.dark [style*="color: rgb(28, 18, 8)"]                 { color: #F1F5F9  !important; } /* #1C1208   */
-.dark [style*="color: rgb(44, 34, 24)"]                { color: #F1F5F9  !important; } /* #2C2218   */
-.dark [style*="color: rgb(51, 65, 85)"]                { color: #E2E8F0  !important; } /* #334155   */
-.dark [style*="color: rgb(71, 85, 105)"]               { color: #CBD5E1  !important; } /* #475569   */
-
-/* ── Inline style: border colors → slate-700 ── */
-.dark [style*="rgb(226, 232, 240)"]                    { border-color: #334155 !important; } /* #E2E8F0   */
-.dark [style*="rgb(241, 245, 249)"]                    { border-color: #334155 !important; } /* #F1F5F9   */
-.dark [style*="rgb(226, 217, 204)"]                    { border-color: #334155 !important; } /* #E2D9CC   */
-.dark [style*="rgb(203, 213, 225)"]                    { border-color: #475569 !important; } /* #CBD5E1   */
-
-/* ── Input / textarea dark override (covers inline-styled inputs) ── */
+/* Inputs (covers inline-styled inputs too) */
 .dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]) {
-  background-color: #1E293B !important;
-  color: #F1F5F9 !important;
-  border-color: #475569 !important;
+  background-color: var(--elevated) !important;
+  color: var(--ink) !important;
+  border-color: var(--line-strong) !important;
   color-scheme: dark;
 }
-.dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"])::placeholder {
-  color: #64748B !important;
-}
+.dark input::placeholder,
+.dark textarea::placeholder      { color: var(--placeholder) !important; }
 
-/* ── Scrollbar (dark) ── */
+/* Scrollbar */
 .dark ::-webkit-scrollbar              { width: 6px; height: 6px; }
-.dark ::-webkit-scrollbar-track       { background: #0F172A; }
-.dark ::-webkit-scrollbar-thumb       { background: #334155; border-radius: 3px; }
-.dark ::-webkit-scrollbar-thumb:hover { background: #475569; }
+.dark ::-webkit-scrollbar-track       { background: var(--canvas); }
+.dark ::-webkit-scrollbar-thumb       { background: var(--line-strong); border-radius: 3px; }
+.dark ::-webkit-scrollbar-thumb:hover { background: #5E765C; }
 
-/* ═══════════════════════════════════════════════════════════════
-   DARK MODE — TEACHER APP FIXES
-   The existing rules above only catch `background-color:` (set via
-   style={{ backgroundColor: ... }}). React's style={{ background: ... }}
-   renders as the `background` shorthand in the DOM, so we need a
-   duplicate set of selectors for that form.
-   Also adds Tailwind arbitrary-value class overrides for the warm
-   colour palette used throughout teacher pages.
-═══════════════════════════════════════════════════════════════ */
-
-/* ── background: shorthand (React style={{ background: '...' }}) ── */
-.dark [style*="background: rgb(255, 255, 255)"]  { background: #1E293B !important; } /* white      */
-.dark [style*="background: rgb(244, 239, 230)"]  { background: #0F172A !important; } /* #F4EFE6    */
-.dark [style*="background: rgb(248, 250, 252)"]  { background: #0F172A !important; } /* #F8FAFC    */
-.dark [style*="background: rgb(249, 250, 251)"]  { background: #0F172A !important; } /* #F9FAFB    */
-.dark [style*="background: rgb(241, 245, 249)"]  { background: #1E293B !important; } /* #F1F5F9    */
-.dark [style*="background: rgb(253, 250, 245)"]  { background: #1E293B !important; } /* #FDFAF5    */
-/* Badge/tint versions of the shorthand */
-.dark [style*="background: rgb(240, 253, 244)"]  { background: rgba(20,  83,  45,  0.35) !important; } /* #F0FDF4 green  */
-.dark [style*="background: rgb(239, 246, 255)"]  { background: rgba(30,  58,  138, 0.35) !important; } /* #EFF6FF blue   */
-.dark [style*="background: rgb(224, 242, 254)"]  { background: rgba(30,  58,  138, 0.35) !important; } /* #E0F2FE blue   */
-.dark [style*="background: rgb(255, 251, 235)"]  { background: rgba(120, 53,  15,  0.35) !important; } /* #FFFBEB yellow */
-.dark [style*="background: rgb(254, 243, 199)"]  { background: rgba(120, 53,  15,  0.35) !important; } /* #FEF3C7 amber  */
-.dark [style*="background: rgb(254, 243, 220)"]  { background: rgba(120, 53,  15,  0.35) !important; } /* #FEF3DC yellow */
-.dark [style*="background: rgb(254, 242, 242)"]  { background: rgba(127, 29,  29,  0.35) !important; } /* #FEF2F2 red    */
-.dark [style*="background: rgb(254, 226, 226)"]  { background: rgba(127, 29,  29,  0.35) !important; } /* #FEE2E2 red    */
-.dark [style*="background: rgb(220, 252, 231)"]  { background: rgba(20,  83,  45,  0.35) !important; } /* #DCFCE7 green  */
-.dark [style*="background: rgb(245, 243, 255)"]  { background: rgba(76,  29,  149, 0.35) !important; } /* #F5F3FF purple */
-
-/* ── Tailwind arbitrary-value classes (teacher warm palette) ── */
-.dark .bg-\[\#F4EFE6\]              { background-color: #0F172A !important; }
-.dark .border-\[\#E2D9CC\]          { border-color: #334155 !important; }
-.dark .border-\[\#F4EFE6\]          { border-color: #1E293B !important; }
-.dark .text-\[\#2C2218\]            { color: #F1F5F9  !important; }
-.dark .text-\[\#1C1208\]            { color: #F1F5F9  !important; }
-.dark .text-\[\#8C7E6E\]            { color: #94A3B8  !important; }
-.dark .text-\[\#B83232\]            { color: #f87171  !important; }
-.dark .text-\[\#C0B5A5\]            { color: #64748B  !important; }
-.dark .hover\:bg-\[\#F4EFE6\]:hover { background-color: #1E293B !important; }
-.dark .divide-\[\#F4EFE6\]          { border-color: #1E293B !important; }
-
-/* ── Additional inline colour overrides missed above ── */
-.dark [style*="color: rgb(140, 126, 110)"] { color: #94A3B8 !important; } /* #8C7E6E muted warm  */
-.dark [style*="color: rgb(184, 50, 50)"]   { color: #f87171 !important; } /* #B83232 teacher red */
-.dark [style*="color: rgb(192, 181, 165)"] { color: #64748B !important; } /* #C0B5A5 placeholder */
-
-/* ── border shorthand for inline border-color hex values ── */
-.dark [style*="rgb(226, 217, 204)"]        { border-color: #334155 !important; } /* #E2D9CC (already in border, but also catches background use) */
+/* Overlays (modals, sheets, drop-downs drawn as fixed panels) float above
+   the page, so they use the elevated level rather than the card level. */
+.dark .fixed.inset-0 :is(.bg-white, .dark\:bg-slate-800, [style^="background: rgb(255, 255, 255)"], [style*="; background: rgb(255, 255, 255)"], [style^="background-color: rgb(255, 255, 255)"], [style^="background: rgb(30, 41, 59)"], [style^="background: rgb(253, 250, 245)"]) {
+  background-color: var(--elevated) !important;
+}
+.dark [role="menu"], .dark [role="listbox"] { background-color: var(--elevated); }

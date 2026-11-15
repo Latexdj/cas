@@ -25,7 +25,7 @@ export function Modal({ open, onClose, title, children, maxWidth = 'max-w-lg' }:
         style={{ backgroundColor: 'rgba(11,61,46,0.55)' }}
         onClick={onClose}
       />
-      <div className={`relative w-full ${maxWidth} bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-100 dark:border-slate-700 p-6 max-h-[90vh] overflow-y-auto`}>
+      <div className={`relative w-full ${maxWidth} bg-elevated rounded-xl shadow-xl border border-line p-6 max-h-[90vh] overflow-y-auto`}>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-base font-bold text-slate-900 dark:text-white">{title}</h2>
           <button

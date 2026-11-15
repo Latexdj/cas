@@ -72,7 +72,7 @@ export default function InventoryCategoriesPage() {
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Organise items by category</p>
         </div>
         <button onClick={openAdd}
-          className="px-4 py-2 rounded-lg text-sm font-semibold bg-blue-600 text-white hover:bg-blue-700 transition-colors">
+          className="px-4 py-2 rounded-lg text-sm font-semibold bg-[#145C44] text-white hover:bg-[#0B3D2E] transition-colors">
           + Add Category
         </button>
       </div>
@@ -148,7 +148,7 @@ export default function InventoryCategoriesPage() {
                   Cancel
                 </button>
                 <button onClick={save} disabled={saving}
-                  className="flex-1 py-2 rounded-lg text-sm font-semibold bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40">
+                  className="flex-1 py-2 rounded-lg text-sm font-semibold bg-[#145C44] text-white hover:bg-[#0B3D2E] disabled:opacity-40">
                   {saving ? 'Saving…' : editCat ? 'Save' : 'Create'}
                 </button>
               </div>

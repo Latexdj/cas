@@ -28,7 +28,7 @@ const CONDITION_COLORS: Record<string, string> = {
 };
 const OWN_COLORS: Record<string, string> = {
   general:       'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300',
-  departmental:  'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
+  departmental:  'bg-[#FBF3E2] text-[#8A6420] dark:bg-[#372C15] dark:text-[#D6A64E]',
 };
 
 // ownership_value: 'general' OR a department UUID
@@ -284,7 +284,7 @@ export default function InventoryItemsPage() {
           <h1 className="text-xl font-bold text-slate-900 dark:text-white">Inventory Items</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{loading ? '…' : `${items.length} item${items.length !== 1 ? 's' : ''}`}</p>
         </div>
-        <button onClick={openAdd} className="px-4 py-2 rounded-lg text-sm font-semibold bg-blue-600 text-white hover:bg-blue-700 transition-colors">
+        <button onClick={openAdd} className="px-4 py-2 rounded-lg text-sm font-semibold bg-[#145C44] text-white hover:bg-[#0B3D2E] transition-colors">
           + Add Item
         </button>
       </div>
@@ -506,7 +506,7 @@ export default function InventoryItemsPage() {
               {formError && <p className="mt-3 text-sm text-red-500">{formError}</p>}
               <div className="flex gap-2 mt-5">
                 <button onClick={() => setShowForm(false)} className="flex-1 py-2 rounded-lg text-sm font-semibold border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700">Cancel</button>
-                <button onClick={saveItem} disabled={saving} className="flex-1 py-2 rounded-lg text-sm font-semibold bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40">
+                <button onClick={saveItem} disabled={saving} className="flex-1 py-2 rounded-lg text-sm font-semibold bg-[#145C44] text-white hover:bg-[#0B3D2E] disabled:opacity-40">
                   {saving ? 'Saving…' : editItem ? 'Save Changes' : 'Add Item'}
                 </button>
               </div>
@@ -539,7 +539,7 @@ export default function InventoryItemsPage() {
                           setIssueTeacher(null); setIssueTeacherCode(''); setIssueTeacherErr('');
                           setIssueTo('');
                         }}
-                        className={`py-2 rounded-lg text-xs font-semibold border transition-colors ${issueToType === t.value ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300'}`}>
+                        className={`py-2 rounded-lg text-xs font-semibold border transition-colors ${issueToType === t.value ? 'bg-[#145C44] text-white border-blue-600' : 'border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300'}`}>
                         {t.label}
                       </button>
                     ))}

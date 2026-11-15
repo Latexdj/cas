@@ -45,7 +45,7 @@ function RateBar({ pct, dark }: { pct: number; dark: boolean }) {
 }
 
 export default function PrincipalFeesPage() {
-  const { theme }   = useTheme();
+  const { resolvedTheme: theme }   = useTheme();
   const [mounted, setMounted] = useState(false);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [classes, setClasses] = useState<ClassRow[]>([]);

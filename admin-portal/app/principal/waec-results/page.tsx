@@ -53,7 +53,7 @@ const WAEC_GRADE_ORDER = ['A1', 'B2', 'B3', 'C4', 'C5', 'C6', 'D7', 'E8', 'F9'];
 const TREND_COLOR = '#1C8A62';
 
 export default function PrincipalWaecResultsPage() {
-  const { theme } = useTheme();
+  const { resolvedTheme: theme } = useTheme();
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
   const dark = mounted && theme === 'dark';

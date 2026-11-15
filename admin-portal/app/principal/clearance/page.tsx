@@ -30,7 +30,7 @@ function fmt(d?: string) {
 }
 
 export default function ClearancePage() {
-  const { theme }             = useTheme();
+  const { resolvedTheme: theme }             = useTheme();
   const [mounted, setMounted] = useState(false);
   const [cls,     setCls]     = useState('');
   const [status,  setStatus]  = useState('');

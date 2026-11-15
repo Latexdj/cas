@@ -268,7 +268,7 @@ type TabKey = typeof TABS[number]['key'];
 // ── MAIN PAGE ─────────────────────────────────────────────────────────────────
 
 export default function TeacherAttendancePage() {
-  const { theme } = useTheme();
+  const { resolvedTheme: theme } = useTheme();
   const [mounted, setMounted] = useState(false);
   const dark = mounted && theme === 'dark';
 

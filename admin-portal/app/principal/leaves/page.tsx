@@ -35,7 +35,7 @@ function fmt(d: string) {
 }
 
 export default function LeavesPage() {
-  const { theme }             = useTheme();
+  const { resolvedTheme: theme }             = useTheme();
   const [mounted, setMounted] = useState(false);
   const [status,  setStatus]  = useState('');
   const [leaves,  setLeaves]  = useState<Leave[]>([]);

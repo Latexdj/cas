@@ -51,7 +51,7 @@ function fmt(t: string) {
 }
 
 export default function OccupancyPage() {
-  const { theme }             = useTheme();
+  const { resolvedTheme: theme }             = useTheme();
   const [mounted, setMounted] = useState(false);
   const [date, setDate]       = useState(new Date().toISOString().slice(0, 10));
   const [slots, setSlots]         = useState<Slot[]>([]);

@@ -323,13 +323,13 @@ export default function TeacherProfilePage() {
                 Cancel
               </button>
               <button onClick={save} disabled={saving}
-                className="px-4 py-1.5 text-sm rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 disabled:opacity-50">
+                className="px-4 py-1.5 text-sm rounded-lg bg-[#145C44] text-white font-semibold hover:bg-[#0B3D2E] disabled:opacity-50">
                 {saving ? 'Saving…' : 'Save Changes'}
               </button>
             </>
           ) : (
             <button onClick={() => setEditing(true)}
-              className="px-4 py-1.5 text-sm rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700">
+              className="px-4 py-1.5 text-sm rounded-lg bg-[#145C44] text-white font-semibold hover:bg-[#0B3D2E]">
               Edit Profile
             </button>
           )}
@@ -358,7 +358,7 @@ export default function TeacherProfilePage() {
           </div>
           <button
             onClick={() => photoRef.current?.click()}
-            className="absolute -bottom-2 -right-2 w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center border-2 border-white"
+            className="absolute -bottom-2 -right-2 w-7 h-7 rounded-full bg-[#145C44] flex items-center justify-center border-2 border-white"
             title="Upload photo"
           >
             {photoUploading

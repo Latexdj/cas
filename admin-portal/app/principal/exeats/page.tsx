@@ -28,7 +28,7 @@ function QuotaBar({ used, quota, color }: { used: number; quota: number; color: 
 }
 
 export default function ExeatsPage() {
-  const { theme }             = useTheme();
+  const { resolvedTheme: theme }             = useTheme();
   const [quotaErr, setQuotaErr] = useState('');
   const [mounted, setMounted] = useState(false);
   const [cls,     setCls]     = useState('');

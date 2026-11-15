@@ -29,7 +29,7 @@ type EnrollmentStatus = 'Active' | 'Graduated' | 'all';
 const fmt = (n: number | null) => (n === null || n === undefined ? '—' : String(n));
 
 export default function PrincipalEntryGradesPage() {
-  const { theme }             = useTheme();
+  const { resolvedTheme: theme }             = useTheme();
   const [mounted, setMounted] = useState(false);
   const [status, setStatus]   = useState<EnrollmentStatus>('Active');
   const [data, setData]       = useState<StatsResponse | null>(null);
