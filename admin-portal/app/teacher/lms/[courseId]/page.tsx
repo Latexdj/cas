@@ -185,7 +185,7 @@ function LessonsTab({ courseId, primary }: { courseId: string; primary: string }
           className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-bold text-white"
           style={{ background: primary }}
         >
-          + Add Lesson
+          Add lesson
         </button>
       </div>
       {error && <p className="text-sm text-[#B83232] mb-3">{error}</p>}
@@ -209,7 +209,7 @@ function LessonsTab({ courseId, primary }: { courseId: string; primary: string }
                 {lesson.is_published ? 'Published' : 'Draft'}
               </button>
               <button onClick={() => { setEditing(lesson); setShowModal(true); }} className="text-xs text-slate-400 hover:text-slate-700 px-1.5">Edit</button>
-              <button onClick={() => deleteLesson(lesson.id)} className="text-xs text-[#B83232] hover:text-[#9B2020] px-1.5">Del</button>
+              <button onClick={() => deleteLesson(lesson.id)} className="text-xs text-[#B83232] hover:text-[#9B2020] px-1.5">Delete</button>
             </div>
           ))}
         </div>
@@ -403,7 +403,7 @@ function AssignmentsTab({ courseId, primary }: { courseId: string; primary: stri
           className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-bold text-white"
           style={{ background: primary }}
         >
-          + Add Assignment
+          Add assignment
         </button>
       </div>
       {error && <p className="text-sm text-[#B83232] mb-3">{error}</p>}
@@ -434,7 +434,7 @@ function AssignmentsTab({ courseId, primary }: { courseId: string; primary: stri
                 <button onClick={() => syncToCA(a)} className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#E8F4EE] text-[#145C44] hover:bg-[#D1EAD9] whitespace-nowrap">Sync CA</button>
               )}
               <button onClick={() => { setEditing(a); setShowModal(true); }} className="text-xs text-slate-400 hover:text-slate-700 px-1.5">Edit</button>
-              <button onClick={() => deleteAssignment(a.id)} className="text-xs text-[#B83232] hover:text-[#9B2020] px-1.5">Del</button>
+              <button onClick={() => deleteAssignment(a.id)} className="text-xs text-[#B83232] hover:text-[#9B2020] px-1.5">Delete</button>
             </div>
           ))}
         </div>
@@ -633,7 +633,7 @@ function QuizzesTab({ courseId, primary }: { courseId: string; primary: string }
           className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-bold text-white"
           style={{ background: primary }}
         >
-          + New Quiz
+          Add quiz
         </button>
       </div>
       {error && <p className="text-sm text-[#B83232] mb-3">{error}</p>}
@@ -667,7 +667,7 @@ function QuizzesTab({ courseId, primary }: { courseId: string; primary: string }
               )}
               <button onClick={() => { setEditingMeta(q); setShowMetaModal(true); }} className="text-xs text-slate-400 hover:text-slate-700 px-1.5">Edit</button>
               <button onClick={() => setBuilderQuizId(q.id)} className="text-xs text-[#145C44] hover:text-[#0B3D2E] px-1.5">Questions</button>
-              <button onClick={() => deleteQuiz(q.id)} className="text-xs text-[#B83232] hover:text-[#9B2020] px-1.5">Del</button>
+              <button onClick={() => deleteQuiz(q.id)} className="text-xs text-[#B83232] hover:text-[#9B2020] px-1.5">Delete</button>
             </div>
           ))}
         </div>
@@ -912,7 +912,7 @@ function QuizBuilder({ quizId, primary, onDone }: { quizId: string; primary: str
         onClick={() => setQuestions(prev => [...prev, blankQuestion()])}
         className="mt-4 w-full py-2.5 rounded-xl border-2 border-dashed border-slate-200 text-sm font-semibold text-slate-400 hover:border-[#2D7A4F] hover:text-[#145C44] transition-colors"
       >
-        + Add Question
+        Add question
       </button>
     </div>
   );
@@ -1115,7 +1115,7 @@ function AnnouncementsTab({ courseId, primary }: { courseId: string; primary: st
           className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-bold text-white"
           style={{ background: primary }}
         >
-          + New Announcement
+          Add announcement
         </button>
       </div>
       {loading ? (
@@ -1134,7 +1134,7 @@ function AnnouncementsTab({ courseId, primary }: { courseId: string; primary: st
                 <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">{a.body}</p>
                 <p className="text-[10px] text-slate-400 mt-1">{new Date(a.created_at).toLocaleDateString()}</p>
               </div>
-              <button onClick={() => deleteAnnouncement(a.id)} className="text-xs text-[#B83232] hover:text-[#9B2020] shrink-0 px-1 mt-0.5">Del</button>
+              <button onClick={() => deleteAnnouncement(a.id)} className="text-xs text-[#B83232] hover:text-[#9B2020] shrink-0 px-1 mt-0.5">Delete</button>
             </div>
           ))}
         </div>

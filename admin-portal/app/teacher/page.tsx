@@ -148,6 +148,15 @@ export default function TeacherDashboardPage() {
   const totalLessons = slots.length;
   const submittedCount = slots.filter(isSlotSubmitted).length;
   const pending = totalLessons - submittedCount;
+  const nowMin = (() => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); })();
+  const toMin = (t?: string | null) => { if (!t) return 0; const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+  const phase = (slot: TimetableSlot): 'now' | 'missed' | 'later' | 'done' =>
+    isSlotSubmitted(slot) ? 'done'
+      : nowMin < toMin(slot.start_time) ? 'later'
+      : nowMin <= toMin(slot.end_time) ? 'now' : 'missed';
+  // The lesson that needs attention: the one on now, else the next one, else the earliest missed.
+  const focus = slots.find(sl => phase(sl) === 'now') ?? slots.find(sl => phase(sl) === 'later') ?? slots.find(sl => phase(sl) === 'missed');
+  const missedCount = slots.filter(sl => phase(sl) === 'missed').length;
 
   const eventColor = (type: string) => {
     if (type === 'Holiday') return { bg: '#FEF3C7', border: '#FCD34D', text: '#92400E' };
@@ -160,7 +169,7 @@ export default function TeacherDashboardPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-xl font-bold text-[#2C2218]">Dashboard</h1>
+          <h1 className="text-xl font-bold text-[#2C2218]">Today</h1>
           <p className="text-sm text-[#8C7E6E]">
             {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
           </p>
@@ -240,18 +249,93 @@ export default function TeacherDashboardPage() {
         </div>
       )}
 
-      {/* Stats bar */}
-      <div className="grid grid-cols-3 gap-3 mb-6">
-        {[
-          { label: 'Lessons', value: totalLessons, color: '#8C7E6E' },
-          { label: 'Submitted', value: submittedCount, color: primary },
-          { label: 'Pending', value: pending, color: pending > 0 ? '#B83232' : '#8C7E6E' },
-        ].map((stat) => (
-          <div key={stat.label} className="bg-white rounded-xl border border-[#E2D9CC] shadow-sm p-3 text-center">
-            <p className="text-2xl font-bold" style={{ color: stat.color }}>{stat.value}</p>
-            <p className="text-xs text-[#8C7E6E] mt-0.5">{stat.label}</p>
+      {/* Today: one line of where things stand, then the lesson that needs you */}
+      {!loading && slots.length > 0 && (
+        <p className="text-sm text-[#4A3F32] mb-3">
+          <span className="font-semibold">{submittedCount} of {totalLessons}</span> lessons recorded today
+          {missedCount > 0 && <>, <span className="font-semibold text-[#B83232]">{missedCount} not recorded</span></>}
+        </p>
+      )}
+      {!loading && focus && (() => {
+        const ph = phase(focus);
+        return (
+          <section aria-label="Lesson that needs you" className="relative bg-white rounded-xl border border-[#E2D9CC] shadow-sm p-4 mb-6 overflow-hidden">
+            <span className="absolute inset-y-0 left-0 w-1.5" style={{ background: ph === 'missed' ? '#B83232' : '#C8973A' }} aria-hidden />
+            <p className="text-sm font-semibold" style={{ color: ph === 'missed' ? '#B83232' : '#8A6420' }}>
+              {ph === 'now' ? 'Now' : ph === 'later' ? `Next, at ${focus.start_time?.slice(0, 5)}` : 'Ended, not recorded yet'}
+            </p>
+            <p className="text-lg font-bold text-[#1C1208] mt-0.5">{focus.class_names}</p>
+            <p className="text-sm text-[#4A3F32]">{focus.subject}, <span className="font-mono">{focus.start_time?.slice(0, 5)} – {focus.end_time?.slice(0, 5)}</span></p>
+            <button
+              onClick={() => router.push(`/teacher/submit?slotId=${focus.id}`)}
+              className="mt-3 w-full md:w-auto md:px-10 min-h-[48px] rounded-xl text-base font-semibold text-white"
+              style={{ background: primary }}
+            >
+              Submit attendance
+            </button>
+          </section>
+        );
+      })()}
+
+      {/* Timetable slots */}
+      <div className="mb-6">
+        <h2 className="text-sm font-semibold text-[#4A3F32] mb-3">All lessons today</h2>
+        {loading ? (
+          <div className="space-y-3">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="bg-white rounded-xl border border-[#E2D9CC] h-20 animate-pulse" />
+            ))}
           </div>
-        ))}
+        ) : slots.length === 0 ? (
+          <div className="bg-white rounded-xl border border-[#E2D9CC] shadow-sm p-6 text-center">
+            <p className="text-[#8C7E6E] text-sm">No lessons on your timetable today. Your weekly timetable is under Timetable.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {slots.map((slot) => {
+              const done = isSlotSubmitted(slot);
+              const ph = phase(slot);
+              return (
+                <div
+                  key={slot.id}
+                  className="bg-white rounded-xl border border-[#E2D9CC] shadow-sm p-4 flex items-center justify-between"
+                >
+                  <div className="flex items-start gap-3">
+                    <div
+                      className="w-1 self-stretch rounded-full shrink-0"
+                      style={{ background: ph === 'done' ? primary : ph === 'now' ? '#C8973A' : ph === 'missed' ? '#B83232' : '#E2D9CC' }}
+                    />
+                    <div>
+                      <p className="text-xs text-[#8C7E6E] font-medium">
+                        {slot.start_time?.slice(0, 5)} – {slot.end_time?.slice(0, 5)}
+                      </p>
+                      <p className="font-semibold text-[#2C2218] text-sm mt-0.5">{slot.class_names}</p>
+                      <p className="text-xs text-[#8C7E6E]">{slot.subject}{ph === 'missed' ? '' : ph === 'now' ? ', on now' : ph === 'later' ? ', later today' : ''}</p>
+                      {ph === 'missed' && <p className="text-xs font-semibold text-[#B83232]">Not recorded</p>}
+                    </div>
+                  </div>
+                  {done ? (
+                    <span
+                      className="text-xs font-semibold px-3 py-1 rounded-full"
+                      style={{ background: `${primary}18`, color: primary }}
+                    >
+                      Recorded
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => router.push(`/teacher/submit?slotId=${slot.id}`)}
+                      className={`text-sm font-semibold px-4 min-h-[40px] rounded-xl ${ph === 'later' ? 'border border-[#E2D9CC] text-[#4A3F32] bg-white' : 'text-white'}`}
+                      style={ph === 'later' ? undefined : { background: primary }}
+                      aria-label={`Submit attendance for ${slot.class_names}, ${slot.subject}`}
+                    >
+                      Submit
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* My Attendance — Current Semester */}
@@ -332,64 +416,6 @@ export default function TeacherDashboardPage() {
           <polyline points="9 18 15 12 9 6" />
         </svg>
       </button>
-
-      {/* Timetable slots */}
-      <div className="mb-6">
-        <p className="text-xs font-bold font-medium text-[#8C7E6E] mb-3">Schedule</p>
-        {loading ? (
-          <div className="space-y-3">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="bg-white rounded-xl border border-[#E2D9CC] h-20 animate-pulse" />
-            ))}
-          </div>
-        ) : slots.length === 0 ? (
-          <div className="bg-white rounded-xl border border-[#E2D9CC] shadow-sm p-6 text-center">
-            <p className="text-[#8C7E6E] text-sm">No lessons scheduled for today</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {slots.map((slot) => {
-              const done = isSlotSubmitted(slot);
-              return (
-                <div
-                  key={slot.id}
-                  className="bg-white rounded-xl border border-[#E2D9CC] shadow-sm p-4 flex items-center justify-between"
-                >
-                  <div className="flex items-start gap-3">
-                    <div
-                      className="w-1 self-stretch rounded-full shrink-0"
-                      style={{ background: done ? primary : '#E2D9CC' }}
-                    />
-                    <div>
-                      <p className="text-xs text-[#8C7E6E] font-medium">
-                        {slot.start_time?.slice(0, 5)} – {slot.end_time?.slice(0, 5)}
-                      </p>
-                      <p className="font-semibold text-[#2C2218] text-sm mt-0.5">{slot.subject}</p>
-                      <p className="text-xs text-[#8C7E6E]">{slot.class_names}</p>
-                    </div>
-                  </div>
-                  {done ? (
-                    <span
-                      className="text-xs font-semibold px-3 py-1 rounded-full"
-                      style={{ background: `${primary}18`, color: primary }}
-                    >
-                      Submitted
-                    </span>
-                  ) : (
-                    <button
-                      onClick={() => router.push(`/teacher/submit?slotId=${slot.id}`)}
-                      className="text-xs font-semibold px-3 py-1.5 rounded-xl text-white"
-                      style={{ background: primary }}
-                    >
-                      Submit
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
 
       {/* Upcoming events */}
       {events.length > 0 && (

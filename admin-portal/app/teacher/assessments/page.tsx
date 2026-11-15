@@ -86,7 +86,7 @@ function AssessmentsContent() {
       {/* Header */}
       <div className="mb-5">
         <h1 className="text-xl font-bold text-[#2C2218]">Assessments</h1>
-        <p className="text-sm text-[#8C7E6E] mt-0.5">Select a subject to manage scores</p>
+        <p className="text-sm text-[#8C7E6E] mt-0.5">Choose a class to enter or check its scores.</p>
       </div>
 
       {/* Year + Semester selectors */}
@@ -149,30 +149,33 @@ function AssessmentsContent() {
               <line x1="9" y1="16" x2="13" y2="16" />
             </svg>
           </div>
-          <p className="text-sm font-semibold text-[#8C7E6E]">No subjects found</p>
-          <p className="text-xs text-[#C8BFB5] mt-1">No timetable entries for this year &amp; semester</p>
+          <p className="text-sm font-semibold text-[#8C7E6E]">No classes to mark</p>
+          <p className="text-xs text-[#8C7E6E] mt-1">You have no timetable lessons in this year and semester. Try another semester above.</p>
         </div>
       ) : (
-        <div className="space-y-2">
-          {slots.map(slot => (
-            <button
-              key={`${slot.subject}|${slot.class_name}`}
-              onClick={() => router.push(
-                `/teacher/assessments/subject?subject=${encodeURIComponent(slot.subject)}&class_name=${encodeURIComponent(slot.class_name)}&year_id=${yearId}&semester=${semester}&year_name=${encodeURIComponent(yearName)}`
-              )}
-              className="w-full bg-white rounded-xl border border-[#E2D9CC] shadow-sm flex items-center overflow-hidden text-left hover:shadow-md transition-shadow"
-            >
-              <div className="w-1 self-stretch" style={{ background: primary }} />
-              <div className="flex-1 px-4 py-3.5">
-                <p className="text-sm font-bold text-[#2C2218]">{slot.subject}</p>
-                <p className="text-xs text-[#8C7E6E] mt-0.5">{slot.class_name}</p>
-              </div>
-              <div className="pr-4">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4 text-[#C8BFB5]">
-                  <polyline points="9 18 15 12 9 6" />
-                </svg>
-              </div>
-            </button>
+        // Grouped by subject: the class is what tells rows apart, so it leads.
+        <div className="space-y-5">
+          {[...new Set(slots.map(sl => sl.subject))].map(subject => (
+            <section key={subject} aria-label={subject}>
+              <h2 className="text-sm font-semibold text-[#4A3F32] mb-2">{subject}</h2>
+              <ul className="bg-white rounded-xl border border-[#E2D9CC] shadow-sm divide-y divide-[#F0EBE1] overflow-hidden">
+                {slots.filter(sl => sl.subject === subject).map(slot => (
+                  <li key={`${slot.subject}|${slot.class_name}`}>
+                    <button
+                      onClick={() => router.push(
+                        `/teacher/assessments/subject?subject=${encodeURIComponent(slot.subject)}&class_name=${encodeURIComponent(slot.class_name)}&year_id=${yearId}&semester=${semester}&year_name=${encodeURIComponent(yearName)}`
+                      )}
+                      className="w-full flex items-center min-h-[52px] px-4 text-left hover:bg-[#FAF8F3]"
+                    >
+                      <span className="flex-1 text-[15px] font-semibold text-[#2C2218]">{slot.class_name}</span>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4 text-[#8C7E6E]" aria-hidden>
+                        <polyline points="9 18 15 12 9 6" />
+                      </svg>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </section>
           ))}
         </div>
       )}

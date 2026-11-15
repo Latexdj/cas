@@ -240,7 +240,7 @@ function RoomDetail({
             className="text-xs font-semibold px-3 py-1.5 rounded-xl text-white"
             style={{ backgroundColor: ACCENT }}
           >
-            + Assign
+            Assign
           </button>
         </div>
 
@@ -382,7 +382,7 @@ function RoomsTab({
           {totalCapacity > 0 ? ` · ${totalCapacity} total capacity` : ''}
         </p>
         <button onClick={openAdd} className="text-xs font-semibold px-3 py-1.5 rounded-xl text-white" style={{ backgroundColor: ACCENT }}>
-          + Add Room
+          Add room
         </button>
       </div>
 
@@ -917,7 +917,7 @@ function ExeatTab({ role, houseOptions }: { role: 'housemaster' | 'senior_housem
           <button onClick={() => setShowCreate(true)}
             className="text-xs font-semibold px-3 py-1.5 rounded-xl text-white"
             style={{ backgroundColor: ACCENT }}>
-            + New Exeat
+            Add exeat
           </button>
         )}
       </div>

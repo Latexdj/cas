@@ -13,7 +13,15 @@ const C = {
   danger: '#B83232',
 };
 
-export function HelpWidget({ apiClient, navItems }: { apiClient?: AxiosInstance; navItems?: HelpNavItem[] } = {}) {
+/** Opens the help panel from anywhere (a menu item, for example). */
+export function openHelp() { if (typeof window !== 'undefined') window.dispatchEvent(new Event('cas-open-help')); }
+
+export function HelpWidget({ apiClient, navItems, hideLauncher = false }: {
+  apiClient?: AxiosInstance;
+  navItems?: HelpNavItem[];
+  /** No floating button; open the panel with openHelp() from a menu instead. */
+  hideLauncher?: boolean;
+} = {}) {
   const client = apiClient ?? api;
   const [open,      setOpen]      = useState(false);
   const [messages,  setMessages]  = useState<Msg[]>([]);
@@ -112,6 +120,12 @@ export function HelpWidget({ apiClient, navItems }: { apiClient?: AxiosInstance;
     } finally { setStarting(false); }
   }, [sessionId, starting, client, navItems]);
 
+  useEffect(() => {
+    const onOpen = () => { void openPanel(); };
+    window.addEventListener('cas-open-help', onOpen);
+    return () => window.removeEventListener('cas-open-help', onOpen);
+  });
+
   async function openPanel() {
     setOpen(true);
     if (!sessionId) await startSession();
@@ -155,6 +169,7 @@ export function HelpWidget({ apiClient, navItems }: { apiClient?: AxiosInstance;
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         aria-label="Open Help (drag to move)"
+        hidden={hideLauncher}
         className={pos ? 'print:hidden fixed' : 'print:hidden fixed bottom-20 right-6 md:bottom-6'}
         style={{
           ...(pos ? { left: pos.x, top: pos.y } : {}),

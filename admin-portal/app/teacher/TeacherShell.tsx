@@ -8,7 +8,7 @@ import { getTeacher, getSchoolCode, getTeacherColors, clearTeacher } from '@/lib
 import { teacherApi } from '@/lib/teacher-api';
 import { markSessionExpired, silentRequestConfig } from '@/lib/session-expiry';
 import { ThemeToggle } from '@/components/ThemeToggle';
-import { HelpWidget, HelpNavItem } from '@/components/HelpWidget';
+import { HelpWidget, HelpNavItem, openHelp } from '@/components/HelpWidget';
 import { SessionExpiryWarning } from '@/components/SessionExpiryWarning';
 import { useEnabledModules } from '@/hooks/useEnabledModules';
 
@@ -60,7 +60,7 @@ function saveStoredOpenSection(label: string | null) {
 const NAV_ITEMS: NavItem[] = [
   {
     href:  '/teacher',
-    label: 'Dashboard',
+    label: 'Today',
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
         <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
@@ -394,7 +394,12 @@ const NAV_ITEMS: NavItem[] = [
   },
 ];
 
-const MOBILE_BAR_HREFS = ['/teacher', '/teacher/meetings', '/teacher/absences', '/teacher/timetable'];
+// Phone tab bar, built around a teacher's day: lessons, timetable, marks,
+// absences; everything else is one tap away in More.
+const MOBILE_BAR_HREFS = ['/teacher', '/teacher/timetable', '/teacher/assessments', '/teacher/absences'];
+const TAB_LABEL: Record<string, string> = { '/teacher': 'Today', '/teacher/assessments': 'Marks' };
+// Marks covers the results pages too.
+const TAB_ALSO_ACTIVE: Record<string, string[]> = { '/teacher/assessments': ['/teacher/results'] };
 
 const NO_SHELL_PATHS = ['/teacher/setup', '/teacher/login'];
 
@@ -560,7 +565,7 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
     });
   }
 
-  const mobileBarItems   = visibleNavItems.filter(item => MOBILE_BAR_HREFS.includes(item.href));
+  const mobileBarItems   = MOBILE_BAR_HREFS.map(h => visibleNavItems.find(item => item.href === h)).filter((i): i is NavItem => !!i);
   const mobileMoreItems  = visibleNavItems.filter(item => !MOBILE_BAR_HREFS.includes(item.href));
   const isMoreActive     = mobileMoreItems.some(item => isActive(item.href));
   // The More sheet uses the same sections as the desktop sidebar, minus the
@@ -736,33 +741,16 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
             </a>
           </div>
         )}
-        <div className="px-4 pt-4 pb-3.5" style={{ borderTop: `1px solid ${dk.border}` }}>
-          <div className="flex justify-center mb-3">
-            <ThemeToggle />
-          </div>
-          <p className="text-[9px] text-center font-bold" style={{ color: dk.footerText, letterSpacing: '0.09em' }}>
-            COMPREHENSIVE ACADEMIC <span style={{ color: dk.brandText }}>SUITE</span>
-          </p>
-          <div className="mt-3 pt-3 flex items-center gap-1.5" style={{ borderTop: `1px solid ${dk.border}` }}>
-            <div
-              className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-[9px] font-extrabold tracking-tight"
-              style={{ background: 'linear-gradient(135deg, #E8B85C, #C8973A)', color: '#0B3D2E', boxShadow: '0 2px 6px rgba(200,151,58,0.3)' }}
-            >
-              LT
-            </div>
-            <div className="w-px self-stretch flex-shrink-0" style={{ background: `linear-gradient(180deg, transparent, ${isDark ? 'rgba(200,151,58,0.25)' : `${primary}33`}, transparent)` }} />
-            <div className="text-left leading-tight min-w-0">
-              <p className="text-[8px] font-semibold truncate" style={{ color: dk.footerText, letterSpacing: '0.1em' }}>DESIGNED BY</p>
-              <p className="text-[11px] font-bold truncate" style={{ color: dk.brandText }}>LatexTech</p>
-            </div>
-            <div className="w-px self-stretch flex-shrink-0" style={{ background: `linear-gradient(180deg, transparent, ${isDark ? 'rgba(200,151,58,0.25)' : `${primary}33`}, transparent)` }} />
-            <div className="flex items-center gap-1 min-w-0">
-              <svg viewBox="0 0 24 24" fill="none" stroke={dk.footerText} strokeWidth={1.8} className="w-3 h-3 flex-shrink-0">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" />
-              </svg>
-              <span className="text-[8px] leading-tight" style={{ color: dk.footerText }}>+233 24<br />8234 649</span>
-            </div>
-          </div>
+        <div className="px-3 py-3 flex items-center gap-2" style={{ borderTop: `1px solid ${dk.border}` }}>
+          <button type="button" onClick={openHelp}
+            className="flex-1 flex items-center gap-2.5 px-3 min-h-[40px] rounded-lg text-sm font-medium"
+            style={{ color: dk.moreItemText }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5" aria-hidden>
+              <circle cx="12" cy="12" r="9" /><path d="M9.5 9a2.5 2.5 0 015 .5c0 1.5-2.5 2-2.5 3.5M12 17h.01" />
+            </svg>
+            Help and how-tos
+          </button>
+          <ThemeToggle />
         </div>
       </aside>
 
@@ -774,7 +762,7 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
           than the viewport instead of letting the page's own truncation CSS
           clip it. */}
       <div className="flex-1 flex flex-col md:ml-60 print:ml-0 min-h-screen min-w-0">
-        <main className="flex-1 pb-20 md:pb-6 print:pb-0 min-w-0">{children}</main>
+        <main data-teacher className="flex-1 pb-24 md:pb-6 print:pb-0 min-w-0">{children}</main>
       </div>
 
       {/* ── Mobile: More bottom-sheet backdrop ── */}
@@ -821,79 +809,61 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
                 </svg>
               </a>
             )}
-            {mobileSections.map(section => {
-              const isOpen = moreSection === section.label;
-              const hasActive = section.items.some(i => isActive(i.href));
-              return (
-                <div key={section.label}>
-                  <button
-                    type="button"
-                    onClick={() => setMoreSection(isOpen ? null : section.label)}
-                    className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-semibold"
-                    style={{ backgroundColor: isOpen ? dk.navActiveBg : 'transparent', color: isOpen || hasActive ? dk.navActiveText : dk.moreItemText }}
-                  >
-                    <span style={{ color: isOpen || hasActive ? dk.navActiveText : dk.navText }}>{section.items[0]?.icon}</span>
-                    <span className="flex-1 text-left">{section.label}</span>
-                    <span className="text-xs font-medium" style={{ color: dk.navText }}>{section.items.length}</span>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2}
-                      className="w-4 h-4 transition-transform duration-200"
-                      style={{ color: dk.navText, transform: isOpen ? 'rotate(0deg)' : 'rotate(-90deg)' }}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </button>
-                  {isOpen && (
-                    <div className="ml-[22px] pl-3 mb-1 border-l" style={{ borderColor: isDark ? 'rgba(200,151,58,0.14)' : `${primary}22` }}>
-                      {section.items.map(item => {
-                        const active = isActive(item.href);
-                        return (
-                          <Link
-                            key={item.href}
-                            href={item.href}
-                            onClick={() => setMoreOpen(false)}
-                            className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors"
-                            style={active ? { backgroundColor: dk.navActiveBg, color: dk.navActiveText } : { color: dk.moreItemText }}
-                          >
-                            <span style={{ color: active ? dk.navActiveText : dk.navText }} className="relative">
-                              {item.icon}
-                              {item.badge && unreadCount > 0 && (
-                                <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[#B83232] text-white text-[9px] font-bold flex items-center justify-center">
-                                  {unreadCount > 9 ? '9+' : unreadCount}
-                                </span>
-                              )}
-                            </span>
-                            <span className="flex-1">{item.label}</span>
-                            {item.badge && unreadCount > 0 && (
-                              <span className="text-xs font-bold px-1.5 py-0.5 rounded-full bg-[#FEF2F2] text-[#B83232]">{unreadCount}</span>
-                            )}
-                          </Link>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+            {[...mobileSections].sort((x, y) => (y.label === 'Responsibilities' ? 1 : 0) - (x.label === 'Responsibilities' ? 1 : 0)).map(section => (
+              <div key={section.label} className="pt-2">
+                <p className="px-3 pb-1 text-xs font-medium" style={{ color: dk.navText }}>{section.label}</p>
+                {section.items.map(item => {
+                  const active = isActive(item.href);
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={() => setMoreOpen(false)}
+                      aria-current={active ? 'page' : undefined}
+                      className="flex items-center gap-3 px-3 min-h-[48px] rounded-xl text-[15px] font-medium transition-colors"
+                      style={active ? { backgroundColor: dk.navActiveBg, color: dk.navActiveText } : { color: dk.moreItemText }}
+                    >
+                      <span style={{ color: active ? dk.navActiveText : dk.navText }} className="relative">{item.icon}</span>
+                      <span className="flex-1">{item.label}</span>
+                      {item.badge && unreadCount > 0 && (
+                        <span className="text-xs font-bold px-1.5 py-0.5 rounded-full bg-[#FEF2F2] text-[#B83232]">{unreadCount}</span>
+                      )}
+                    </Link>
+                  );
+                })}
+              </div>
+            ))}
+            <div className="pt-2">
+              <p className="px-3 pb-1 text-xs font-medium" style={{ color: dk.navText }}>Help</p>
+              <button type="button" onClick={() => { setMoreOpen(false); openHelp(); }}
+                className="w-full flex items-center gap-3 px-3 min-h-[48px] rounded-xl text-[15px] font-medium text-left"
+                style={{ color: dk.moreItemText }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5" aria-hidden style={{ color: dk.navText }}>
+                  <circle cx="12" cy="12" r="9" /><path d="M9.5 9a2.5 2.5 0 015 .5c0 1.5-2.5 2-2.5 3.5M12 17h.01" />
+                </svg>
+                Help and how-tos
+              </button>
+            </div>
           </div>
         </div>
       )}
 
-      {pathname === '/teacher' && !moreOpen && (
-        <HelpWidget apiClient={teacherApi} navItems={visibleSections.flatMap(s => s.items.map((i): HelpNavItem => ({ section: s.label, label: i.label, href: i.href })))} />
-      )}
+      <HelpWidget hideLauncher apiClient={teacherApi} navItems={visibleSections.flatMap(s => s.items.map((i): HelpNavItem => ({ section: s.label, label: i.label, href: i.href })))} />
 
       {/* ── Mobile bottom tab bar ── */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-20 flex" style={{ height: 60, backgroundColor: dk.tabBarBg, borderTop: `1px solid ${dk.border}` }}>
+      <nav aria-label="Main" className="md:hidden fixed bottom-0 left-0 right-0 z-20 flex pb-[env(safe-area-inset-bottom)]" style={{ backgroundColor: dk.tabBarBg, borderTop: `1px solid ${dk.border}` }}>
         {mobileBarItems.map((item) => {
-          const active = isActive(item.href);
+          const active = isActive(item.href) || (TAB_ALSO_ACTIVE[item.href] ?? []).some(h => isActive(h));
           return (
             <Link
               key={item.href}
               href={item.href}
-              className="flex-1 flex flex-col items-center justify-center py-2 gap-0.5 text-[10px] font-medium transition-colors"
+              aria-current={active ? 'page' : undefined}
+              className="flex-1 min-h-[56px] flex flex-col items-center justify-center py-1.5 gap-0.5 text-[12px] font-semibold transition-colors"
               style={{ color: active ? dk.navActiveText : dk.navText }}
             >
               <span style={{ color: active ? dk.navActiveText : dk.navText }}>{item.icon}</span>
-              {item.label}
+              {TAB_LABEL[item.href] ?? item.label}
             </Link>
           );
         })}
@@ -901,7 +871,8 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
         {/* More button */}
         <button
           onClick={openMoreSheet}
-          className="flex-1 flex flex-col items-center justify-center py-2 gap-0.5 text-[10px] font-medium transition-colors"
+          aria-haspopup="dialog" aria-expanded={moreOpen}
+          className="flex-1 min-h-[56px] flex flex-col items-center justify-center py-1.5 gap-0.5 text-[12px] font-semibold transition-colors"
           style={{ color: isMoreActive || moreOpen ? dk.navActiveText : dk.navText }}
         >
           <span style={{ color: isMoreActive || moreOpen ? dk.navActiveText : dk.navText }}>

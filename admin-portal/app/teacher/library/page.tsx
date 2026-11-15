@@ -549,7 +549,7 @@ function Catalogue() {
         <button onClick={openAdd}
           className="px-4 py-2 rounded-lg text-sm font-semibold text-white shrink-0"
           style={{ background: '#145C44' }}>
-          + Add Book
+          Add book
         </button>
       </div>
 
@@ -575,7 +575,7 @@ function Catalogue() {
                   </span>
                   <div className="flex gap-2 shrink-0" onClick={e => e.stopPropagation()}>
                     <button onClick={() => openEdit(b)} className="text-xs text-[#145C44] hover:underline">Edit</button>
-                    <button onClick={() => deleteBook(b.id)} className="text-xs text-[#B83232] hover:underline">Del</button>
+                    <button onClick={() => deleteBook(b.id)} className="text-xs text-[#B83232] hover:underline">Delete</button>
                   </div>
                 </div>
               ))}

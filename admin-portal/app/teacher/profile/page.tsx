@@ -985,6 +985,12 @@ export default function ProfilePage() {
           </div>
         </div>
       )}
+      {/* About: the CAS credit that used to sit at the bottom of the sidebar */}
+      <section aria-labelledby="about-cas" className="mx-4 mt-6 mb-4 rounded-xl bg-white border border-[#E2D9CC] p-4">
+        <h2 id="about-cas" className="text-sm font-semibold text-[#2C2218] mb-1">About CAS</h2>
+        <p className="text-sm text-[#4A3F32]">Comprehensive Academic Suite, designed and supported by LatexTech.</p>
+        <p className="text-sm text-[#4A3F32] mt-1">Support line: <span className="font-mono select-all">+233 24 8234 649</span></p>
+      </section>
     </div>
   );
 }

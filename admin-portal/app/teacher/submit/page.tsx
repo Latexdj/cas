@@ -636,7 +636,7 @@ export default function SubmitPage() {
                             })()}
                           </>
                         )}
-                        {absent && <p className="text-xs font-semibold mt-0.5 flex items-center gap-1" style={{ color: '#B83232' }}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="w-3 h-3 shrink-0"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>Marked Absent — contact admin to resubmit</p>}
+                        {absent && <p className="text-xs font-semibold mt-0.5 flex items-center gap-1" style={{ color: '#B83232' }}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="w-3 h-3 shrink-0"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>Marked absent. Ask the admin to reopen it.</p>}
                       </div>
                     </label>
                   );

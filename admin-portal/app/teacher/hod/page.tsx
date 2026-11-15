@@ -420,7 +420,7 @@ export default function HodPage() {
               {overview?.programme_name ?? 'My Department'}
             </h1>
             <p className="text-xs text-[#8C7E6E]">
-              {overview?.hod_type === 'subject' ? 'Subject HOD Dashboard' : 'HOD Dashboard'}
+              Head of department
             </p>
           </div>
         </div>
@@ -446,15 +446,18 @@ export default function HodPage() {
 
       {/* Tabs */}
       <div className="px-4 mb-4">
-        <div className="flex gap-1 bg-white rounded-xl p-1 border border-[#E2D9CC]">
+        {/* Six sections: a scrolling tab row, not a squeezed segmented control */}
+        <div role="tablist" aria-label="Department sections" className="-mx-4 px-4 flex gap-1 overflow-x-auto no-scrollbar border-b border-[#E2D9CC]">
           {TABS.map(t => (
             <button
               key={t.key}
+              role="tab"
+              aria-selected={tab === t.key}
               onClick={() => setTab(t.key)}
-              className="flex-1 py-2 rounded-xl text-xs font-semibold transition-colors"
+              className="shrink-0 px-3 min-h-[44px] text-sm font-semibold border-b-2 -mb-px whitespace-nowrap transition-colors"
               style={tab === t.key
-                ? { background: primary, color: '#fff' }
-                : { color: '#8C7E6E' }}
+                ? { borderColor: primary, color: '#1C1208' }
+                : { borderColor: 'transparent', color: '#6E6253' }}
             >
               {t.label}
             </button>

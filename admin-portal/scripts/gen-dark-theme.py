@@ -238,7 +238,7 @@ for b, t in sorted(style_pairs | class_pairs):
 # their light-on-dark text. Very light colours (lum > 0.6) are left alone:
 # inside main they are text on dark or coloured fills.
 WHITE = '#FFFFFF'
-LIGHT = 'html:not(.dark) main:is([data-admin], [data-staff])'
+LIGHT = 'html:not(.dark) main:is([data-admin], [data-staff], [data-teacher])'
 
 
 def light_text_map(h):
