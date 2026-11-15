@@ -7,7 +7,8 @@ import Link from 'next/link';
 import { getStudent, getStudentSchoolCode, getStudentColors, clearStudent } from '@/lib/student-auth';
 import { studentApi } from '@/lib/student-api';
 import { markSessionExpired } from '@/lib/session-expiry';
-import { HelpWidget, HelpNavItem } from '@/components/HelpWidget';
+import { ThemeToggle } from '@/components/ThemeToggle';
+import { HelpWidget, HelpNavItem, openHelp } from '@/components/HelpWidget';
 import { SessionExpiryWarning } from '@/components/SessionExpiryWarning';
 
 const PRIMARY = '#3B82F6';
@@ -176,7 +177,9 @@ const NAV_ITEMS: NavItem[] = [
   },
 ];
 
-const MOBILE_BAR_HREFS = ['/student', '/student/results', '/student/lms', '/student/attendance', '/student/timetable'];
+// Phone tab bar: five places a student goes most; the rest is one tap away in More.
+const MOBILE_BAR_HREFS = ['/student', '/student/timetable', '/student/results', '/student/lms'];
+const TAB_LABEL: Record<string, string> = { '/student/lms': 'Learn' };
 const NO_SHELL_PATHS   = ['/student/setup', '/student/login'];
 
 export default function StudentShell({ children }: { children: ReactNode }) {
@@ -253,7 +256,9 @@ export default function StudentShell({ children }: { children: ReactNode }) {
 
   if (NO_SHELL_PATHS.includes(pathname)) return <>{children}</>;
 
-  const mobileBarItems  = NAV_ITEMS.filter(item => MOBILE_BAR_HREFS.includes(item.href));
+  const mobileBarItems  = MOBILE_BAR_HREFS.map(h => NAV_ITEMS.find(item => item.href === h)).filter((i): i is (typeof NAV_ITEMS)[number] => !!i);
+  // Header title: the page you are on, so the place is always visible.
+  const pageTitle = [...NAV_ITEMS].sort((a, b) => b.href.length - a.href.length).find(item => isActive(item.href))?.label ?? 'Student portal';
   const mobileMoreItems = NAV_ITEMS.filter(item => !MOBILE_BAR_HREFS.includes(item.href));
   const isMoreActive    = mobileMoreItems.some(item => isActive(item.href));
   const student         = getStudent();
@@ -347,13 +352,21 @@ export default function StudentShell({ children }: { children: ReactNode }) {
         </nav>
 
         <div className="px-4 py-3" style={{ borderTop: `1px solid ${sidebarBorder}` }}>
+          <button type="button" onClick={openHelp}
+            className="w-full flex items-center gap-2 px-3 min-h-[40px] rounded-xl text-sm font-medium" style={{ color: navTextColor }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden>
+              <circle cx="12" cy="12" r="9" /><path d="M9.5 9a2.5 2.5 0 015 .5c0 1.5-2.5 2-2.5 3.5M12 17h.01" />
+            </svg>
+            Help and how-tos
+          </button>
+          <div className="flex items-center gap-1"><ThemeToggle /></div>
           <button onClick={handleLogout}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-colors"
-            style={{ color: '#B83232' }}>
+            className="w-full flex items-center gap-2 px-3 min-h-[40px] rounded-xl text-sm font-medium transition-colors"
+            style={{ color: navTextColor }}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
               <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" />
             </svg>
-            Sign Out
+            Sign out
           </button>
         </div>
       </aside>
@@ -361,27 +374,25 @@ export default function StudentShell({ children }: { children: ReactNode }) {
       {/* ── Main content ── */}
       <div className="flex-1 flex flex-col md:ml-60 min-h-screen min-w-0">
         {/* Mobile header */}
-        <header className="md:hidden sticky top-0 z-10 px-4 py-3 flex items-center gap-3"
+        <header className="md:hidden sticky top-0 z-10 h-14 px-4 flex items-center gap-3"
           style={{ backgroundColor: isDark ? '#152210' : '#FDFAF5', borderBottom: `1px solid ${sidebarBorder}` }}>
           {logoUrl ? (
-            <img src={logoUrl} alt="" className="w-7 h-7 rounded-lg object-cover" />
+            <img src={logoUrl} alt="" className="w-8 h-8 rounded-lg object-cover" />
           ) : (
-            <div className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-bold" style={{ background: primary }}>S</div>
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold" style={{ background: primary }}>S</div>
           )}
-          <span className="font-bold text-sm flex-1" style={{ color: primary }}>Student Portal</span>
-          <button onClick={handleLogout} className="p-1.5 rounded-lg transition-colors" style={{ color: '#B83232' }}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-              <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" />
-            </svg>
-          </button>
+          <h1 className="font-semibold text-base flex-1 truncate" style={{ color: isDark ? '#EEE8DF' : '#1C1208' }}>{pageTitle}</h1>
+          <ThemeToggle />
+          <Link href="/student/profile" aria-label={`Profile and sign out: ${student?.name ?? 'student'}`}
+            className="w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold text-white" style={{ background: primary }}>
+            {(student?.name ?? 'S').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
+          </Link>
         </header>
 
-        <main className="flex-1 pb-20 md:pb-6 min-w-0">{children}</main>
+        <main data-student className="flex-1 pb-24 md:pb-6 min-w-0">{children}</main>
       </div>
 
-      {pathname === '/student' && (
-        <HelpWidget apiClient={studentApi} navItems={visibleSections.flatMap(s => s.items.map((i): HelpNavItem => ({ section: s.label, label: i.label, href: i.href })))} />
-      )}
+      <HelpWidget hideLauncher apiClient={studentApi} navItems={visibleSections.flatMap(s => s.items.map((i): HelpNavItem => ({ section: s.label, label: i.label, href: i.href })))} />
 
       {/* ── Mobile More backdrop ── */}
       {moreOpen && (
@@ -390,48 +401,70 @@ export default function StudentShell({ children }: { children: ReactNode }) {
 
       {/* ── Mobile More bottom-sheet ── */}
       {moreOpen && (
-        <div className={`md:hidden fixed bottom-[60px] left-0 right-0 rounded-t-xl shadow-2xl z-40 px-4 pt-4 pb-3 flex flex-col max-h-[80vh] ${isDark ? 'bg-slate-800 border-t border-slate-700' : 'bg-white border-t border-slate-200'}`}>
-          <div className="flex items-center justify-between mb-3 shrink-0">
-            <p className={`text-sm font-bold ${isDark ? 'text-slate-100' : 'text-slate-800'}`}>More</p>
-            <button onClick={() => setMoreOpen(false)}
-              className={`w-7 h-7 flex items-center justify-center rounded-full ${isDark ? 'bg-slate-700 text-slate-400' : 'bg-slate-100 text-slate-500'}`}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" className="w-3.5 h-3.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-            </button>
+        <div role="dialog" aria-modal="true" aria-label="More"
+          className="md:hidden fixed bottom-0 left-0 right-0 rounded-t-2xl shadow-2xl z-40 px-4 pt-2 pb-[calc(16px+env(safe-area-inset-bottom))] flex flex-col max-h-[85vh] bg-elevated border-t border-line">
+          <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-line-strong shrink-0" aria-hidden />
+          <div className="flex items-center justify-between mb-1 shrink-0">
+            <p className="text-base font-semibold text-ink">More</p>
+            <button onClick={() => setMoreOpen(false)} className="px-3 min-h-[44px] text-sm font-semibold text-brand-ink">Done</button>
           </div>
-          <div className="space-y-1 overflow-y-auto overscroll-contain pb-2">
-            {mobileMoreItems.map((item) => {
-              const active = isActive(item.href);
+          <div className="overflow-y-auto overscroll-contain pb-2">
+            {visibleSections.map(section => {
+              const items = section.items.filter(i => !MOBILE_BAR_HREFS.includes(i.href));
+              if (!items.length) return null;
               return (
-                <Link key={item.href} href={item.href} onClick={() => setMoreOpen(false)}
-                  className="flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-colors"
-                  style={active ? { backgroundColor: `${primary}18`, color: primary } : { color: isDark ? '#CBD5E1' : '#374151' }}>
-                  <span style={{ color: active ? primary : navIconColor }}>{item.icon}</span>
-                  <span className="flex-1">{item.label}</span>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4 opacity-30">
-                    <polyline points="9 18 15 12 9 6" />
-                  </svg>
-                </Link>
+                <div key={section.label} className="pt-2">
+                  <p className="px-3 pb-1 text-xs font-medium text-ink-muted">{section.label}</p>
+                  {items.map(item => {
+                    const active = isActive(item.href);
+                    return (
+                      <Link key={item.href} href={item.href} onClick={() => setMoreOpen(false)} aria-current={active ? 'page' : undefined}
+                        className="flex items-center gap-3 px-3 min-h-[48px] rounded-xl text-[15px] font-medium"
+                        style={active ? { backgroundColor: `${primary}18`, color: primary } : undefined}>
+                        <span style={{ color: active ? primary : navIconColor }}>{item.icon}</span>
+                        <span className={`flex-1 ${active ? '' : 'text-ink'}`}>{item.label}</span>
+                      </Link>
+                    );
+                  })}
+                </div>
               );
             })}
+            <div className="pt-2">
+              <p className="px-3 pb-1 text-xs font-medium text-ink-muted">Help</p>
+              <button type="button" onClick={() => { setMoreOpen(false); openHelp(); }}
+                className="w-full flex items-center gap-3 px-3 min-h-[48px] rounded-xl text-[15px] font-medium text-left text-ink">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5" aria-hidden style={{ color: navIconColor }}>
+                  <circle cx="12" cy="12" r="9" /><path d="M9.5 9a2.5 2.5 0 015 .5c0 1.5-2.5 2-2.5 3.5M12 17h.01" />
+                </svg>
+                Help and how-tos
+              </button>
+              <button type="button" onClick={handleLogout}
+                className="w-full flex items-center gap-3 px-3 min-h-[48px] rounded-xl text-[15px] font-medium text-left text-ink">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5" aria-hidden style={{ color: navIconColor }}>
+                  <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" />
+                </svg>
+                Sign out
+              </button>
+            </div>
           </div>
         </div>
       )}
 
       {/* ── Mobile bottom tab bar ── */}
-      <nav className={`md:hidden fixed bottom-0 left-0 right-0 z-20 flex ${isDark ? 'bg-slate-800 border-t border-slate-700' : 'bg-white border-t border-slate-200'}`} style={{ height: 60 }}>
+      <nav aria-label="Main" className="md:hidden fixed bottom-0 left-0 right-0 z-20 flex bg-surface border-t border-line pb-[env(safe-area-inset-bottom)]">
         {mobileBarItems.map((item) => {
           const active = isActive(item.href);
           return (
-            <Link key={item.href} href={item.href}
-              className="flex-1 flex flex-col items-center justify-center py-2 gap-0.5 text-[10px] font-medium"
+            <Link key={item.href} href={item.href} aria-current={active ? 'page' : undefined}
+              className="flex-1 min-h-[56px] flex flex-col items-center justify-center py-1.5 gap-0.5 text-[12px] font-semibold"
               style={{ color: active ? primary : navTextColor }}>
               <span style={{ color: active ? primary : navIconColor }}>{item.icon}</span>
-              {item.label}
+              {TAB_LABEL[item.href] ?? item.label}
             </Link>
           );
         })}
-        <button onClick={() => setMoreOpen(o => !o)}
-          className="flex-1 flex flex-col items-center justify-center py-2 gap-0.5 text-[10px] font-medium"
+        <button onClick={() => setMoreOpen(o => !o)} aria-haspopup="dialog" aria-expanded={moreOpen}
+          className="flex-1 min-h-[56px] flex flex-col items-center justify-center py-1.5 gap-0.5 text-[12px] font-semibold"
           style={{ color: isMoreActive || moreOpen ? primary : navTextColor }}>
           <span style={{ color: isMoreActive || moreOpen ? primary : navIconColor }}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">

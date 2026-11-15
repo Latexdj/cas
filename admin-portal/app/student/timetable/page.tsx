@@ -70,7 +70,7 @@ export default function StudentTimetablePage() {
                 ? { background: primary, color: '#fff' }
                 : { background: '#f1f5f9', color: '#64748b' }}>
               {dayName.slice(0, 3)}
-              {dayName === TODAY_NAME && <span className="ml-1 text-[9px] opacity-70">Today</span>}
+              {dayName === TODAY_NAME && <span className="sr-only"> (today)</span>}
             </button>
           ))}
         </div>
@@ -85,21 +85,16 @@ export default function StudentTimetablePage() {
         <div className="space-y-2">
           {dayRows.map((r, i) => (
             <div key={r.id} className="bg-white rounded-xl border border-slate-100 px-4 py-3 flex items-center gap-4">
-              <div className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold"
-                style={{ background: '#E8F4EE', color: '#145C44' }}>
-                {i + 1}
-              </div>
-              <div className="shrink-0 text-center w-20">
-                <p className="text-xs font-mono font-semibold text-slate-700">{r.start_time.slice(0, 5)}</p>
-                <p className="text-[10px] text-slate-400">to</p>
-                <p className="text-xs font-mono font-semibold text-slate-700">{r.end_time.slice(0, 5)}</p>
+              <div className="shrink-0 w-24">
+                <p className="text-sm font-mono font-semibold text-slate-700">{r.start_time.slice(0, 5)}</p>
+                <p className="text-sm font-mono text-slate-500">{r.end_time.slice(0, 5)}</p>
+                <p className="text-xs text-slate-500">Period {i + 1}</p>
               </div>
               <div className="w-px h-10 bg-slate-100 shrink-0" />
               <div className="flex-1 min-w-0">
                 <p className="font-semibold text-slate-800 truncate">{r.subject}</p>
                 <p className="text-xs text-slate-400 truncate">{r.teacher_name}</p>
               </div>
-              <div className="shrink-0 w-2 h-2 rounded-full" style={{ background: primary }} />
             </div>
           ))}
         </div>

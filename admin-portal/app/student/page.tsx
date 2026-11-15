@@ -57,7 +57,30 @@ const EVENT_STYLE: Record<string, { fg: string; bg: string }> = {
   'Closed Day':   { fg: '#B83232', bg: '#FEF2F2' },
 };
 
+type TodayLesson = { id: string; day_of_week: string; start_time: string; end_time: string; subject: string; teacher_name: string };
+const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+function useNextLesson() {
+  const [next, setNext] = useState<{ lesson: TodayLesson; now: boolean } | null>(null);
+  useEffect(() => {
+    studentApi.get<TodayLesson[]>('/api/student/timetable').then(r => {
+      const d = new Date();
+      const today = DAY_NAMES[d.getDay()];
+      const mins = d.getHours() * 60 + d.getMinutes();
+      const toMin = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+      const lessons = (Array.isArray(r.data) ? r.data : [])
+        .filter(l => l.day_of_week === today || String(l.day_of_week) === String(d.getDay()))
+        .sort((a, b) => a.start_time.localeCompare(b.start_time));
+      const current = lessons.find(l => toMin(l.start_time) <= mins && mins <= toMin(l.end_time));
+      const upcoming = lessons.find(l => toMin(l.start_time) > mins);
+      setNext(current ? { lesson: current, now: true } : upcoming ? { lesson: upcoming, now: false } : null);
+    }).catch(() => setNext(null));
+  }, []);
+  return next;
+}
+
 export default function StudentDashboard() {
+  const nextLesson = useNextLesson();
   const [profile,     setProfile]     = useState<Profile | null>(null);
   const [result,      setResult]      = useState<LatestResult | null>(null);
   const [att,         setAtt]         = useState<AttSummary | null>(null);
@@ -148,7 +171,7 @@ export default function StudentDashboard() {
             </div>
           )}
           <div className="min-w-0 flex-1">
-            <p className="text-xs font-semibold mb-0.5" style={{ color: 'rgba(200,151,58,0.8)' }}>{greet()}</p>
+            <p className="text-sm font-semibold mb-0.5" style={{ color: '#D6A64E' }}>{new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
             <p className="text-xl font-black leading-tight text-white truncate">{profile?.name}</p>
             <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
               {profile?.class_name && (
@@ -166,28 +189,48 @@ export default function StudentDashboard() {
               {currentYear && (
                 <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full"
                   style={{ background: 'rgba(200,151,58,0.18)', color: '#C8973A' }}>
-                  {currentYear.name} · Sem {currentYear.current_semester}
+                  {currentYear.name}, semester {currentYear.current_semester}
                 </span>
               )}
             </div>
           </div>
         </div>
 
-        {/* Key metrics strip */}
-        <div className="relative grid grid-cols-3" style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
-          {[
-            { label: 'Avg Score',  value: result?.average != null ? `${result.average}%` : '—', sub: result?.overall_grade ?? '' },
-            { label: 'Class Rank', value: result?.class_position ? ordinal(result.class_position) : '—', sub: result?.class_total ? `of ${result.class_total}` : '' },
-            { label: 'Attendance', value: att?.rate != null ? `${att.rate}%` : '—', sub: att ? `${att.present}/${att.total} days` : '' },
-          ].map(({ label, value, sub }, i) => (
-            <div key={label} className="py-4 px-2 text-center"
-              style={{ borderLeft: i > 0 ? '1px solid rgba(255,255,255,0.07)' : undefined }}>
-              <p className="text-[9px] font-bold uppercase" style={{ color: 'rgba(255,255,255,0.3)', letterSpacing: '0.09em' }}>{label}</p>
-              <p className="text-2xl font-black text-white mt-1 leading-none">{value}</p>
-              {sub && <p className="text-[10px] mt-1" style={{ color: 'rgba(255,255,255,0.3)' }}>{sub}</p>}
+        {/* Next lesson: what matters right now */}
+        {nextLesson && (
+          <div className="relative px-5 py-3 flex items-center gap-3" style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+            <span className="w-1.5 self-stretch rounded-full" style={{ background: '#C8973A' }} aria-hidden />
+            <div className="min-w-0">
+              <p className="text-sm font-semibold" style={{ color: '#D6A64E' }}>
+                {nextLesson.now ? 'Now' : `Next, at ${nextLesson.lesson.start_time.slice(0, 5)}`}
+              </p>
+              <p className="text-base font-bold text-white truncate">{nextLesson.lesson.subject}</p>
+              <p className="text-sm truncate" style={{ color: 'rgba(255,255,255,0.75)' }}>
+                {nextLesson.lesson.teacher_name}, until {nextLesson.lesson.end_time.slice(0, 5)}
+              </p>
             </div>
-          ))}
-        </div>
+          </div>
+        )}
+
+        {/* Key figures: only the ones that have a value yet */}
+        {(() => {
+          const figs = [
+            result?.average != null && { label: 'Average', value: `${result.average}%`, sub: result?.overall_grade ? `Grade ${result.overall_grade}` : '' },
+            result?.class_position && { label: 'Position', value: ordinal(result.class_position), sub: result?.class_total ? `of ${result.class_total}` : '' },
+          ].filter(Boolean) as { label: string; value: string; sub: string }[];
+          if (!figs.length) return null;
+          return (
+            <div className="relative grid" style={{ gridTemplateColumns: `repeat(${figs.length}, minmax(0, 1fr))`, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+              {figs.map(({ label, value, sub }, i) => (
+                <div key={label} className="py-3.5 px-2 text-center" style={{ borderLeft: i > 0 ? '1px solid rgba(255,255,255,0.08)' : undefined }}>
+                  <p className="text-sm" style={{ color: 'rgba(255,255,255,0.7)' }}>{label}</p>
+                  <p className="text-2xl font-bold text-white mt-0.5 leading-none font-mono">{value}</p>
+                  {sub && <p className="text-sm mt-1" style={{ color: 'rgba(255,255,255,0.7)' }}>{sub}</p>}
+                </div>
+              ))}
+            </div>
+          );
+        })()}
       </div>
 
       <div className="p-4 md:p-5 space-y-4">
@@ -228,7 +271,7 @@ export default function StudentDashboard() {
               <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
             </svg>
             <div>
-              <p className="text-sm font-bold" style={{ color: '#B83232' }}>Attendance at {att.rate}% — action needed</p>
+              <p className="text-sm font-bold" style={{ color: '#B83232' }}>Your attendance is {att.rate}%</p>
               <p className="text-xs mt-0.5" style={{ color: '#991B1B' }}>Speak with your form teacher to avoid being barred from exams.</p>
             </div>
           </div>
@@ -324,7 +367,7 @@ export default function StudentDashboard() {
                   ))}
                 </div>
                 <Link href="/student/attendance"
-                  className="block mt-3 text-xs font-semibold text-right"
+                  className="inline-flex items-center min-h-[44px] block mt-3 text-xs font-semibold text-right"
                   style={{ color: '#145C44' }}>
                   View full log
                 </Link>
@@ -336,7 +379,7 @@ export default function StudentDashboard() {
                 <div className="px-4 pt-4 pb-3 flex items-center justify-between"
                   style={{ borderBottom: '1px solid #F5F0E8' }}>
                   <p className="text-sm font-bold" style={{ color: '#2C2218' }}>Upcoming Events</p>
-                  <Link href="/student/calendar" className="text-xs font-semibold" style={{ color: '#145C44' }}>See all</Link>
+                  <Link href="/student/calendar" className="inline-flex items-center min-h-[44px] text-xs font-semibold" style={{ color: '#145C44' }}>See all</Link>
                 </div>
                 <div className="divide-y" style={{ borderColor: '#F5F0E8' }}>
                   {events.map(ev => {

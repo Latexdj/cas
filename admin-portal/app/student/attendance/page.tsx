@@ -15,7 +15,7 @@ const STATUS_STYLE: Record<string, { bg: string; text: string }> = {
   Present: { bg: 'bg-[#E8F4EE]',    text: 'text-[#145C44]'  },
   Absent:  { bg: 'bg-[#FEF2F2]',    text: 'text-[#B83232]'  },
   Late:    { bg: 'bg-amber-50',     text: 'text-amber-700'  },
-  Excused: { bg: 'bg-blue-50',      text: 'text-blue-700'   },
+  Excused: { bg: 'bg-[#F4EFE6]',    text: 'text-[#4A3F32]'  },
 };
 
 export default function StudentAttendancePage() {
@@ -96,7 +96,7 @@ export default function StudentAttendancePage() {
                 { label: 'Present', value: summary.present, bg: 'bg-[#E8F4EE]', text: 'text-[#145C44]' },
                 { label: 'Absent',  value: summary.absent,  bg: 'bg-[#FEF2F2]', text: 'text-[#B83232]' },
                 { label: 'Late',    value: summary.late,    bg: 'bg-amber-50', text: 'text-amber-700' },
-                { label: 'Excused', value: summary.excused, bg: 'bg-blue-50',  text: 'text-blue-700'  },
+                { label: 'Excused', value: summary.excused, bg: 'bg-[#F4EFE6]', text: 'text-[#4A3F32]' },
               ].map(({ label, value, bg, text }) => (
                 <div key={label} className={`rounded-xl p-3 text-center ${bg}`}>
                   <p className={`text-2xl font-bold ${text}`}>{value}</p>

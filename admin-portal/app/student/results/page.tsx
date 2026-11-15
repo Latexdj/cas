@@ -327,7 +327,8 @@ export default function StudentResultsPage() {
     const url = `/api/student/results?academic_year_id=${yearId}&semester=${semester}`;
     studentApi.get<SemesterResult>(url)
       .then(r => {
-        setResult(r.data);
+        // A result with no subjects yet means nothing is published: show the empty message.
+        setResult(r.data && Array.isArray(r.data.subjects) && r.data.subjects.length > 0 ? r.data : null);
         // Also fetch class-wide averages for comparison (silent failure)
         studentApi.get<ClassStats>(`/api/student/results/class?academic_year_id=${yearId}&semester=${semester}`)
           .then(cr => setClassStats(cr.data))
@@ -596,7 +597,7 @@ export default function StudentResultsPage() {
           </div>
         ) : (
           <div className="bg-white rounded-xl border border-slate-100 p-12 text-center">
-            <p className="text-slate-500 font-medium">No results for this period.</p>
+            <p className="text-slate-700 font-medium">No results published for this semester yet.</p>
             <p className="text-slate-400 text-sm mt-1">Results are published after the semester ends. Try a different year or semester.</p>
           </div>
         )}

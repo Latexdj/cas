@@ -412,6 +412,14 @@
 .dark [style*="; background: rgb(237, 233, 254)"],
 .dark [style^="background:#EDE9FE" i],
 .dark [style*=";background:#EDE9FE" i] { background: #1C1537 !important; }
+.dark [style^="background-color: rgb(238, 232, 223)"],
+.dark [style*="; background-color: rgb(238, 232, 223)"],
+.dark [style^="background-color:#EEE8DF" i],
+.dark [style*=";background-color:#EEE8DF" i],
+.dark [style^="background: rgb(238, 232, 223)"],
+.dark [style*="; background: rgb(238, 232, 223)"],
+.dark [style^="background:#EEE8DF" i],
+.dark [style*=";background:#EEE8DF" i] { background: var(--sunken) !important; }
 .dark [style^="background-color: rgb(239, 246, 255)"],
 .dark [style*="; background-color: rgb(239, 246, 255)"],
 .dark [style^="background-color:#EFF6FF" i],
@@ -1562,6 +1570,10 @@
 .dark [style*="; color: rgb(237, 233, 254)"],
 .dark [style^="color:#EDE9FE" i],
 .dark [style*=";color:#EDE9FE" i] { color: var(--ink) !important; }
+.dark [style^="color: rgb(238, 232, 223)"],
+.dark [style*="; color: rgb(238, 232, 223)"],
+.dark [style^="color:#EEE8DF" i],
+.dark [style*=";color:#EEE8DF" i] { color: var(--ink) !important; }
 .dark [style^="color: rgb(239, 68, 68)"],
 .dark [style*="; color: rgb(239, 68, 68)"],
 .dark [style^="color:#EF4444" i],
@@ -2172,6 +2184,13 @@
 .dark [style*="border-left: 1px solid rgb(237, 233, 254)"],
 .dark [style*="border-right: 1px solid rgb(237, 233, 254)"],
 .dark [style*="#EDE9FE" i][style*="border" i] { border-color: var(--line) !important; }
+.dark [style*="border: 1px solid rgb(238, 232, 223)"],
+.dark [style*="border-color: rgb(238, 232, 223)"],
+.dark [style*="border-bottom: 1px solid rgb(238, 232, 223)"],
+.dark [style*="border-top: 1px solid rgb(238, 232, 223)"],
+.dark [style*="border-left: 1px solid rgb(238, 232, 223)"],
+.dark [style*="border-right: 1px solid rgb(238, 232, 223)"],
+.dark [style*="#EEE8DF" i][style*="border" i] { border-color: var(--line) !important; }
 .dark [style*="border: 1px solid rgb(239, 246, 255)"],
 .dark [style*="border-color: rgb(239, 246, 255)"],
 .dark [style*="border-bottom: 1px solid rgb(239, 246, 255)"],

@@ -278,39 +278,39 @@ select option {
 ═══════════════════════════════════════════════════════════════ */
 
 /* Secondary text that failed 4.5:1 in light mode (slate-400 was 2.6:1). */
-html:not(.dark) main:is([data-admin], [data-staff], [data-teacher]) :is(.text-slate-300, .text-slate-400, .text-gray-300, .text-gray-400) { color: var(--ink-muted); }
-html:not(.dark) main:is([data-admin], [data-staff], [data-teacher]) :is(.text-amber-400, .text-amber-500, .text-yellow-500, .text-orange-400, .text-orange-500) { color: var(--warn-ink); }
-html:not(.dark) main:is([data-admin], [data-staff], [data-teacher]) :is(.text-green-400, .text-green-500, .text-emerald-400, .text-emerald-500) { color: var(--ok-ink); }
-html:not(.dark) main:is([data-admin], [data-staff], [data-teacher]) :is(.text-red-400, .text-red-500, .text-rose-500) { color: var(--bad-ink); }
-html:not(.dark) main:is([data-admin], [data-staff], [data-teacher]) :is(.text-blue-400, .text-blue-500, .text-sky-500, .text-indigo-500) { color: var(--brand-ink); }
+html:not(.dark) main:is([data-admin], [data-staff], [data-teacher], [data-student]) :is(.text-slate-300, .text-slate-400, .text-gray-300, .text-gray-400) { color: var(--ink-muted); }
+html:not(.dark) main:is([data-admin], [data-staff], [data-teacher], [data-student]) :is(.text-amber-400, .text-amber-500, .text-yellow-500, .text-orange-400, .text-orange-500) { color: var(--warn-ink); }
+html:not(.dark) main:is([data-admin], [data-staff], [data-teacher], [data-student]) :is(.text-green-400, .text-green-500, .text-emerald-400, .text-emerald-500) { color: var(--ok-ink); }
+html:not(.dark) main:is([data-admin], [data-staff], [data-teacher], [data-student]) :is(.text-red-400, .text-red-500, .text-rose-500) { color: var(--bad-ink); }
+html:not(.dark) main:is([data-admin], [data-staff], [data-teacher], [data-student]) :is(.text-blue-400, .text-blue-500, .text-sky-500, .text-indigo-500) { color: var(--brand-ink); }
 /* Text sitting on a solid fill keeps its own colour. */
-main:is([data-admin], [data-staff], [data-teacher]) :is([class*="bg-[#145C44]"], [class*="bg-[#0B3D2E]"], [class*="bg-[#B83232]"], .bg-red-600, .bg-green-700) :is(.text-slate-300, .text-slate-400, .text-gray-300, .text-gray-400) { color: rgba(255, 255, 255, 0.85); }
+main:is([data-admin], [data-staff], [data-teacher], [data-student]) :is([class*="bg-[#145C44]"], [class*="bg-[#0B3D2E]"], [class*="bg-[#B83232]"], .bg-red-600, .bg-green-700) :is(.text-slate-300, .text-slate-400, .text-gray-300, .text-gray-400) { color: rgba(255, 255, 255, 0.85); }
 
 /* Type floor: nothing under 12px, small text 13px, no shouting labels. */
-main:is([data-admin], [data-staff], [data-teacher]) {
+main:is([data-admin], [data-staff], [data-teacher], [data-student]) {
   --text-xs: 0.8125rem;
   --text-xs--line-height: calc(1.125 / 0.8125);
 }
-main:is([data-admin], [data-staff], [data-teacher]) :is(.text-\[9px\], .text-\[10px\], .text-\[11px\]) { font-size: 12px; }
-main:is([data-admin], [data-staff], [data-teacher]) :is([style*="font-size: 9px"], [style*="font-size: 10px"], [style*="font-size: 11px"]) { font-size: 12px !important; }
-main:is([data-admin], [data-staff], [data-teacher]) .uppercase:is(.tracking-wide, .tracking-wider, .tracking-widest) { text-transform: none; letter-spacing: 0; }
+main:is([data-admin], [data-staff], [data-teacher], [data-student]) :is(.text-\[9px\], .text-\[10px\], .text-\[11px\]) { font-size: 12px; }
+main:is([data-admin], [data-staff], [data-teacher], [data-student]) :is([style*="font-size: 9px"], [style*="font-size: 10px"], [style*="font-size: 11px"]) { font-size: 12px !important; }
+main:is([data-admin], [data-staff], [data-teacher], [data-student]) .uppercase:is(.tracking-wide, .tracking-wider, .tracking-widest) { text-transform: none; letter-spacing: 0; }
 
 /* Control sizes: 28px minimum on desktop, 44px on phones (Apple's defaults). */
-main:is([data-admin], [data-staff], [data-teacher]) :is(button, select, input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]), [role="button"]):not(th *):not([role="switch"]) {
+main:is([data-admin], [data-staff], [data-teacher], [data-student]) :is(button, select, input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]), [role="button"]):not(th *):not([role="switch"]) {
   min-height: 28px;
 }
 @media (max-width: 767px) {
-  main:is([data-admin], [data-staff], [data-teacher]) :is(button, select, input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]), textarea, [role="button"]):not(th *):not([role="switch"]) {
+  main:is([data-admin], [data-staff], [data-teacher], [data-student]) :is(button, select, input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]), textarea, [role="button"]):not(th *):not([role="switch"]) {
     min-height: 44px;
   }
-  main:is([data-admin], [data-staff], [data-teacher]) :is(button, [role="button"]):not(th *):not([role="switch"]) { min-width: 44px; }
-  main:is([data-admin], [data-staff], [data-teacher]) :is(input, select, textarea) { font-size: 16px; }   /* stops iOS zooming into fields */
-  main:is([data-admin], [data-staff], [data-teacher]) input:is([type="checkbox"], [type="radio"]) { width: 20px; height: 20px; }
+  main:is([data-admin], [data-staff], [data-teacher], [data-student]) :is(button, [role="button"]):not(th *):not([role="switch"]) { min-width: 44px; }
+  main:is([data-admin], [data-staff], [data-teacher], [data-student]) :is(input, select, textarea) { font-size: 16px; }   /* stops iOS zooming into fields */
+  main:is([data-admin], [data-staff], [data-teacher], [data-student]) input:is([type="checkbox"], [type="radio"]) { width: 20px; height: 20px; }
 }
 
 /* Wide tables on a phone: a soft shadow at the edge shows there is more to scroll to. */
 @media (max-width: 767px) {
-  main:is([data-admin], [data-staff], [data-teacher]) .overflow-x-auto {
+  main:is([data-admin], [data-staff], [data-teacher], [data-student]) .overflow-x-auto {
     background:
       linear-gradient(to right, var(--surface) 30%, transparent) left center / 24px 100% no-repeat local,
       linear-gradient(to left, var(--surface) 30%, transparent) right center / 24px 100% no-repeat local,
