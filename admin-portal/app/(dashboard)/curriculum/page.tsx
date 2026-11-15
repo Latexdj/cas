@@ -143,7 +143,7 @@ function SubjectsTab() {
   }
 
   return (
-    <div className="space-y-4 max-w-3xl">
+    <div className="space-y-4 max-w-6xl">
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <p className="text-sm text-ink-muted">{subjects.length} subject{subjects.length !== 1 ? 's' : ''} defined</p>
         <div className="flex gap-2">
@@ -328,7 +328,7 @@ function ClassesTab() {
   const { displayRows: classRows, total: classTotal, page: classPage, setPage: setClassPage, pageSize: classPageSize, setPageSize: setClassPageSize } = useTableControls(classes);
 
   return (
-    <div className="space-y-4 max-w-sm">
+    <div className="space-y-4 max-w-6xl">
       <div className="flex items-center justify-between">
         <p className="text-sm" style={{ color: '#94A3B8' }}>{classes.length} class{classes.length !== 1 ? 'es' : ''} defined</p>
         <Button onClick={openCreate}>Add class</Button>
@@ -475,7 +475,7 @@ function LevelsTab() {
   }
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-6 max-w-6xl">
       <div>
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div>
@@ -668,7 +668,7 @@ function ProgramsTab() {
   };
 
   return (
-    <div className="space-y-4 max-w-2xl">
+    <div className="space-y-4 max-w-6xl">
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <p className="text-sm" style={{ color: '#94A3B8' }}>{programs.length} program{programs.length !== 1 ? 's' : ''} defined</p>
         <Button onClick={openCreate}>Add program</Button>
@@ -804,7 +804,7 @@ function HousesTab() {
   const { displayRows: houseRows, total: houseTotal, page: housePage, setPage: setHousePage, pageSize: housePageSize, setPageSize: setHousePageSize } = useTableControls(houses);
 
   return (
-    <div className="space-y-4 max-w-2xl">
+    <div className="space-y-4 max-w-6xl">
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <p className="text-sm" style={{ color: '#94A3B8' }}>{houses.length} house{houses.length !== 1 ? 's' : ''} defined</p>
         <Button onClick={openCreate}>Add house</Button>
@@ -933,7 +933,7 @@ function AssessmentModesTab() {
   const { displayRows: modeRows, total: modeTotal, page: modePage, setPage: setModePage, pageSize: modePageSize, setPageSize: setModePageSize } = useTableControls(modes);
 
   return (
-    <div className="space-y-4 max-w-2xl">
+    <div className="space-y-4 max-w-6xl">
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div>
           <p className="text-sm" style={{ color: '#94A3B8' }}>{modes.length} CA mode{modes.length !== 1 ? 's' : ''}</p>
