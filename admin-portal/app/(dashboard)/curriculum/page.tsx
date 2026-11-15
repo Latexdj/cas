@@ -1260,7 +1260,7 @@ function AllocationsTab({ onGapChange }: { onGapChange: (n: number) => void }) {
   useEffect(() => { setAllocPage(1); }, [selectedClass, setAllocPage]);
 
   return (
-    <div className="space-y-5 max-w-3xl">
+    <div className="space-y-5 max-w-6xl">
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <p className="text-sm text-slate-500">
           Map which subjects each class must offer, then see gaps against the live timetable.
