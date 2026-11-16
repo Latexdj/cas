@@ -14,7 +14,7 @@ import { unzipSync, strFromU8 } from 'fflate';
 import { BASE_URL } from './api';
 
 export interface PackSubjectInfo { name: string; slug: string; count: number; hash: string }
-export interface PackManifest { version: number; published_at: string | null; subjects: PackSubjectInfo[]; source?: 'online' | 'usb' }
+export interface PackManifest { version: number; published_at: string | null; subjects: PackSubjectInfo[]; source?: 'online' | 'usb' | 'school' }
 export interface PackPaper { id: string; exam: string; year: number | null; paper_label: string | null }
 export interface PackQuestion {
   id: string; paper_id: string; question_no: number | null; question_type: 'objective' | 'theory';
@@ -144,34 +144,70 @@ async function fetchJson<T>(url: string, ms = 20000): Promise<T> {
 }
 
 export type UpdateResult =
-  | { status: 'updated'; changed: number; manifest: PackManifest }
-  | { status: 'current'; manifest: PackManifest }
+  | { status: 'updated'; changed: number; manifest: PackManifest; source: 'online' | 'school' }
+  | { status: 'current'; manifest: PackManifest; source?: 'online' | 'school' }
   | { status: 'offline' }
   | { status: 'failed'; message: string };
 
-/**
- * Brings the pack up to date from the server. Only subjects whose hash
- * changed are downloaded; images already on the tablet are kept.
- */
-export async function updateOnline(onProgress?: (msg: string) => void): Promise<UpdateResult> {
-  let remote: PackManifest;
-  try { remote = await fetchJson<PackManifest>(`${BASE_URL}/api/pasco-bank/pack/manifest`, 12000); }
-  catch { return { status: 'offline' }; }
+/** Where a pack can come from: the CAS cloud or the school server on the Wi-Fi. */
+interface PackSource { kind: 'online' | 'school'; manifestUrl: string; subjectUrl: (slug: string) => string }
 
+const cloudSource: PackSource = {
+  kind: 'online',
+  manifestUrl: `${BASE_URL}/api/pasco-bank/pack/manifest`,
+  subjectUrl: (slug) => `${BASE_URL}/api/pasco-bank/pack/subjects/${encodeURIComponent(slug)}`,
+};
+const schoolSource = (base: string): PackSource => ({
+  kind: 'school',
+  manifestUrl: `${base}/pack/manifest`,
+  subjectUrl: (slug) => `${base}/pack/subjects/${encodeURIComponent(slug)}`,
+});
+
+/**
+ * Brings the pack up to date from the school server (when one is on the
+ * Wi-Fi) or the CAS cloud, whichever has the newer pack. Only subjects
+ * whose hash changed are downloaded; images already on the tablet are kept.
+ */
+export async function updatePack(
+  findSchool: () => Promise<{ base: string } | null>,
+  onProgress?: (msg: string) => void,
+): Promise<UpdateResult> {
+  const tryManifest = async (src: PackSource, ms: number) => {
+    try { return { src, remote: await fetchJson<PackManifest>(src.manifestUrl, ms) }; } catch { return null; }
+  };
+  const [school, cloud] = await Promise.all([
+    findSchool().then(s => (s ? tryManifest(schoolSource(s.base), 8000) : null)).catch(() => null),
+    tryManifest(cloudSource, 12000),
+  ]);
+  // The newer pack wins; on a tie the school server, which is faster.
+  const best = [school, cloud].filter((x): x is NonNullable<typeof x> => !!x)
+    .sort((a, b) => b.remote.version - a.remote.version || (a.src.kind === 'school' ? -1 : 1))[0];
+  if (!best) return { status: 'offline' };
+  return applyRemote(best.src, best.remote, onProgress);
+}
+
+/** Cloud only (kept for callers that don't look for a school server). */
+export async function updateOnline(onProgress?: (msg: string) => void): Promise<UpdateResult> {
+  return updatePack(async () => null, onProgress);
+}
+
+async function applyRemote(src: PackSource, remote: PackManifest, onProgress?: (msg: string) => void): Promise<UpdateResult> {
   try {
     await ensureDirs();
     const local = await localManifest();
+    // Never go back to an older pack (a USB pack can be newer than a source).
+    if (local && remote.version < local.version) return { status: 'current', manifest: local, source: src.kind };
     const localHash = new Map((local?.subjects ?? []).map(s => [s.slug, s.hash]));
     const changed = remote.subjects.filter(s => localHash.get(s.slug) !== s.hash);
     const removed = (local?.subjects ?? []).some(s => !remote.subjects.find(r => r.slug === s.slug));
     if (!changed.length && !removed && local) {
-      if (local.version !== remote.version) await writeJson(`${ROOT}manifest.json`, { ...remote, source: 'online' });
-      return { status: 'current', manifest: { ...remote, source: 'online' } };
+      if (local.version !== remote.version) await writeJson(`${ROOT}manifest.json`, { ...remote, source: src.kind });
+      return { status: 'current', manifest: { ...remote, source: src.kind }, source: src.kind };
     }
 
     for (const [i, s] of changed.entries()) {
       onProgress?.(`Downloading ${s.name} (${i + 1} of ${changed.length})`);
-      const pack = await fetchJson<SubjectPack>(`${BASE_URL}/api/pasco-bank/pack/subjects/${encodeURIComponent(s.slug)}`, 60000);
+      const pack = await fetchJson<SubjectPack>(src.subjectUrl(s.slug), 60000);
       const old = await loadSubject(s.slug);
       const oldQ = new Map((old?.questions ?? []).map(q => [q.id, q]));
       let missing = false;
@@ -195,10 +231,10 @@ export async function updateOnline(onProgress?: (msg: string) => void): Promise<
       await writeJson(`${SUBJECTS}${s.slug}.json`, pack);
       if (missing) s.hash = `${s.hash}-partial`;
     }
-    const manifest: PackManifest = { ...remote, source: 'online' };
+    const manifest: PackManifest = { version: remote.version, published_at: remote.published_at, subjects: remote.subjects, source: src.kind };
     await writeJson(`${ROOT}manifest.json`, manifest);
     await prune(manifest);
-    return { status: 'updated', changed: changed.length, manifest };
+    return { status: 'updated', changed: changed.length, manifest, source: src.kind };
   } catch (e) {
     return { status: 'failed', message: e instanceof Error ? e.message : String(e) };
   }

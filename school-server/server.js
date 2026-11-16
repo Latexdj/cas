@@ -382,7 +382,7 @@ function checkIn(req) {
     ip: clientIp(req),
     app_build: Number(req.headers['x-cas-app-build']) || null,
     app_version: String(req.headers['x-cas-app-version'] || '').slice(0, 20) || null,
-    pack_version: req.headers['x-cas-pack-version'] != null ? Number(req.headers['x-cas-pack-version']) : null,
+    pack_version: req.headers['x-cas-pack-version'] ? Number(req.headers['x-cas-pack-version']) : null,
     last_seen: new Date().toISOString(),
   };
   devicesDirty = true;

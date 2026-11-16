@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, RefreshControl, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
 import { useTheme } from '@/context/ThemeContext';
 import { createThemedStyles } from '@/lib/themedStyles';
-import { importUsb, importZip, localManifest, updateOnline, type PackManifest } from '@/lib/quizPack';
+import { importUsb, importZip, localManifest, updatePack, type PackManifest } from '@/lib/quizPack';
+import { findSchoolServer, getManualAddress, setManualAddress, tryAddress, type SchoolServer } from '@/lib/schoolServer';
 import { getProgress, type QuizSession } from '@/lib/quizProgress';
 
 function fmtDate(iso: string | null) {
@@ -24,6 +25,13 @@ export default function PastQuestionsHome() {
   const [usbBusy,  setUsbBusy]  = useState(false);
   const [usbMsg,   setUsbMsg]   = useState<{ text: string; tone: 'ok' | 'bad' | 'info' } | null>(null);
   const [olderUri, setOlderUri] = useState<string | null>(null);
+  // The CAS School Server on the school Wi-Fi.
+  const [server,   setServer]   = useState<SchoolServer | null | undefined>(undefined);   // undefined = searching
+  const [manual,   setManual]   = useState<string | null>(null);
+  const [editAddr, setEditAddr] = useState(false);
+  const [addr,     setAddr]     = useState('');
+  const [addrMsg,  setAddrMsg]  = useState('');
+  const [addrBusy, setAddrBusy] = useState(false);
 
   async function loadZip(uri: string, force = false) {
     setUsbBusy(true); setOlderUri(null);
@@ -57,16 +65,36 @@ export default function PastQuestionsHome() {
     await loadZip(a.uri);
   }
 
-  const check = useCallback(async () => {
+  const check = useCallback(async (fresh = false) => {
     setBusy(true);
     setStatus('Checking for new questions…');
-    const r = await updateOnline(msg => setStatus(msg));
-    if (r.status === 'updated') { setManifest(r.manifest); setStatus(`Updated ${r.changed} subject${r.changed === 1 ? '' : 's'}.`); }
-    else if (r.status === 'current') { setManifest(r.manifest); setStatus('You have the latest questions.'); }
-    else if (r.status === 'offline') setStatus('No internet. You can still practise with the questions on this tablet.');
+    setServer(undefined);
+    const local = await localManifest();
+    const find = () => findSchoolServer({ fresh, packVersion: local?.version ?? null }).then(sv => { setServer(sv); return sv; });
+    const r = await updatePack(find, msg => setStatus(msg));
+    const from = r.status === 'updated' || r.status === 'current'
+      ? (r.source === 'school' ? ' from the school server' : r.source === 'online' ? ' from the internet' : '') : '';
+    if (r.status === 'updated') { setManifest(r.manifest); setStatus(`Updated ${r.changed} subject${r.changed === 1 ? '' : 's'}${from}.`); }
+    else if (r.status === 'current') { setManifest(r.manifest); setStatus(`You have the latest questions${from ? ` (checked${from})` : ''}.`); }
+    else if (r.status === 'offline') setStatus('No internet or school server. You can still practise with the questions on this tablet.');
     else setStatus('The update stopped part way. Try again when the connection is better.');
     setBusy(false);
   }, []);
+
+  useEffect(() => { getManualAddress().then(setManual); }, []);
+
+  async function saveAddress() {
+    const v = addr.trim();
+    if (!v) return;
+    setAddrBusy(true); setAddrMsg('');
+    const sv = await tryAddress(v);
+    setAddrBusy(false);
+    if (sv) { setServer(sv); setManual(sv.address); setEditAddr(false); setAddr(''); check(); }
+    else setAddrMsg('No school server answered at that address. Check the address on the server PC and that this tablet is on the school Wi-Fi.');
+  }
+  async function forgetAddress() {
+    await setManualAddress(null); setManual(null); check(true);
+  }
 
   useEffect(() => {
     (async () => {
@@ -94,7 +122,7 @@ export default function PastQuestionsHome() {
   const subjects = manifest?.subjects ?? [];
   return (
     <ScrollView style={{ backgroundColor: C.bg }} contentContainerStyle={s.page}
-      refreshControl={<RefreshControl refreshing={false} onRefresh={check} tintColor={C.primaryText} />}>
+      refreshControl={<RefreshControl refreshing={false} onRefresh={() => check()} tintColor={C.primaryText} />}>
       <View style={[s.statusCard, { backgroundColor: C.surface, borderColor: C.border }]}>
         <View style={{ flex: 1 }}>
           <Text style={[s.statusTitle, { color: C.text }]}>
@@ -102,10 +130,59 @@ export default function PastQuestionsHome() {
           </Text>
           {!!status && <Text style={[s.statusText, { color: C.textSoft }]} accessibilityLiveRegion="polite">{status}</Text>}
         </View>
-        <TouchableOpacity onPress={check} disabled={busy} accessibilityRole="button" accessibilityLabel="Check for updates"
+        <TouchableOpacity onPress={() => check()} disabled={busy} accessibilityRole="button" accessibilityLabel="Check for updates"
           style={[s.updateBtn, { borderColor: C.border, opacity: busy ? 0.5 : 1 }]}>
           {busy ? <ActivityIndicator size="small" color={C.primaryText} /> : <Ionicons name="refresh" size={20} color={C.primaryText} />}
         </TouchableOpacity>
+      </View>
+
+      <View style={[s.usbCard, { backgroundColor: C.surface, borderColor: C.border }]}>
+        <View style={s.usbHead}>
+          <Ionicons name="server-outline" size={22} color={C.primaryText} />
+          <View style={{ flex: 1 }}>
+            <Text style={[s.statusTitle, { color: C.text }]}>School server</Text>
+            <Text style={[s.statusText, { color: server ? C.success : C.textSoft }]} accessibilityLiveRegion="polite">
+              {server === undefined ? 'Looking on the school Wi-Fi…'
+                : server ? `Connected${server.info.school_name ? ` to ${server.info.school_name}` : ''} at ${server.address}`
+                : 'Not found on this Wi-Fi.'}
+            </Text>
+          </View>
+          {server === undefined && <ActivityIndicator size="small" color={C.primaryText} />}
+        </View>
+        {editAddr ? (
+          <View style={{ gap: 8 }}>
+            <Text style={[s.statusText, { color: C.textSoft }]}>Type the address shown on the school server PC, for example 192.168.88.10.</Text>
+            <TextInput value={addr} onChangeText={setAddr} placeholder="192.168.88.10" placeholderTextColor={C.placeholder}
+              autoCapitalize="none" autoCorrect={false} keyboardType="numbers-and-punctuation" accessibilityLabel="School server address"
+              style={[s.input, { borderColor: C.border, color: C.text, backgroundColor: C.bg }]} onSubmitEditing={saveAddress} />
+            <View style={s.rowBtns}>
+              <TouchableOpacity accessibilityRole="button" onPress={saveAddress} disabled={addrBusy || !addr.trim()}
+                style={[s.usbBtn, { flex: 1, backgroundColor: C.primary, opacity: addrBusy || !addr.trim() ? 0.5 : 1 }]}>
+                {addrBusy ? <ActivityIndicator color="#FFFFFF" /> : <Text style={s.usbBtnText}>Connect</Text>}
+              </TouchableOpacity>
+              <TouchableOpacity accessibilityRole="button" onPress={() => { setEditAddr(false); setAddrMsg(''); }}
+                style={[s.usbBtn, s.outlineBtn, { borderColor: C.border }]}>
+                <Text style={[s.outlineText, { color: C.text }]}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+            {!!addrMsg && <Text style={[s.statusText, { color: C.danger }]}>{addrMsg}</Text>}
+          </View>
+        ) : (
+          <View style={s.rowBtns}>
+            <TouchableOpacity accessibilityRole="button" onPress={() => check(true)} disabled={busy}
+              style={[s.usbBtn, s.outlineBtn, { borderColor: C.border, opacity: busy ? 0.5 : 1 }]}>
+              <Text style={[s.outlineText, { color: C.text }]}>Find again</Text>
+            </TouchableOpacity>
+            <TouchableOpacity accessibilityRole="button" onPress={() => setEditAddr(true)} style={[s.usbBtn, s.outlineBtn, { borderColor: C.border }]}>
+              <Text style={[s.outlineText, { color: C.text }]}>Enter address</Text>
+            </TouchableOpacity>
+            {!!manual && (
+              <TouchableOpacity accessibilityRole="button" onPress={forgetAddress} style={[s.usbBtn, s.outlineBtn, { borderColor: C.border }]}>
+                <Text style={[s.outlineText, { color: C.text }]}>Forget {manual}</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
       </View>
 
       <View style={[s.usbCard, { backgroundColor: C.surface, borderColor: C.border }]}>
@@ -138,7 +215,7 @@ export default function PastQuestionsHome() {
           <Ionicons name="cloud-download-outline" size={36} color={C.muted} />
           <Text style={[s.emptyTitle, { color: C.text }]}>Get the past questions</Text>
           <Text style={[s.emptyText, { color: C.textSoft }]}>
-            Connect this tablet to the internet once and tap the refresh button, or load the Past Questions pack from a USB drive above.
+            Join the school Wi-Fi with the school server, connect to the internet, or load the Past Questions pack from a USB drive above, then tap the refresh button.
           </Text>
         </View>
       ) : subjects.map(sub => {
@@ -175,6 +252,10 @@ const s = createThemedStyles({
   usbHead:     { flexDirection: 'row', alignItems: 'center', gap: 10 },
   usbBtn:      { minHeight: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   usbBtnText:  { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
+  rowBtns:     { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  outlineBtn:  { paddingHorizontal: 14, borderWidth: 1, backgroundColor: 'transparent' },
+  outlineText: { fontSize: 15, fontWeight: '600' },
+  input:       { minHeight: 48, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, fontSize: 16 },
   usbLink:     { minHeight: 44, justifyContent: 'center', alignSelf: 'flex-start' },
   usbLinkText: { fontSize: 15, fontWeight: '700' },
   empty:       { alignItems: 'center', padding: 24, borderRadius: 16, borderWidth: 1, gap: 8 },

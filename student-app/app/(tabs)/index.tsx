@@ -17,6 +17,7 @@ import type {
   CalendarEvent, AcademicYear, FeeSummary,
 } from '@/types/api';
 import { createThemedStyles, tc } from '@/lib/themedStyles';
+import { AppUpdateBanner } from '@/components/AppUpdateBanner';
 
 const SW = Dimensions.get('window').width;
 // 3 cards per row: 16px padding each side + 2×10px gaps
@@ -385,6 +386,7 @@ export default function HomeScreen() {
       <View style={s.body}>
 
         {/* Banners */}
+        <View style={{ marginBottom: 12 }}><AppUpdateBanner /></View>
         {attRate > 0 && attRate < 75 && (
           <View style={[s.banner, { backgroundColor: tc('#FFF1F2', 'bg'), borderColor: tc('#FECDD3', 'border') }]}>
             <Ionicons name="warning-outline" size={14} color={tc('#DC2626')} />

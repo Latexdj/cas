@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { storage } from '@/lib/storage';
 import { createThemedStyles, tc } from '@/lib/themedStyles';
+import { AppUpdateBanner } from '@/components/AppUpdateBanner';
 
 export default function WelcomeScreen() {
   const insets = useSafeAreaInsets();
@@ -27,6 +28,7 @@ export default function WelcomeScreen() {
 
       {/* Action cards */}
       <View style={s.cards}>
+        <AppUpdateBanner />
 
         {/* Materials — primary action */}
         <TouchableOpacity

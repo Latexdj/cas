@@ -44,7 +44,7 @@ powercfg /change hibernate-timeout-ac 0 >nul 2>&1
 
 echo  [5/5] Starting the server...
 schtasks /run /tn "CAS School Server" >nul
-timeout /t 4 /nobreak >nul
+ping -n 5 127.0.0.1 >nul
 start "" "http://localhost:8787/"
 
 echo.
