@@ -1,0 +1,552 @@
+'use strict';
+// CAS School Server
+//
+// Runs on a Windows PC on a school's local network (no internet needed) and
+// serves the student app's past-questions pack and the latest student APK to
+// tablets over Wi-Fi. When the PC has internet it refreshes the pack from the
+// CAS cloud; packs and APKs can also be loaded from a flash drive through the
+// admin page at http://localhost:8787 (only reachable from this PC).
+//
+// No npm dependencies: copy the folder with node.exe and run.
+
+const http = require('http');
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
+const zlib = require('zlib');
+const crypto = require('crypto');
+require('dns').setDefaultResultOrder('ipv4first');
+
+const VERSION = '1.0.0';
+const PORT = Number(process.env.CAS_SERVER_PORT) || 8787;
+const ROOT = __dirname;
+const DATA = path.join(ROOT, 'data');
+const SYNC_EVERY_MS = 30 * 60 * 1000;
+
+fs.mkdirSync(path.join(DATA, 'app'), { recursive: true });
+
+// ── Small helpers ─────────────────────────────────────────────────────────────
+
+function log(...args) {
+  const line = `[${new Date().toISOString()}] ${args.join(' ')}\n`;
+  process.stdout.write(line);
+  try {
+    const f = path.join(DATA, 'server.log');
+    if (fs.existsSync(f) && fs.statSync(f).size > 2 * 1024 * 1024) fs.renameSync(f, f + '.1');
+    fs.appendFileSync(f, line);
+  } catch { /* logging must never stop the server */ }
+}
+
+function readJson(file, fallback = null) {
+  try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return fallback; }
+}
+function writeJson(file, data) {
+  const tmp = `${file}.${process.pid}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(data, null, 2));
+  fs.renameSync(tmp, file);
+}
+
+const CONFIG_FILE = path.join(DATA, 'config.json');
+function config() {
+  return { cloud_url: 'https://cas-backend-20rn.onrender.com', school_name: '', ...readJson(CONFIG_FILE, {}) };
+}
+if (!fs.existsSync(CONFIG_FILE)) writeJson(CONFIG_FILE, config());
+
+const STATE_FILE = path.join(DATA, 'state.json');
+const state = { last_sync: null, last_sync_result: null, last_online: null, ...readJson(STATE_FILE, {}) };
+const saveState = () => { try { writeJson(STATE_FILE, state); } catch (e) { log('state save failed', e.message); } };
+
+// ── Zip reading (central directory + zlib inflate) ───────────────────────────
+
+function readZip(buf) {
+  let eocd = -1;
+  for (let i = buf.length - 22; i >= Math.max(0, buf.length - 65557); i--) {
+    if (buf.readUInt32LE(i) === 0x06054b50) { eocd = i; break; }
+  }
+  if (eocd < 0) throw new Error('Not a zip file');
+  const count = buf.readUInt16LE(eocd + 10);
+  let p = buf.readUInt32LE(eocd + 16);
+  const entries = {};
+  for (let n = 0; n < count; n++) {
+    if (buf.readUInt32LE(p) !== 0x02014b50) throw new Error('Damaged zip file');
+    const method = buf.readUInt16LE(p + 10);
+    const csize = buf.readUInt32LE(p + 20);
+    const nameLen = buf.readUInt16LE(p + 28);
+    const extraLen = buf.readUInt16LE(p + 30);
+    const commentLen = buf.readUInt16LE(p + 32);
+    const local = buf.readUInt32LE(p + 42);
+    const name = buf.toString('utf8', p + 46, p + 46 + nameLen);
+    entries[name] = { method, csize, local };
+    p += 46 + nameLen + extraLen + commentLen;
+  }
+  return {
+    names: Object.keys(entries),
+    read(name) {
+      const e = entries[name];
+      if (!e) return null;
+      const lnameLen = buf.readUInt16LE(e.local + 26);
+      const lextraLen = buf.readUInt16LE(e.local + 28);
+      const start = e.local + 30 + lnameLen + lextraLen;
+      const data = buf.subarray(start, start + e.csize);
+      if (e.method === 0) return Buffer.from(data);
+      if (e.method === 8) return zlib.inflateRawSync(data);
+      throw new Error(`Unsupported zip compression in ${name}`);
+    },
+  };
+}
+
+// ── APK version (binary AndroidManifest.xml) ─────────────────────────────────
+
+function apkVersion(buf) {
+  const zip = readZip(buf);
+  const xml = zip.read('AndroidManifest.xml');
+  if (!xml) throw new Error('This file is not an Android app (no AndroidManifest.xml).');
+  let strings = [], resIds = [];
+  let p = 8; // after the XML chunk header
+  while (p < xml.length) {
+    const type = xml.readUInt16LE(p), headerSize = xml.readUInt16LE(p + 2), size = xml.readUInt32LE(p + 4);
+    if (type === 0x0001) { // string pool
+      const count = xml.readUInt32LE(p + 8), flags = xml.readUInt32LE(p + 16), start = xml.readUInt32LE(p + 20);
+      const utf8 = (flags & 0x100) !== 0;
+      for (let i = 0; i < count; i++) {
+        let o = p + start + xml.readUInt32LE(p + headerSize + i * 4);
+        if (utf8) {
+          o += (xml[o] & 0x80) ? 2 : 1;                 // utf16 length
+          let len = xml[o]; o += 1;
+          if (len & 0x80) { len = ((len & 0x7f) << 8) | xml[o]; o += 1; }
+          strings.push(xml.toString('utf8', o, o + len));
+        } else {
+          let len = xml.readUInt16LE(o); o += 2;
+          if (len & 0x8000) { len = ((len & 0x7fff) << 16) | xml.readUInt16LE(o); o += 2; }
+          strings.push(xml.toString('utf16le', o, o + len * 2));
+        }
+      }
+    } else if (type === 0x0180) { // resource ids for attribute names
+      for (let o = p + 8; o < p + size; o += 4) resIds.push(xml.readUInt32LE(o));
+    } else if (type === 0x0102) { // start element
+      const name = strings[xml.readUInt32LE(p + 20)];
+      if (name === 'manifest') {
+        const attrStart = xml.readUInt16LE(p + 24), attrSize = xml.readUInt16LE(p + 26), attrCount = xml.readUInt16LE(p + 28);
+        const out = {};
+        for (let i = 0; i < attrCount; i++) {
+          const a = p + 16 + attrStart + i * attrSize;
+          const nameIdx = xml.readUInt32LE(a + 4);
+          const raw = xml.readInt32LE(a + 8);
+          const dataType = xml[a + 15];
+          const data = xml.readUInt32LE(a + 16);
+          const attrName = strings[nameIdx] || '';
+          const resId = resIds[nameIdx];
+          const value = dataType === 0x03 ? strings[data] : raw >= 0 ? strings[raw] : data;
+          if (attrName === 'versionCode' || resId === 0x0101021b) out.versionCode = Number(dataType === 0x10 ? data : value);
+          if (attrName === 'versionName' || resId === 0x0101021c) out.versionName = String(value);
+          if (attrName === 'package') out.package = String(value);
+        }
+        return out;
+      }
+    }
+    p += size || 8;
+  }
+  throw new Error('Could not read the app version.');
+}
+
+// ── Past questions pack ───────────────────────────────────────────────────────
+// Each pack lives in its own folder (data/pack-<stamp>); data/current-pack.txt
+// names the live one. A new pack is written beside it and switched in one
+// step, so a tablet mid-download never sees half a pack (and Windows never
+// has to rename a folder that is being read).
+
+const CURRENT = path.join(DATA, 'current-pack.txt');
+function packDir() {
+  try { const d = fs.readFileSync(CURRENT, 'utf8').trim(); if (d && fs.existsSync(path.join(DATA, d))) return path.join(DATA, d); } catch { /* none */ }
+  return null;
+}
+function packManifest() {
+  const d = packDir();
+  return d ? readJson(path.join(d, 'manifest.json')) : null;
+}
+function switchPack(newDir) {
+  const old = packDir();
+  fs.writeFileSync(CURRENT, path.basename(newDir));
+  if (old && old !== newDir) setTimeout(() => fs.rm(old, { recursive: true, force: true }, () => {}), 10 * 60 * 1000);
+}
+function newPackDir() {
+  const d = path.join(DATA, `pack-${Date.now()}`);
+  fs.mkdirSync(path.join(d, 'subjects'), { recursive: true });
+  fs.mkdirSync(path.join(d, 'images'), { recursive: true });
+  return d;
+}
+// Leftover pack folders from earlier runs.
+for (const n of fs.readdirSync(DATA)) {
+  if (n.startsWith('pack-') && path.join(DATA, n) !== packDir()) fs.rm(path.join(DATA, n), { recursive: true, force: true }, () => {});
+}
+
+const safeName = (s) => /^[A-Za-z0-9._-]+$/.test(s) && !s.includes('..');
+
+/** Loads a pack .zip (as downloaded from Super Admin). */
+function loadPackZip(buf, { force = false } = {}) {
+  let zip;
+  try { zip = readZip(buf); } catch { throw new Error('This file is not a Past Questions pack (.zip).'); }
+  const mPath = zip.names.find(n => /(^|\/)manifest\.json$/.test(n) && !n.includes('__MACOSX'));
+  if (!mPath) throw new Error('This .zip is not a Past Questions pack (no manifest.json).');
+  const base = mPath.slice(0, -'manifest.json'.length);
+  const manifest = JSON.parse(zip.read(mPath).toString('utf8'));
+  if (!Array.isArray(manifest.subjects) || typeof manifest.version !== 'number') throw new Error('This .zip is not a Past Questions pack.');
+  const cur = packManifest();
+  if (cur && manifest.version <= cur.version && !force) {
+    const e = new Error(manifest.version === cur.version
+      ? 'The server already has this pack (same version).'
+      : `This pack (version ${manifest.version}) is older than the one on the server (version ${cur.version}).`);
+    e.code = 'OLDER'; throw e;
+  }
+  const dir = newPackDir();
+  let questions = 0;
+  for (const s of manifest.subjects) {
+    const raw = zip.read(`${base}subjects/${s.slug}.json`);
+    if (!raw || !safeName(s.slug)) continue;
+    fs.writeFileSync(path.join(dir, 'subjects', `${s.slug}.json`), raw);
+    questions += (JSON.parse(raw.toString('utf8')).questions || []).length;
+  }
+  for (const n of zip.names) {
+    if (n.startsWith(`${base}images/`) && safeName(n.slice(base.length + 7))) {
+      fs.writeFileSync(path.join(dir, 'images', n.slice(base.length + 7)), zip.read(n));
+    }
+  }
+  writeJson(path.join(dir, 'manifest.json'), { version: manifest.version, published_at: manifest.published_at, subjects: manifest.subjects, source: 'file', loaded_at: new Date().toISOString() });
+  switchPack(dir);
+  log(`pack loaded from file: version ${manifest.version}, ${questions} questions`);
+  return { version: manifest.version, subjects: manifest.subjects.length, questions };
+}
+
+const extOf = (url) => (String(url).split('?')[0].match(/\.(png|jpe?g|webp|gif)$/i)?.[1] || 'png').toLowerCase();
+
+async function fetchWithTimeout(url, ms) {
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), ms);
+  try { return await fetch(url, { signal: ctl.signal }); } finally { clearTimeout(t); }
+}
+
+let syncing = false;
+/** Brings the pack up to date from the CAS cloud. Quiet when offline. */
+async function syncFromCloud() {
+  if (syncing) return state.last_sync_result;
+  syncing = true;
+  const cloud = config().cloud_url.replace(/\/+$/, '');
+  try {
+    let remote;
+    try {
+      // A mobile router can take a few seconds to wake its link, and the
+      // cloud server can be slow on its first request: try three times.
+      for (let attempt = 1; ; attempt++) {
+        try {
+          const r = await fetchWithTimeout(`${cloud}/api/pasco-bank/pack/manifest`, 30000);
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          remote = await r.json();
+          break;
+        } catch (e) {
+          if (attempt >= 3) throw e;
+          await new Promise(res => setTimeout(res, 5000));
+        }
+      }
+    } catch (e) {
+      state.last_sync = new Date().toISOString();
+      state.last_sync_result = { ok: false, offline: true, message: 'No internet connection.' };
+      saveState();
+      return state.last_sync_result;
+    }
+    state.last_online = new Date().toISOString();
+    const cur = packManifest();
+    const curDir = packDir();
+    const curHash = new Map((cur?.subjects || []).map(s => [s.slug, s.hash]));
+    const changed = remote.subjects.filter(s => curHash.get(s.slug) !== s.hash);
+    const removed = (cur?.subjects || []).some(s => !remote.subjects.find(r => r.slug === s.slug));
+    // Never go back to an older pack (one loaded by hand can be newer).
+    if (cur && remote.version < cur.version) {
+      state.last_sync_result = { ok: true, message: `The server's pack (version ${cur.version}) is newer than the online one (${remote.version}).` };
+    } else if (cur && !changed.length && !removed) {
+      if (cur.version !== remote.version) writeJson(path.join(curDir, 'manifest.json'), { ...cur, version: remote.version, published_at: remote.published_at });
+      state.last_sync_result = { ok: true, message: 'Already up to date.' };
+    } else {
+      const dir = newPackDir();
+      // Unchanged subjects and their images are copied from the current pack.
+      for (const s of remote.subjects) {
+        if (changed.includes(s) || !curDir) continue;
+        fs.copyFileSync(path.join(curDir, 'subjects', `${s.slug}.json`), path.join(dir, 'subjects', `${s.slug}.json`));
+        const pack = readJson(path.join(dir, 'subjects', `${s.slug}.json`), { questions: [] });
+        for (const p of imagePaths(pack)) {
+          const from = path.join(curDir, p);
+          if (fs.existsSync(from)) fs.copyFileSync(from, path.join(dir, p));
+        }
+      }
+      let missing = 0;
+      for (const s of changed) {
+        const before = missing;
+        const r = await fetchWithTimeout(`${cloud}/api/pasco-bank/pack/subjects/${encodeURIComponent(s.slug)}`, 60000);
+        if (!r.ok) throw new Error(`Downloading ${s.name} failed (HTTP ${r.status}).`);
+        const pack = await r.json();
+        for (const q of pack.questions) {
+          const grab = async (url, name) => {
+            if (!url) return null;
+            const rel = `images/${name}.${extOf(url)}`;
+            try {
+              const ir = await fetchWithTimeout(url, 30000);
+              if (!ir.ok) throw new Error(String(ir.status));
+              fs.writeFileSync(path.join(dir, rel), Buffer.from(await ir.arrayBuffer()));
+              return rel;
+            } catch { missing++; return null; }
+          };
+          const imgs = Array.isArray(q.images) ? q.images : (q.image_url ? [q.image_url] : []);
+          q.images = [];
+          for (const [n, url] of imgs.entries()) q.images.push(await grab(url, `${q.id}-${n + 1}`));
+          q.image_url = q.images[0] ?? null;
+          if (Array.isArray(q.option_images)) {
+            for (const [k, url] of q.option_images.entries()) q.option_images[k] = await grab(url, `${q.id}-o${k + 1}`);
+          }
+        }
+        writeJson(path.join(dir, 'subjects', `${s.slug}.json`), pack);
+        // A subject with missing images keeps a different hash so it is retried.
+        if (missing > before) s.hash = `${s.hash}-partial`;
+      }
+      writeJson(path.join(dir, 'manifest.json'), { version: remote.version, published_at: remote.published_at, subjects: remote.subjects, source: 'online', loaded_at: new Date().toISOString() });
+      switchPack(dir);
+      const q = remote.subjects.reduce((n, s) => n + s.count, 0);
+      state.last_sync_result = { ok: true, message: `Updated ${changed.length} subject${changed.length === 1 ? '' : 's'} (${q} questions in total)${missing ? `; ${missing} images could not be downloaded and will be retried` : ''}.` };
+      log(`synced from cloud: version ${remote.version}, ${changed.length} subjects changed`);
+    }
+    state.last_sync = new Date().toISOString();
+    saveState();
+    return state.last_sync_result;
+  } catch (e) {
+    state.last_sync = new Date().toISOString();
+    state.last_sync_result = { ok: false, message: `Update stopped: ${e.message}` };
+    saveState();
+    log('sync failed', e.message);
+    return state.last_sync_result;
+  } finally { syncing = false; }
+}
+
+function imagePaths(pack) {
+  const out = [];
+  for (const q of pack.questions || []) {
+    for (const p of [...(q.images || (q.image_url ? [q.image_url] : [])), ...(q.option_images || [])]) {
+      if (typeof p === 'string' && p.startsWith('images/') && safeName(p.slice(7))) out.push(p);
+    }
+  }
+  return out;
+}
+
+// ── Student app (APK) ─────────────────────────────────────────────────────────
+
+const APP_INFO = path.join(DATA, 'app', 'latest.json');
+const appInfo = () => readJson(APP_INFO);
+
+function loadApk(buf, { force = false } = {}) {
+  let v;
+  try { v = apkVersion(buf); } catch (e) { throw new Error(/zip/i.test(e.message) ? 'This file is not an Android app (.apk).' : e.message); }
+  if (v.package && v.package !== 'com.cas.student') throw new Error(`This is not the CAS Student app (${v.package}).`);
+  if (!Number.isInteger(v.versionCode)) throw new Error('Could not read the app version.');
+  const cur = appInfo();
+  if (cur && v.versionCode <= cur.versionCode && !force) {
+    const e = new Error(v.versionCode === cur.versionCode
+      ? `The server already has this app version (${cur.versionName}, build ${cur.versionCode}).`
+      : `This app (build ${v.versionCode}) is older than the one on the server (build ${cur.versionCode}).`);
+    e.code = 'OLDER'; throw e;
+  }
+  const file = `cas-student-${v.versionCode}-${Date.now()}.apk`;
+  fs.writeFileSync(path.join(DATA, 'app', file), buf);
+  const info = {
+    versionCode: v.versionCode, versionName: v.versionName || '', size: buf.length, file,
+    sha256: crypto.createHash('sha256').update(buf).digest('hex'), loaded_at: new Date().toISOString(),
+  };
+  writeJson(APP_INFO, info);
+  // Older APKs go a little later, in case a tablet is still downloading one.
+  setTimeout(() => {
+    for (const n of fs.readdirSync(path.join(DATA, 'app'))) {
+      if (n.endsWith('.apk') && n !== file) fs.rm(path.join(DATA, 'app', n), { force: true }, () => {});
+    }
+  }, 30 * 60 * 1000);
+  log(`app loaded: ${info.versionName} (build ${info.versionCode})`);
+  return info;
+}
+
+// ── Tablets seen ──────────────────────────────────────────────────────────────
+
+const DEVICES_FILE = path.join(DATA, 'devices.json');
+const devices = readJson(DEVICES_FILE, {});
+let devicesDirty = false;
+setInterval(() => { if (devicesDirty) { devicesDirty = false; try { writeJson(DEVICES_FILE, devices); } catch { /* retry next time */ } } }, 15000).unref();
+
+function checkIn(req) {
+  const id = String(req.headers['x-cas-device'] || '').slice(0, 64);
+  if (!/^[A-Za-z0-9-]{6,64}$/.test(id)) return;
+  devices[id] = {
+    ip: clientIp(req),
+    app_build: Number(req.headers['x-cas-app-build']) || null,
+    app_version: String(req.headers['x-cas-app-version'] || '').slice(0, 20) || null,
+    pack_version: req.headers['x-cas-pack-version'] != null ? Number(req.headers['x-cas-pack-version']) : null,
+    last_seen: new Date().toISOString(),
+  };
+  devicesDirty = true;
+}
+
+// ── HTTP ──────────────────────────────────────────────────────────────────────
+
+function clientIp(req) { return String(req.socket.remoteAddress || '').replace(/^::ffff:/, ''); }
+const isLocal = (req) => ['127.0.0.1', '::1'].includes(clientIp(req));
+
+function lanAddresses() {
+  const out = [];
+  for (const [name, list] of Object.entries(os.networkInterfaces())) {
+    for (const a of list || []) if (a.family === 'IPv4' && !a.internal) out.push({ name, address: a.address });
+  }
+  return out;
+}
+
+function send(res, status, body, headers = {}) {
+  const isBuf = Buffer.isBuffer(body);
+  const data = isBuf ? body : typeof body === 'string' ? body : JSON.stringify(body);
+  res.writeHead(status, {
+    'Content-Type': isBuf ? 'application/octet-stream' : typeof body === 'string' ? 'text/html; charset=utf-8' : 'application/json',
+    'Content-Length': Buffer.byteLength(data),
+    'Access-Control-Allow-Origin': '*',
+    ...headers,
+  });
+  res.end(data);
+}
+
+function readBody(req, limit) {
+  return new Promise((resolve, reject) => {
+    const chunks = []; let size = 0;
+    req.on('data', c => { size += c.length; if (size > limit) { reject(new Error('The file is too large.')); req.destroy(); } else chunks.push(c); });
+    req.on('end', () => resolve(Buffer.concat(chunks)));
+    req.on('error', reject);
+  });
+}
+
+function info() {
+  const m = packManifest();
+  const a = appInfo();
+  return {
+    service: 'cas-school-server', version: VERSION, school_name: config().school_name || null,
+    pack_version: m?.version ?? null, pack_published_at: m?.published_at ?? null,
+    app: a ? { versionCode: a.versionCode, versionName: a.versionName, size: a.size, sha256: a.sha256 } : null,
+  };
+}
+
+const MIME = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif' };
+
+async function handle(req, res) {
+  const url = new URL(req.url, 'http://x');
+  const p = url.pathname;
+
+  if (req.method === 'OPTIONS') {
+    return send(res, 204, '', { 'Access-Control-Allow-Headers': 'X-CAS-Device, X-CAS-App-Build, X-CAS-App-Version, X-CAS-Pack-Version', 'Access-Control-Allow-Methods': 'GET' });
+  }
+
+  // Tablets
+  if (req.method === 'GET' && p === '/cas-school-server') { checkIn(req); return send(res, 200, info()); }
+
+  if (req.method === 'GET' && p === '/pack/manifest') {
+    const m = packManifest();
+    return m ? send(res, 200, { version: m.version, published_at: m.published_at, subjects: m.subjects }) : send(res, 404, { error: 'No past questions on the server yet.' });
+  }
+  const subj = p.match(/^\/pack\/subjects\/([A-Za-z0-9-]+)$/);
+  if (req.method === 'GET' && subj) {
+    const d = packDir();
+    const pack = d && readJson(path.join(d, 'subjects', `${subj[1]}.json`));
+    if (!pack) return send(res, 404, { error: 'Subject not found' });
+    // Relative image paths become full addresses on this server, so the app
+    // downloads them the same way it does from the cloud.
+    const host = `http://${req.headers.host || `localhost:${PORT}`}/pack/`;
+    const abs = (x) => (typeof x === 'string' && x.startsWith('images/') ? host + x : x);
+    for (const q of pack.questions || []) {
+      if (Array.isArray(q.images)) q.images = q.images.map(abs);
+      if (Array.isArray(q.option_images)) q.option_images = q.option_images.map(abs);
+      q.image_url = abs(q.image_url);
+      delete q.sources;
+    }
+    return send(res, 200, pack);
+  }
+  const img = p.match(/^\/pack\/images\/([A-Za-z0-9._-]+)$/);
+  if (req.method === 'GET' && img && safeName(img[1])) {
+    const d = packDir();
+    const f = d && path.join(d, 'images', img[1]);
+    if (!f || !fs.existsSync(f)) return send(res, 404, { error: 'Not found' });
+    return send(res, 200, fs.readFileSync(f), { 'Content-Type': MIME[extOf(img[1])] || 'application/octet-stream', 'Cache-Control': 'max-age=86400' });
+  }
+
+  if (req.method === 'GET' && p === '/app/latest.apk') {
+    const a = appInfo();
+    const f = a && path.join(DATA, 'app', a.file);
+    if (!f || !fs.existsSync(f)) return send(res, 404, { error: 'No app on the server yet.' });
+    res.writeHead(200, {
+      'Content-Type': 'application/vnd.android.package-archive',
+      'Content-Length': fs.statSync(f).size,
+      'Content-Disposition': `attachment; filename="CAS-Student-${a.versionName || a.versionCode}.apk"`,
+      'Access-Control-Allow-Origin': '*',
+    });
+    return fs.createReadStream(f).pipe(res);
+  }
+
+  // Admin page and actions: this PC only.
+  if (p === '/' || p.startsWith('/admin')) {
+    if (!isLocal(req)) {
+      return send(res, 403, p === '/'
+        ? '<!doctype html><meta charset="utf-8"><title>CAS School Server</title><p style="font-family:sans-serif;padding:24px">The CAS School Server is running. Its settings can only be opened on the server PC itself, at http://localhost:8787.</p>'
+        : { error: 'Only available on the server PC.' });
+    }
+    if (req.method === 'GET' && p === '/') return send(res, 200, fs.readFileSync(path.join(ROOT, 'admin.html'), 'utf8'));
+    if (req.method === 'GET' && p === '/admin/status') {
+      const m = packManifest();
+      return send(res, 200, {
+        ...info(), port: PORT, lan: lanAddresses(), config: config(),
+        pack: m ? { version: m.version, published_at: m.published_at, source: m.source, loaded_at: m.loaded_at, subjects: m.subjects } : null,
+        app_info: appInfo(), sync: { ...state, running: syncing },
+        devices: Object.entries(devices).map(([id, d]) => ({ id, ...d })).sort((a, b) => String(b.last_seen).localeCompare(String(a.last_seen))),
+      });
+    }
+    try {
+      if (req.method === 'POST' && p === '/admin/sync') return send(res, 200, await syncFromCloud());
+      if (req.method === 'POST' && p === '/admin/pack') {
+        const body = await readBody(req, 500 * 1024 * 1024);
+        return send(res, 200, loadPackZip(body, { force: url.searchParams.get('force') === '1' }));
+      }
+      if (req.method === 'POST' && p === '/admin/app') {
+        const body = await readBody(req, 400 * 1024 * 1024);
+        return send(res, 200, loadApk(body, { force: url.searchParams.get('force') === '1' }));
+      }
+      if (req.method === 'POST' && p === '/admin/config') {
+        const body = JSON.parse((await readBody(req, 64 * 1024)).toString('utf8') || '{}');
+        const next = { ...config() };
+        if (typeof body.school_name === 'string') next.school_name = body.school_name.trim().slice(0, 120);
+        if (typeof body.cloud_url === 'string' && /^https:\/\/[^\s]+$/.test(body.cloud_url.trim())) next.cloud_url = body.cloud_url.trim();
+        writeJson(CONFIG_FILE, next);
+        return send(res, 200, next);
+      }
+      if (req.method === 'POST' && p === '/admin/devices/clear') {
+        for (const k of Object.keys(devices)) delete devices[k];
+        devicesDirty = true;
+        return send(res, 200, { ok: true });
+      }
+    } catch (e) {
+      return send(res, e.code === 'OLDER' ? 409 : 400, { error: e.message, code: e.code || null });
+    }
+  }
+
+  return send(res, 404, { error: 'Not found' });
+}
+
+function start() {
+const server = http.createServer((req, res) => {
+  handle(req, res).catch(e => { log('request failed', req.url, e.message); try { send(res, 500, { error: 'Server error' }); } catch { /* already sent */ } });
+});
+server.requestTimeout = 0; // large uploads and APK downloads on slow Wi-Fi
+server.listen(PORT, '0.0.0.0', () => {
+  log(`CAS School Server ${VERSION} listening on port ${PORT}: ${lanAddresses().map(a => a.address).join(', ') || 'no network'}`);
+});
+
+setTimeout(syncFromCloud, 10 * 1000);
+setInterval(syncFromCloud, SYNC_EVERY_MS);
+}
+
+if (require.main === module) start();
+module.exports = { readZip, apkVersion };
