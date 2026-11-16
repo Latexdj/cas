@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { studentApi } from '@/lib/student-api';
 import { getStudentColors } from '@/lib/student-auth';
+import { RichQuestion } from '@/components/past-questions/RichQuestion';
 
 interface PascoQuestion {
   id: string;
@@ -17,6 +18,8 @@ interface PascoQuestion {
   year?: number;
   subject_name?: string;
   image_url?: string | null;
+  images?: string[];
+  option_images?: (string | null)[];
 }
 
 type Phase = 'setup' | 'practice' | 'done';
@@ -310,11 +313,9 @@ export default function PascoPage() {
             </span>
           )}
         </div>
-        <p className="text-base font-semibold text-slate-800 leading-relaxed whitespace-pre-wrap">{currentQ.question_text}</p>
-        {currentQ.image_url && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={currentQ.image_url} alt="Diagram for this question" className="mt-3 max-h-72 w-full object-contain rounded-lg bg-white" />
-        )}
+        <RichQuestion text={currentQ.question_text}
+          images={currentQ.images?.length ? currentQ.images : (currentQ.image_url ? [currentQ.image_url] : [])}
+          textClassName="text-base font-semibold text-slate-800 leading-relaxed" imageStyle={{ maxHeight: 288, width: '100%' }} />
       </div>
 
       {/* Options */}
@@ -331,7 +332,14 @@ export default function PascoPage() {
               style={optLabelStyle(opt)}>
               {OPTION_LABELS[opt]}
             </span>
-            <span className="text-sm text-slate-700">{optTexts[opt]}</span>
+            <span className="flex flex-col gap-2 min-w-0">
+              {currentQ.option_images?.[OPTIONS.indexOf(opt)] && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={currentQ.option_images[OPTIONS.indexOf(opt)]!} alt={`Option ${OPTION_LABELS[opt]}`}
+                  className="max-h-40 max-w-full object-contain rounded-lg bg-white" />
+              )}
+              {optTexts[opt] && <span className="text-sm text-slate-700">{optTexts[opt]}</span>}
+            </span>
             {revealed && opt === currentQ.correct_option && (
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="w-4 h-4 text-[#145C44] ml-auto shrink-0">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />

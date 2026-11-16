@@ -6,6 +6,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { saApi } from '@/lib/super-admin-api';
+import { RichQuestion, insertMarker, renumberMarkers } from '@/components/past-questions/RichQuestion';
 
 const P = {
   card: '#132B1C', border: '#2A3D28', sunken: '#0E1A0C', inputBg: '#0B1A0E',
@@ -30,7 +31,7 @@ interface Paper {
 interface Question {
   id: string; question_no: number | null; question_type: 'objective' | 'theory'; question_text: string;
   options: string[]; correct: string | null; explanation: string | null; marking_scheme: string | null;
-  image_url: string | null; topic: string | null; difficulty: 'easy' | 'medium' | 'hard';
+  image_url: string | null; images: string[]; option_images: (string | null)[]; topic: string | null; difficulty: 'easy' | 'medium' | 'hard';
   answer_source: string | null; needs_review: boolean; has_diagram: boolean;
 }
 interface Summary {
@@ -430,16 +431,39 @@ function PaperMeta({ paper, onSaved }: { paper: Paper; onSaved: () => void }) {
 
 // ── Question card and form ────────────────────────────────────────────────────
 
+function readAsDataUrl(file: File) {
+  return new Promise<string>((res, rej) => {
+    const r = new FileReader(); r.onload = () => res(String(r.result)); r.onerror = rej; r.readAsDataURL(file);
+  });
+}
+
+// A hidden file input opened by a button; calls onPick with the chosen image.
+function usePicker(onPick: (file: File) => void) {
+  const ref = useRef<HTMLInputElement>(null);
+  const input = (
+    <input ref={ref} type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden
+      onChange={e => { const f = e.target.files?.[0]; if (f) onPick(f); if (ref.current) ref.current.value = ''; }} />
+  );
+  return { open: () => ref.current?.click(), input };
+}
+
+const thumb: React.CSSProperties = { width: 72, height: 54, objectFit: 'contain', background: '#fff', borderRadius: 6, flexShrink: 0 };
+
 function QuestionCard({ q, onEdit, onChanged }: { q: Question; onEdit: () => void; onChanged: () => void }) {
   const [busy, setBusy] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
   const [err, setErr] = useState('');
-  const imgRef = useRef<HTMLInputElement>(null);
+  const picker = usePicker(async (file) => {
+    setBusy(true); setErr('');
+    try { await saApi.post(`/api/pasco-bank/questions/${q.id}/images`, { image: await readAsDataUrl(file) }); onChanged(); }
+    catch (e) { setErr(errMsg(e, 'Could not save the image.')); }
+    finally { setBusy(false); }
+  });
 
   async function markChecked() {
     setBusy(true); setErr('');
     try { await saApi.put(`/api/pasco-bank/questions/${q.id}`, { ...q, checked: true }); onChanged(); }
-    catch (e) { setErr(errMsg(e, 'Could not save.')); }
+    catch (e) { setErr(errMsg(e, 'Could not save. Edit the question to fix it.')); }
     finally { setBusy(false); }
   }
   async function remove() {
@@ -447,19 +471,9 @@ function QuestionCard({ q, onEdit, onChanged }: { q: Question; onEdit: () => voi
     try { await saApi.delete(`/api/pasco-bank/questions/${q.id}`); onChanged(); }
     catch (e) { setErr(errMsg(e, 'Could not delete.')); setBusy(false); }
   }
-  async function setImage(file: File | null) {
-    setBusy(true); setErr('');
-    try {
-      const image = file ? await new Promise<string>((res, rej) => {
-        const r = new FileReader(); r.onload = () => res(String(r.result)); r.onerror = rej; r.readAsDataURL(file);
-      }) : null;
-      await saApi.post(`/api/pasco-bank/questions/${q.id}/image`, { image });
-      onChanged();
-    } catch (e) { setErr(errMsg(e, 'Could not save the image.')); }
-    finally { setBusy(false); if (imgRef.current) imgRef.current.value = ''; }
-  }
 
-  const needsImage = q.has_diagram && !q.image_url;
+  const missingOptionPic = q.question_type === 'objective' && q.options.some((o, i) => !o && !q.option_images[i]);
+  const needsImage = (q.has_diagram && q.images.length === 0) || missingOptionPic;
   return (
     <article style={{ background: P.card, border: `1px solid ${q.needs_review ? 'rgba(200,151,58,0.55)' : P.border}`, borderRadius: 14, padding: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', fontSize: 13, color: P.muted }}>
@@ -467,34 +481,36 @@ function QuestionCard({ q, onEdit, onChanged }: { q: Question; onEdit: () => voi
         {q.topic && <span>· {q.topic}</span>}
         <span>· {q.difficulty}</span>
         {q.needs_review && q.answer_source === 'ai' && <span style={chip(P.warn, P.warnBg)}>{q.question_type === 'theory' ? 'AI marking scheme, check' : 'AI answer, check'}</span>}
-        {needsImage && <span style={chip(P.warn, P.warnBg)}>Has a diagram, add image</span>}
+        {needsImage && <span style={chip(P.warn, P.warnBg)}>{missingOptionPic ? 'An option needs its picture' : 'Has a diagram, add image'}</span>}
         {q.needs_review && q.answer_source !== 'ai' && !needsImage && <span style={chip(P.warn, P.warnBg)}>Check</span>}
       </div>
-      <p style={{ margin: 0, fontSize: 15, color: P.ink, whiteSpace: 'pre-wrap' }}>{q.question_text}</p>
-      {q.image_url && <img src={q.image_url} alt={`Diagram for question ${q.question_no ?? ''}`} style={{ maxWidth: '100%', maxHeight: 280, objectFit: 'contain', background: '#fff', borderRadius: 8, alignSelf: 'flex-start' }} />}
+      <RichQuestion text={q.question_text} images={q.images} placedElsewhere={q.marking_scheme} textStyle={{ fontSize: 15, color: P.ink }} imageStyle={{ maxHeight: 260 }} />
       {q.question_type === 'objective' ? (
-        <ol style={{ margin: 0, paddingLeft: 0, listStyle: 'none', display: 'grid', gap: 4 }}>
+        <ol style={{ margin: 0, paddingLeft: 0, listStyle: 'none', display: 'grid', gap: 6 }}>
           {q.options.map((o, i) => {
             const right = q.correct === LETTERS[i].toLowerCase();
             return (
-              <li key={i} style={{ fontSize: 14, color: right ? P.good : P.ink2, fontWeight: right ? 700 : 400 }}>
-                {LETTERS[i]}. {o}{right && ' (answer)'}
+              <li key={i} style={{ fontSize: 14, color: right ? P.good : P.ink2, fontWeight: right ? 700 : 400, display: 'flex', gap: 8, alignItems: 'center' }}>
+                <span>{LETTERS[i]}.</span>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                {q.option_images[i] && <img src={q.option_images[i]!} alt={`Option ${LETTERS[i]}`} style={{ ...thumb, width: 160, height: 100 }} />}
+                <span>{o || (!q.option_images[i] ? <em style={{ color: P.warn }}>picture missing</em> : '')}{right && ' (answer)'}</span>
               </li>
             );
           })}
         </ol>
       ) : (
-        <div style={{ fontSize: 14, color: P.ink2, background: P.sunken, borderRadius: 10, padding: 10, whiteSpace: 'pre-wrap' }}>
-          <strong style={{ color: P.ink }}>Marking scheme</strong>{'\n'}{q.marking_scheme || 'None yet.'}
+        <div style={{ fontSize: 14, color: P.ink2, background: P.sunken, borderRadius: 10, padding: 10 }}>
+          <strong style={{ color: P.ink, display: 'block', marginBottom: 4 }}>Marking scheme</strong>
+          {q.marking_scheme ? <RichQuestion text={q.marking_scheme} images={q.images} showUnplaced={false} /> : 'None yet.'}
         </div>
       )}
       {q.explanation && <p style={{ margin: 0, fontSize: 13, color: P.muted }}>{q.explanation}</p>}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
         {q.needs_review && <button style={btn('primary', busy)} disabled={busy} onClick={markChecked}>Mark checked</button>}
         <button style={btn('quiet', busy)} disabled={busy} onClick={onEdit}>Edit</button>
-        <button style={btn('quiet', busy)} disabled={busy} onClick={() => imgRef.current?.click()}>{q.image_url ? 'Replace image' : 'Add image'}</button>
-        {q.image_url && <button style={btn('quiet', busy)} disabled={busy} onClick={() => setImage(null)}>Remove image</button>}
-        <input ref={imgRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden onChange={e => setImage(e.target.files?.[0] ?? null)} />
+        <button style={btn('quiet', busy)} disabled={busy} onClick={picker.open} title="Added at the end. Use Edit to place it in the text.">Add image</button>
+        {picker.input}
         {confirmDel ? (
           <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center', fontSize: 13, color: P.ink2 }}>
             Delete this question?
@@ -514,14 +530,71 @@ function QuestionForm({ paperId, question, onDone, onCancel }: { paperId: string
     question_no: question?.question_no != null ? String(question.question_no) : '',
     question_text: question?.question_text ?? '',
     options: question?.options?.length ? [...question.options] : ['', '', '', ''],
+    option_images: question?.option_images?.length ? [...question.option_images] : [null, null, null, null] as (string | null)[],
     correct: question?.correct ?? '',
     explanation: question?.explanation ?? '',
     marking_scheme: question?.marking_scheme ?? '',
     topic: question?.topic ?? '',
     difficulty: question?.difficulty ?? 'medium',
   });
+  const [images, setImages] = useState<string[]>(question?.images ?? []);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
+  const [imgBusy, setImgBusy] = useState(false);
+  const textRef = useRef<HTMLTextAreaElement>(null);
+  const schemeRef = useRef<HTMLTextAreaElement>(null);
+  const target = useRef<'question_text' | 'marking_scheme'>('question_text');
+  const optTarget = useRef(0);
+  const savedOptions = question?.options.length ?? 0;
+
+  // Uploads a question image and drops its [image N] marker at the cursor.
+  const insertPicker = usePicker(async (file) => {
+    if (!question) return;
+    setImgBusy(true); setErr('');
+    try {
+      const { data } = await saApi.post<Question>(`/api/pasco-bank/questions/${question.id}/images`, { image: await readAsDataUrl(file) });
+      setImages(data.images);
+      const field = target.current;
+      const el = field === 'question_text' ? textRef.current : schemeRef.current;
+      setF(cur => {
+        const pos = el?.selectionStart ?? cur[field].length;
+        const { text, cursor } = insertMarker(cur[field], pos, data.images.length);
+        setTimeout(() => { el?.focus(); el?.setSelectionRange(cursor, cursor); }, 0);
+        return { ...cur, [field]: text };
+      });
+    } catch (e) { setErr(errMsg(e, 'Could not add the image.')); }
+    finally { setImgBusy(false); }
+  });
+  const replaceIdx = useRef(0);
+  const replacePicker = usePicker(async (file) => {
+    if (!question) return;
+    setImgBusy(true); setErr('');
+    try {
+      const { data } = await saApi.post<Question>(`/api/pasco-bank/questions/${question.id}/images`, { image: await readAsDataUrl(file), replace: replaceIdx.current });
+      setImages(data.images);
+    } catch (e) { setErr(errMsg(e, 'Could not replace the image.')); }
+    finally { setImgBusy(false); }
+  });
+  async function removeImage(n: number) {
+    if (!question) return;
+    setImgBusy(true); setErr('');
+    try {
+      const { data } = await saApi.delete<Question>(`/api/pasco-bank/questions/${question.id}/images/${n}`);
+      setImages(data.images);
+      setF(cur => ({ ...cur, question_text: renumberMarkers(cur.question_text, n), marking_scheme: renumberMarkers(cur.marking_scheme, n) }));
+    } catch (e) { setErr(errMsg(e, 'Could not remove the image.')); }
+    finally { setImgBusy(false); }
+  }
+  const optionPicker = usePicker(async (file) => {
+    if (!question) return;
+    const k = optTarget.current;
+    setImgBusy(true); setErr('');
+    try {
+      const { data } = await saApi.post<Question>(`/api/pasco-bank/questions/${question.id}/options/${k + 1}/image`, { image: await readAsDataUrl(file) });
+      setF(cur => { const oi = [...cur.option_images]; oi[k] = data.option_images[k]; return { ...cur, option_images: oi }; });
+    } catch (e) { setErr(errMsg(e, 'Could not add the picture.')); }
+    finally { setImgBusy(false); }
+  });
 
   async function save(e: React.FormEvent) {
     e.preventDefault(); setBusy(true); setErr('');
@@ -534,8 +607,15 @@ function QuestionForm({ paperId, question, onDone, onCancel }: { paperId: string
   }
 
   const objective = f.question_type === 'objective';
+  const insertBtn = (field: 'question_text' | 'marking_scheme') => (
+    <button type="button" style={btn('quiet', !question || imgBusy)} disabled={!question || imgBusy}
+      onClick={() => { target.current = field; insertPicker.open(); }}>
+      {imgBusy ? 'Uploading…' : 'Insert image at cursor'}
+    </button>
+  );
   return (
     <form onSubmit={save} style={{ background: P.card, border: `1px solid ${P.primary}`, borderRadius: 14, padding: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {insertPicker.input}{replacePicker.input}{optionPicker.input}
       <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))' }}>
         <div><label style={label} htmlFor="qf-type">Type</label>
           <select id="qf-type" style={input} value={f.question_type} onChange={e => setF({ ...f, question_type: e.target.value as 'objective' | 'theory' })}>
@@ -548,33 +628,86 @@ function QuestionForm({ paperId, question, onDone, onCancel }: { paperId: string
             <option value="easy">Easy</option><option value="medium">Medium</option><option value="hard">Hard</option>
           </select></div>
       </div>
-      <div><label style={label} htmlFor="qf-text">Question</label>
-        <textarea id="qf-text" style={{ ...input, minHeight: 90 }} value={f.question_text} onChange={e => setF({ ...f, question_text: e.target.value })} /></div>
+
+      <div>
+        <label style={label} htmlFor="qf-text">Question</label>
+        <textarea id="qf-text" ref={textRef} style={{ ...input, minHeight: 110, fontFamily: 'inherit' }} value={f.question_text} onChange={e => setF({ ...f, question_text: e.target.value })} />
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', marginTop: 8 }}>
+          {insertBtn('question_text')}
+          <span style={{ fontSize: 12, color: P.muted }}>
+            {question ? 'Click in the text where the picture goes first. [image 1] marks the spot; move that line to move the picture.' : 'Add the question first, then edit it to add pictures.'}
+          </span>
+        </div>
+      </div>
+
+      {images.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <span style={label}>Pictures in this question</span>
+          {images.map((url, i) => {
+            const placed = new RegExp(`\\[image${i === 0 ? '(\\s+1)?' : `\\s+${i + 1}`}\\]`, 'i').test(`${f.question_text}\n${f.marking_scheme}`);
+            return (
+              <div key={url + i} style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={url} alt={`Image ${i + 1}`} style={thumb} />
+                <span style={{ fontSize: 13, color: P.ink2, minWidth: 140 }}>
+                  [image {i + 1}]{!placed && <span style={{ color: P.muted }}> not placed, shows at the end</span>}
+                </span>
+                <button type="button" style={btn('quiet', imgBusy)} disabled={imgBusy} onClick={() => { replaceIdx.current = i + 1; replacePicker.open(); }}>Replace</button>
+                <button type="button" style={btn('danger', imgBusy)} disabled={imgBusy} onClick={() => removeImage(i + 1)}>Remove</button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {objective ? (
         <fieldset style={{ border: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <legend style={label}>Options (choose the answer)</legend>
+          <legend style={label}>Options (choose the answer). An option can be text, a picture, or both.</legend>
           {f.options.map((o, i) => (
-            <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
               <input type="radio" name="qf-correct" aria-label={`Option ${LETTERS[i]} is the answer`} checked={f.correct === LETTERS[i].toLowerCase()}
                 onChange={() => setF({ ...f, correct: LETTERS[i].toLowerCase() })} style={{ width: 20, height: 20 }} />
               <span style={{ width: 16, color: P.ink2, fontWeight: 700 }}>{LETTERS[i]}</span>
-              <input style={input} aria-label={`Option ${LETTERS[i]}`} value={o} onChange={e => { const next = [...f.options]; next[i] = e.target.value; setF({ ...f, options: next }); }} />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              {f.option_images[i] && <img src={f.option_images[i]!} alt={`Option ${LETTERS[i]} picture`} style={thumb} />}
+              <input style={{ ...input, flex: 1, minWidth: 160, width: 'auto' }} aria-label={`Option ${LETTERS[i]}`} value={o}
+                placeholder={f.option_images[i] ? 'Optional text under the picture' : ''}
+                onChange={e => { const next = [...f.options]; next[i] = e.target.value; setF({ ...f, options: next }); }} />
+              {f.option_images[i] ? (
+                <button type="button" style={btn('quiet', imgBusy)} disabled={imgBusy}
+                  onClick={() => { const oi = [...f.option_images]; oi[i] = null; setF({ ...f, option_images: oi }); }}>Remove picture</button>
+              ) : (
+                <button type="button" style={btn('quiet', !question || imgBusy || i >= savedOptions)} disabled={!question || imgBusy || i >= savedOptions}
+                  title={!question || i >= savedOptions ? 'Save the question first' : undefined}
+                  onClick={() => { optTarget.current = i; optionPicker.open(); }}>Picture</button>
+              )}
             </div>
           ))}
           <div style={{ display: 'flex', gap: 8 }}>
-            {f.options.length < 5 && <button type="button" style={btn()} onClick={() => setF({ ...f, options: [...f.options, ''] })}>Add option E</button>}
+            {f.options.length < 5 && <button type="button" style={btn()} onClick={() => setF({ ...f, options: [...f.options, ''], option_images: [...f.option_images, null] })}>Add option E</button>}
             {f.options.length > 2 && <button type="button" style={btn()} onClick={() => {
               const removed = LETTERS[f.options.length - 1].toLowerCase();
-              setF({ ...f, options: f.options.slice(0, -1), correct: f.correct === removed ? '' : f.correct });
+              setF({ ...f, options: f.options.slice(0, -1), option_images: f.option_images.slice(0, f.options.length - 1), correct: f.correct === removed ? '' : f.correct });
             }}>Remove last option</button>}
           </div>
           <div><label style={label} htmlFor="qf-exp">Explanation (optional)</label>
-            <textarea id="qf-exp" style={{ ...input, minHeight: 60 }} value={f.explanation} onChange={e => setF({ ...f, explanation: e.target.value })} /></div>
+            <textarea id="qf-exp" style={{ ...input, minHeight: 60, fontFamily: 'inherit' }} value={f.explanation} onChange={e => setF({ ...f, explanation: e.target.value })} /></div>
         </fieldset>
       ) : (
-        <div><label style={label} htmlFor="qf-scheme">Marking scheme</label>
-          <textarea id="qf-scheme" style={{ ...input, minHeight: 120 }} value={f.marking_scheme} onChange={e => setF({ ...f, marking_scheme: e.target.value })} /></div>
+        <div>
+          <label style={label} htmlFor="qf-scheme">Marking scheme</label>
+          <textarea id="qf-scheme" ref={schemeRef} style={{ ...input, minHeight: 120, fontFamily: 'inherit' }} value={f.marking_scheme} onChange={e => setF({ ...f, marking_scheme: e.target.value })} />
+          <div style={{ marginTop: 8 }}>{insertBtn('marking_scheme')}</div>
+        </div>
       )}
+
+      {(f.question_text || images.length > 0) && (
+        <div style={{ background: P.sunken, borderRadius: 10, padding: 12 }}>
+          <span style={{ ...label, marginBottom: 8 }}>Preview</span>
+          <RichQuestion text={f.question_text} images={images} placedElsewhere={f.marking_scheme} textStyle={{ fontSize: 15, color: P.ink }} imageStyle={{ maxHeight: 220 }} />
+        </div>
+      )}
+
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
         <button type="submit" style={btn('primary', busy)} disabled={busy}>{question ? 'Save and mark checked' : 'Add question'}</button>
         <button type="button" style={btn()} onClick={onCancel}>Cancel</button>

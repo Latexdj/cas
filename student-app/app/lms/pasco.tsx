@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/Button';
 import { Dropdown } from '@/components/ui/Dropdown';
 import { Input } from '@/components/ui/Input';
 import { gradeBadge } from '@/lib/grade';
+import { QuestionBody } from '@/components/QuestionBody';
 import type { PascoQuestion } from '@/types/api';
 import { createThemedStyles } from '@/lib/themedStyles';
 
@@ -134,15 +135,15 @@ export default function PascoScreen() {
           <Text style={[s.practiceScore, { color: C.success }]}>{correctCount}/{currentIndex + (revealed ? 1 : 0)}</Text>
         </View>
 
-        <Text style={[s.questionText, { color: C.text }]}>{q.question_text}</Text>
-        {!!q.image_url && (
-          <Image source={{ uri: q.image_url }} resizeMode="contain" accessibilityLabel="Diagram for this question"
-            style={{ width: '100%', height: 220, backgroundColor: '#FFFFFF', borderRadius: 12, marginBottom: 12 }} />
-        )}
+        <View style={{ marginBottom: 12 }}>
+          <QuestionBody text={q.question_text} images={q.images?.length ? q.images : (q.image_url ? [q.image_url] : [])}
+            textStyle={[s.questionText, { color: C.text, marginBottom: 0 }]} />
+        </View>
 
         {(['a', 'b', 'c', 'd'] as const).map(letter => {
           const text = q[`option_${letter}`];
-          if (!text) return null;
+          const pic = q.option_images?.[['a', 'b', 'c', 'd'].indexOf(letter)] ?? null;
+          if (!text && !pic) return null;
           const isCorrect = letter === q.correct_option;
           const isSelected = letter === selected;
           let borderColor = C.border, bg = C.surface;
@@ -155,7 +156,11 @@ export default function PascoScreen() {
               <View style={[s.optionLetter, { backgroundColor: revealed && isCorrect ? C.success : revealed && isSelected ? C.danger : C.border }]}>
                 <Text style={[s.optionLetterText, { color: revealed && (isCorrect || isSelected) ? '#fff' : C.muted }]}>{letter.toUpperCase()}</Text>
               </View>
-              <Text style={[s.optionText, { color: C.text }]}>{text}</Text>
+              <View style={{ flex: 1, gap: 6 }}>
+                {!!pic && <Image source={{ uri: pic }} resizeMode="contain" accessibilityLabel={`Option ${letter.toUpperCase()} picture`}
+                  style={{ width: '100%', height: 120, backgroundColor: '#FFFFFF', borderRadius: 8 }} />}
+                {!!text && <Text style={[s.optionText, { color: C.text }]}>{text}</Text>}
+              </View>
               {revealed && isCorrect && <Ionicons name="checkmark-circle" size={18} color={C.success} />}
               {revealed && isSelected && !isCorrect && <Ionicons name="close-circle" size={18} color={C.danger} />}
             </TouchableOpacity>

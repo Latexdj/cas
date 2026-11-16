@@ -314,6 +314,8 @@ export interface PascoQuestion {
   year?:          number | null;
   subject_name?:  string | null;
   image_url?:     string | null;
+  images?:        string[];
+  option_images?: (string | null)[];
 }
 
 export interface ClinicVisit {

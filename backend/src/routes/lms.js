@@ -970,12 +970,16 @@ router.get('/pasco', async (req, res, next) => {
       const [a, b, c, d] = q.options;
       const correctIdx = q.options.findIndex((o) => o.is_correct === true);
       const letters = ['a', 'b', 'c', 'd'];
+      const imgs = Array.isArray(q.images) ? q.images.map(i => i?.url).filter(Boolean) : [];
       return {
         ...q,
         option_a: a?.text ?? '',
         option_b: b?.text ?? '',
         option_c: c?.text ?? '',
         option_d: d?.text ?? '',
+        // Pictures: per option, and question images placed by [image N] markers.
+        option_images: [a, b, c, d].map(o => o?.image_url ?? null),
+        images: imgs.length ? imgs : (q.image_url ? [q.image_url] : []),
         correct_option: correctIdx >= 0 ? letters[correctIdx] : null,
         options: undefined,
       };

@@ -21,6 +21,12 @@ export interface PackQuestion {
   question_text: string; options: string[]; correct: string | null;
   explanation: string | null; marking_scheme: string | null;
   image_url: string | null; image_src?: string | null;
+  /** Question pictures, placed by [image N] markers in the text. */
+  images?: (string | null)[];
+  /** A picture per option (A, B, C...), or null. */
+  option_images?: (string | null)[];
+  /** Online address each local picture came from, so unchanged ones aren't downloaded again. */
+  sources?: Record<string, string>;
   topic: string | null; difficulty: string; year: number | null;
 }
 export interface SubjectPack { subject: string; slug: string; hash: string; papers: PackPaper[]; questions: PackQuestion[] }
@@ -76,11 +82,36 @@ export async function loadSubject(slug: string): Promise<SubjectPack | null> {
   return readJson<SubjectPack>(`${SUBJECTS}${slug}.json`);
 }
 
-/** Turns a question's stored image path into something <Image> can show. */
-export function imageUri(q: PackQuestion): string | null {
-  if (!q.image_url) return null;
-  return /^https?:|^file:|^data:/.test(q.image_url) ? q.image_url : `${ROOT}${q.image_url}`;
+/** Turns a stored picture path into something <Image> can show. */
+export function resolveImage(path: string | null | undefined): string | null {
+  if (!path) return null;
+  return /^https?:|^file:|^data:/.test(path) ? path : `${ROOT}${path}`;
 }
+export function imageUri(q: PackQuestion): string | null { return resolveImage(q.image_url); }
+export function questionImages(q: PackQuestion): (string | null)[] {
+  return (q.images ?? (q.image_url ? [q.image_url] : [])).map(resolveImage);
+}
+export function optionImage(q: PackQuestion, i: number): string | null {
+  return resolveImage(q.option_images?.[i]);
+}
+
+// Runs fn over every picture slot of a question (question pictures named
+// <id>-<n>, option pictures <id>-o<k>) and stores what it returns.
+async function eachImage(q: PackQuestion, fn: (path: string, name: string) => Promise<string | null>) {
+  q.images = q.images ?? (q.image_url ? [q.image_url] : []);
+  q.option_images = q.option_images ?? q.options.map(() => null);
+  for (let n = 0; n < q.images.length; n++) {
+    const path = q.images[n];
+    if (path) q.images[n] = await fn(path, `${q.id}-${n + 1}`);
+  }
+  for (let k = 0; k < q.option_images.length; k++) {
+    const path = q.option_images[k];
+    if (path) q.option_images[k] = await fn(path, `${q.id}-o${k + 1}`);
+  }
+  q.image_url = q.images[0] ?? null;
+}
+const imagePaths = (q: PackQuestion) =>
+  [...(q.images ?? (q.image_url ? [q.image_url] : [])), ...(q.option_images ?? [])].filter((x): x is string => !!x);
 
 // Deletes subjects and images nothing refers to any more.
 async function prune(manifest: PackManifest) {
@@ -93,7 +124,7 @@ async function prune(manifest: PackManifest) {
   for (const name of await FileSystem.readDirectoryAsync(SUBJECTS).catch(() => [] as string[])) {
     if (!keep.has(name)) { await FileSystem.deleteAsync(`${SUBJECTS}${name}`, { idempotent: true }); continue; }
     const pack = await readJson<SubjectPack>(`${SUBJECTS}${name}`);
-    pack?.questions.forEach(q => { if (q.image_url?.startsWith('images/')) used.add(q.image_url.slice(7)); });
+    pack?.questions.forEach(q => imagePaths(q).forEach(x => { if (x.startsWith('images/')) used.add(x.slice(7)); }));
   }
   for (const name of await FileSystem.readDirectoryAsync(IMAGES).catch(() => [] as string[])) {
     if (!used.has(name)) await FileSystem.deleteAsync(`${IMAGES}${name}`, { idempotent: true });
@@ -142,22 +173,25 @@ export async function updateOnline(onProgress?: (msg: string) => void): Promise<
       onProgress?.(`Downloading ${s.name} (${i + 1} of ${changed.length})`);
       const pack = await fetchJson<SubjectPack>(`${BASE_URL}/api/pasco-bank/pack/subjects/${encodeURIComponent(s.slug)}`, 60000);
       const old = await loadSubject(s.slug);
-      const oldSrc = new Map((old?.questions ?? []).map(q => [q.id, q]));
+      const oldQ = new Map((old?.questions ?? []).map(q => [q.id, q]));
+      let missing = false;
       for (const q of pack.questions) {
-        const src = q.image_url;
-        q.image_src = src;
-        if (!src || WEB) continue;
-        const rel = `images/${q.id}.${extOf(src)}`;
-        const prev = oldSrc.get(q.id);
-        const have = prev?.image_src === src && (await FileSystem.getInfoAsync(`${ROOT}${rel}`)).exists;
-        if (!have) {
-          try { await FileSystem.downloadAsync(src, `${ROOT}${rel}`); }
-          catch { q.image_url = null; continue; }   // shown without the image; tried again next update
-        }
-        q.image_url = rel;
+        if (WEB) continue;   // the web preview shows the online pictures directly
+        const prev = oldQ.get(q.id)?.sources ?? {};
+        const sources: Record<string, string> = {};
+        await eachImage(q, async (src, name) => {
+          const rel = `images/${name}.${extOf(src)}`;
+          sources[name] = src;
+          const have = prev[name] === src && (await FileSystem.getInfoAsync(`${ROOT}${rel}`)).exists;
+          if (!have) {
+            try { await FileSystem.downloadAsync(src, `${ROOT}${rel}`); }
+            catch { missing = true; return null; }   // shown without it; tried again next update
+          }
+          return rel;
+        });
+        q.sources = sources;
       }
       // A subject whose images failed keeps an old hash so it retries next time.
-      const missing = pack.questions.some(q => q.image_src && !q.image_url);
       await writeJson(`${SUBJECTS}${s.slug}.json`, pack);
       if (missing) s.hash = `${s.hash}-partial`;
     }
@@ -186,12 +220,14 @@ export async function importUsb(): Promise<PackManifest | null> {
       const pack = await readJson<SubjectPack>(`file://${dir}/subjects/${s.slug}.json`);
       if (!pack) continue;
       for (const q of pack.questions) {
-        if (!q.image_url?.startsWith('images/')) continue;
-        const to = `${ROOT}${q.image_url}`;
-        try {
-          await FileSystem.deleteAsync(to, { idempotent: true });
-          await FileSystem.copyAsync({ from: `file://${dir}/${q.image_url}`, to });
-        } catch { q.image_url = null; }
+        await eachImage(q, async (rel) => {
+          if (!rel.startsWith('images/')) return null;
+          try {
+            await FileSystem.deleteAsync(`${ROOT}${rel}`, { idempotent: true });
+            await FileSystem.copyAsync({ from: `file://${dir}/${rel}`, to: `${ROOT}${rel}` });
+            return rel;
+          } catch { return null; }
+        });
       }
       await writeJson(`${SUBJECTS}${s.slug}.json`, pack);
     }
@@ -278,15 +314,16 @@ export async function importZip(uri: string, opts: { force?: boolean } = {}): Pr
     let pack: SubjectPack;
     try { pack = JSON.parse(strFromU8(raw)); } catch { continue; }
     for (const q of pack.questions) {
-      if (!q.image_url?.startsWith('images/')) continue;
-      const img = files[`${base}${q.image_url}`];
-      if (!img) { q.image_url = null; continue; }
-      if (WEB) {
-        const ext = q.image_url.split('.').pop()?.toLowerCase() ?? 'png';
-        q.image_url = `data:image/${ext === 'jpg' ? 'jpeg' : ext};base64,${bytesToB64(img)}`;
-      } else {
-        await FileSystem.writeAsStringAsync(`${ROOT}${q.image_url}`, bytesToB64(img), { encoding: FileSystem.EncodingType.Base64 });
-      }
+      await eachImage(q, async (rel) => {
+        const img = rel.startsWith('images/') ? files[`${base}${rel}`] : undefined;
+        if (!img) return null;
+        if (WEB) {
+          const ext = rel.split('.').pop()?.toLowerCase() ?? 'png';
+          return `data:image/${ext === 'jpg' ? 'jpeg' : ext};base64,${bytesToB64(img)}`;
+        }
+        await FileSystem.writeAsStringAsync(`${ROOT}${rel}`, bytesToB64(img), { encoding: FileSystem.EncodingType.Base64 });
+        return rel;
+      });
     }
     await writeJson(`${SUBJECTS}${s.slug}.json`, pack);
     questions += pack.questions.length;

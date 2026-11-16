@@ -2857,6 +2857,11 @@ async function runMigrations() {
       await pool.query(`ALTER TABLE lms_pasco_questions ADD COLUMN IF NOT EXISTS answer_source TEXT`);
       await pool.query(`ALTER TABLE lms_pasco_questions ADD COLUMN IF NOT EXISTS needs_review BOOLEAN NOT NULL DEFAULT false`);
       await pool.query(`ALTER TABLE lms_pasco_questions ADD COLUMN IF NOT EXISTS has_diagram BOOLEAN NOT NULL DEFAULT false`);
+      // Several images per question, placed by [image N] markers in the text.
+      await pool.query(`ALTER TABLE lms_pasco_questions ADD COLUMN IF NOT EXISTS images JSONB NOT NULL DEFAULT '[]'`);
+      await pool.query(`
+        UPDATE lms_pasco_questions SET images = jsonb_build_array(jsonb_build_object('url', image_url))
+         WHERE image_url IS NOT NULL AND images = '[]'::jsonb`);
       await pool.query(`ALTER TABLE lms_pasco_questions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now()`);
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_lms_pasco_paper ON lms_pasco_questions(paper_id)`);
       await pool.query(`

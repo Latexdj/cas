@@ -4,7 +4,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams, useNavigation } from 'expo-router';
 import { useTheme } from '@/context/ThemeContext';
 import { createThemedStyles } from '@/lib/themedStyles';
-import { imageUri, loadSubject, paperTitle, type PackQuestion, type SubjectPack } from '@/lib/quizPack';
+import { loadSubject, optionImage, paperTitle, questionImages, type PackQuestion, type SubjectPack } from '@/lib/quizPack';
+import { QuestionBody } from '@/components/QuestionBody';
 import { getProgress, recordRound, type TheoryRating } from '@/lib/quizProgress';
 
 type Mode = 'practice' | 'paper' | 'retry' | 'theory';
@@ -139,12 +140,12 @@ export default function PlayScreen() {
                 <Ionicons name={ok ? 'checkmark-circle' : mine ? 'close-circle' : 'remove-circle'} size={20} color={ok ? C.success : mine ? C.danger : C.muted} />
                 <Text style={[s.small, { color: C.textSoft }]}>Question {q.question_no ?? n + 1}{q.year ? ` · ${q.year}` : ''}</Text>
               </View>
-              <Text style={[s.body, { color: C.text }]}>{q.question_text}</Text>
+              <QuestionBody text={q.question_text} images={questionImages(q)} placedElsewhere={q.marking_scheme} textStyle={[s.body, { color: C.text }]} imageHeight={160} />
               <Text style={[s.small, { color: C.textSoft }]}>
-                {mine ? `Your answer: ${mine.toUpperCase()}. ${q.options[LETTERS.indexOf(mine)] ?? ''}` : 'Not answered'}
+                {mine ? `Your answer: ${mine.toUpperCase()}. ${q.options[LETTERS.indexOf(mine)] || '(picture)'}` : 'Not answered'}
               </Text>
               {!ok && q.correct && (
-                <Text style={[s.small, { color: C.success, fontWeight: '700' }]}>Answer: {q.correct.toUpperCase()}. {q.options[LETTERS.indexOf(q.correct)]}</Text>
+                <Text style={[s.small, { color: C.success, fontWeight: '700' }]}>Answer: {q.correct.toUpperCase()}. {q.options[LETTERS.indexOf(q.correct)] || '(picture)'}</Text>
               )}
               {q.explanation && <Text style={[s.small, { color: C.textSoft }]}>{q.explanation}</Text>}
             </View>
@@ -163,7 +164,7 @@ export default function PlayScreen() {
   const instant = mode === 'practice' || mode === 'retry';
   const chosen = answers[q.id];
   const revealed = instant && !!chosen;
-  const img = imageUri(q);
+  const pics = questionImages(q);
   const unanswered = qs.filter(x => x.question_type === 'objective' && !answers[x.id]).length;
 
   function next() { setShowScheme(false); setConfirmFinish(false); if (last) { finish(); } else setI(i + 1); }
@@ -181,8 +182,7 @@ export default function PlayScreen() {
       </View>
 
       <ScrollView contentContainerStyle={s.page}>
-        <Text style={[s.question, { color: C.text }]}>{q.question_text}</Text>
-        {img && <Image source={{ uri: img }} style={s.image} resizeMode="contain" accessibilityLabel="Diagram for this question" />}
+        <QuestionBody text={q.question_text} images={pics} placedElsewhere={q.marking_scheme} textStyle={[s.question, { color: C.text }]} />
 
         {q.question_type === 'objective' ? (
           <View style={{ gap: 10 }}>
@@ -200,7 +200,13 @@ export default function PlayScreen() {
                   onPress={() => setAnswers(a => ({ ...a, [q.id]: letter }))}
                   style={[s.option, { borderColor: border, backgroundColor: bg }]}>
                   <Text style={[s.optLetter, { color: fg }]}>{letter.toUpperCase()}</Text>
-                  <Text style={[s.optText, { color: fg }]}>{opt}</Text>
+                  <View style={{ flex: 1, gap: 6 }}>
+                    {optionImage(q, k) && (
+                      <Image source={{ uri: optionImage(q, k)! }} resizeMode="contain" accessibilityLabel={`Option ${letter.toUpperCase()} picture`}
+                        style={{ width: '100%', height: 130, backgroundColor: '#FFFFFF', borderRadius: 8 }} />
+                    )}
+                    {!!opt && <Text style={[s.optText, { color: fg }]}>{opt}</Text>}
+                  </View>
                   {revealed && isRight && <Ionicons name="checkmark-circle" size={22} color={C.success} />}
                   {revealed && isChosen && !isRight && <Ionicons name="close-circle" size={22} color={C.danger} />}
                 </TouchableOpacity>
@@ -228,7 +234,9 @@ export default function PlayScreen() {
               <>
                 <View style={[s.card, { backgroundColor: C.surface, borderColor: C.border }]}>
                   <Text style={[s.small, { color: C.textSoft, fontWeight: '700' }]}>MARKING SCHEME</Text>
-                  <Text style={[s.body, { color: C.text }]}>{q.marking_scheme || 'No marking scheme for this question.'}</Text>
+                  {q.marking_scheme
+                    ? <QuestionBody text={q.marking_scheme} images={pics} showUnplaced={false} textStyle={[s.body, { color: C.text }]} />
+                    : <Text style={[s.body, { color: C.text }]}>No marking scheme for this question.</Text>}
                 </View>
                 <Text style={[s.body, { color: C.text, fontWeight: '600' }]}>How did you do?</Text>
                 <View style={s.rateRow}>

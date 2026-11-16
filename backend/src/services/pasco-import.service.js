@@ -48,6 +48,7 @@ Rules:
 - For theory, marking_scheme: if the paper has one, copy it; otherwise write a concise model answer with the key points a marker would expect. answer_found_on_paper says which.
 - explanation: one or two sentences on why the objective answer is right. Null for theory.
 - has_diagram: true when the question depends on a figure, graph, table image or map that text cannot carry.
+- Figures: put a marker on its own line exactly where each figure appears in the question: [image 1] for the first, [image 2] for the second. Do not describe the figure. If an option is itself a figure (for example four graphs labelled A to D), write [image] as that option's text.
 - topic: a short syllabus topic name. difficulty: easy, medium or hard.
 - Never invent questions that are not on the paper.
 
@@ -90,15 +91,21 @@ function toRow(q) {
     return { ...base, options: null, marking_scheme: scheme,
       answer_source: found ? 'paper' : 'ai', needs_review: !found || diagram || !scheme };
   }
-  const opts = (Array.isArray(q.options) ? q.options : []).map(o => String(o ?? '').trim()).filter(Boolean).slice(0, 5);
+  // An option that is a figure comes back as "[image]": keep its place with
+  // no text, so the reviewer attaches the picture.
+  const raw = (Array.isArray(q.options) ? q.options : []).map(o => String(o ?? '').trim()).slice(0, 5);
+  const pictureOpt = raw.map(o => /^\[image[^\]]*\]$/i.test(o));
+  const opts = raw.map((o, i) => (pictureOpt[i] ? '' : o)).filter((o, i) => o || pictureOpt[i]);
   const idx = LETTERS.indexOf(String(q.correct_letter || '').trim().toLowerCase());
   const okIdx = idx >= 0 && idx < opts.length;
+  const anyPicture = pictureOpt.some(Boolean);
   return { ...base,
+    has_diagram: diagram || anyPicture,
     options: opts.map((t, i) => ({ text: t, is_correct: okIdx && i === idx })),
     marking_scheme: null,
     answer_source: found && okIdx ? 'paper' : 'ai',
     // Fewer than 2 options or no answer means the read went wrong somewhere.
-    needs_review: !found || !okIdx || diagram || opts.length < 2 };
+    needs_review: !found || !okIdx || diagram || anyPicture || opts.length < 2 };
 }
 
 /**
