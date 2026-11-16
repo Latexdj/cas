@@ -147,6 +147,9 @@ function PaperList({ onOpen }: { onOpen: (id: string) => void }) {
             <button style={btn('quiet', zipping || total === 0)} disabled={zipping || total === 0} onClick={downloadZip}>
               {zipping ? 'Building pack…' : 'Download pack for USB'}
             </button>
+            <span style={{ fontSize: 12, color: P.muted, maxWidth: 300, textAlign: 'right' }}>
+              Copy the .zip onto a flash drive as it is. On the tablet: Past Questions, Load from USB drive.
+            </span>
             {zipErr && <span style={{ fontSize: 13, color: P.bad }}>{zipErr}</span>}
           </div>
         </section>

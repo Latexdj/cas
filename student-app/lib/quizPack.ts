@@ -10,6 +10,7 @@
 //   USB     a "Past Questions" folder copied into the LM folder by setup-tablet.bat
 import { Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
+import { unzipSync, strFromU8 } from 'fflate';
 import { BASE_URL } from './api';
 
 export interface PackSubjectInfo { name: string; slug: string; count: number; hash: string }
@@ -78,7 +79,7 @@ export async function loadSubject(slug: string): Promise<SubjectPack | null> {
 /** Turns a question's stored image path into something <Image> can show. */
 export function imageUri(q: PackQuestion): string | null {
   if (!q.image_url) return null;
-  return /^https?:|^file:/.test(q.image_url) ? q.image_url : `${ROOT}${q.image_url}`;
+  return /^https?:|^file:|^data:/.test(q.image_url) ? q.image_url : `${ROOT}${q.image_url}`;
 }
 
 // Deletes subjects and images nothing refers to any more.
@@ -200,4 +201,101 @@ export async function importUsb(): Promise<PackManifest | null> {
     return manifest;
   }
   return null;
+}
+
+// ── Pack .zip picked from a USB drive (or anywhere else) ──────────────────────
+
+const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+
+function b64ToBytes(b64: string): Uint8Array {
+  const clean = b64.replace(/[^A-Za-z0-9+/]/g, '');
+  const out = new Uint8Array(Math.floor((clean.length * 3) / 4));
+  let o = 0;
+  for (let i = 0; i < clean.length; i += 4) {
+    const n = (B64.indexOf(clean[i]) << 18) | (B64.indexOf(clean[i + 1]) << 12)
+      | ((B64.indexOf(clean[i + 2]) & 63) << 6) | (B64.indexOf(clean[i + 3]) & 63);
+    out[o++] = (n >> 16) & 255;
+    if (i + 2 < clean.length) out[o++] = (n >> 8) & 255;
+    if (i + 3 < clean.length) out[o++] = n & 255;
+  }
+  return out.subarray(0, o);
+}
+
+function bytesToB64(bytes: Uint8Array): string {
+  let out = '';
+  for (let i = 0; i < bytes.length; i += 3) {
+    const n = (bytes[i] << 16) | ((bytes[i + 1] ?? 0) << 8) | (bytes[i + 2] ?? 0);
+    out += B64[(n >> 18) & 63] + B64[(n >> 12) & 63]
+      + (i + 1 < bytes.length ? B64[(n >> 6) & 63] : '=')
+      + (i + 2 < bytes.length ? B64[n & 63] : '=');
+  }
+  return out;
+}
+
+export type ZipResult =
+  | { status: 'loaded'; manifest: PackManifest; questions: number }
+  | { status: 'older'; fileVersion: number; tabletVersion: number }
+  | { status: 'invalid'; message: string };
+
+/**
+ * Loads a Past Questions pack .zip (as downloaded from Super Admin) from a
+ * file the student or teacher picked, for example on a USB flash drive.
+ * A pack older than, or the same as, the one on the tablet is refused unless
+ * force is set.
+ */
+export async function importZip(uri: string, opts: { force?: boolean } = {}): Promise<ZipResult> {
+  let files: Record<string, Uint8Array>;
+  try {
+    const bytes = WEB
+      ? new Uint8Array(await (await fetch(uri)).arrayBuffer())
+      : b64ToBytes(await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 }));
+    files = unzipSync(bytes);
+  } catch {
+    return { status: 'invalid', message: 'That file could not be opened. Choose the .zip file downloaded from Past Questions in Super Admin.' };
+  }
+
+  // The zip holds "Past Questions/manifest.json"; accept it at any depth.
+  const manifestPath = Object.keys(files).find(k => /(^|\/)manifest\.json$/.test(k) && !k.includes('__MACOSX'));
+  if (!manifestPath) return { status: 'invalid', message: 'This .zip is not a Past Questions pack: it has no manifest.json.' };
+  const base = manifestPath.slice(0, -'manifest.json'.length);
+  let manifest: PackManifest;
+  try { manifest = JSON.parse(strFromU8(files[manifestPath])); } catch { return { status: 'invalid', message: 'The pack is damaged: its manifest could not be read.' }; }
+  if (!Array.isArray(manifest.subjects) || typeof manifest.version !== 'number') {
+    return { status: 'invalid', message: 'This .zip is not a Past Questions pack.' };
+  }
+
+  const local = await localManifest();
+  if (local && manifest.version <= local.version && !opts.force) {
+    return { status: 'older', fileVersion: manifest.version, tabletVersion: local.version };
+  }
+
+  await ensureDirs();
+  let questions = 0;
+  const loaded: PackSubjectInfo[] = [];
+  for (const s of manifest.subjects) {
+    const raw = files[`${base}subjects/${s.slug}.json`];
+    if (!raw) continue;
+    let pack: SubjectPack;
+    try { pack = JSON.parse(strFromU8(raw)); } catch { continue; }
+    for (const q of pack.questions) {
+      if (!q.image_url?.startsWith('images/')) continue;
+      const img = files[`${base}${q.image_url}`];
+      if (!img) { q.image_url = null; continue; }
+      if (WEB) {
+        const ext = q.image_url.split('.').pop()?.toLowerCase() ?? 'png';
+        q.image_url = `data:image/${ext === 'jpg' ? 'jpeg' : ext};base64,${bytesToB64(img)}`;
+      } else {
+        await FileSystem.writeAsStringAsync(`${ROOT}${q.image_url}`, bytesToB64(img), { encoding: FileSystem.EncodingType.Base64 });
+      }
+    }
+    await writeJson(`${SUBJECTS}${s.slug}.json`, pack);
+    questions += pack.questions.length;
+    loaded.push(s);
+  }
+  if (!loaded.length) return { status: 'invalid', message: 'The pack has no subjects in it.' };
+
+  const next: PackManifest = { version: manifest.version, published_at: manifest.published_at, subjects: loaded, source: 'usb' };
+  await writeJson(`${ROOT}manifest.json`, next);
+  await prune(next);
+  return { status: 'loaded', manifest: next, questions };
 }

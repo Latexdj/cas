@@ -25,7 +25,9 @@ Choose a subject, then one of these:
 
 Your scores are kept on that tablet only. Clear progress, at the bottom of a subject, starts the subject again.
 
-New questions arrive by themselves when the tablet is online: open Past Questions, or tap the refresh button. Tablets that never go online get them when the school copies the Past Questions folder onto them.
+New questions arrive by themselves when the tablet is online: open Past Questions, or tap the refresh button.
+
+On a tablet with no internet, load them from a USB flash drive: plug in the drive holding the Past Questions .zip file, open Past Questions, tap Choose file under Load from USB drive, and pick the .zip on the drive. When it says the questions are loaded you can remove the drive. If the tablet already has the same or newer questions it tells you, and Load it anyway loads the file regardless.
 
 When you are logged in, Pasco (in LMS) also includes these questions alongside your school's own.`,
   },
@@ -37,7 +39,7 @@ When you are logged in, Pasco (in LMS) also includes these questions alongside y
 
 In the student app, Past Questions works without login or internet. Each tablet downloads new questions by itself whenever it is online.
 
-For tablets that never go online: ask CAS support for the latest Past Questions pack (a .zip file), unzip it, copy the "Past Questions" folder to the tablet's internal storage (or inside the LM folder), and run setup-tablet.bat as you do for learning materials.
+For tablets that never go online: ask CAS support for the latest Past Questions pack (a .zip file) and copy it onto a USB flash drive without unzipping it. Plug the drive into the tablet (most tablets need a USB OTG adapter), open Past Questions in the student app, tap Choose file under Load from USB drive, and pick the .zip. The same drive can be used tablet after tablet. setup-tablet.bat can also copy an unzipped Past Questions folder, as before.
 
 The shared objective questions also appear in your students' Pasco practice, next to the questions your school adds in LMS › Pasco. They do not appear in your LMS › Pasco list and can't be edited there.`,
   },
