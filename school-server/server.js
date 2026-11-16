@@ -337,7 +337,19 @@ function imagePaths(pack) {
 // ── Student app (APK) ─────────────────────────────────────────────────────────
 
 const APP_INFO = path.join(DATA, 'app', 'latest.json');
-const appInfo = () => readJson(APP_INFO);
+// The loaded app, or null when its file is missing.
+const appInfo = () => {
+  const a = readJson(APP_INFO);
+  return a && a.file && fs.existsSync(path.join(DATA, 'app', a.file)) ? a : null;
+};
+
+function removeOldApks() {
+  const keep = appInfo()?.file;
+  if (!keep) return;
+  for (const n of fs.readdirSync(path.join(DATA, 'app'))) {
+    if (n.endsWith('.apk') && n !== keep) fs.rm(path.join(DATA, 'app', n), { force: true }, () => {});
+  }
+}
 
 function loadApk(buf, { force = false } = {}) {
   let v;
@@ -359,11 +371,9 @@ function loadApk(buf, { force = false } = {}) {
   };
   writeJson(APP_INFO, info);
   // Older APKs go a little later, in case a tablet is still downloading one.
-  setTimeout(() => {
-    for (const n of fs.readdirSync(path.join(DATA, 'app'))) {
-      if (n.endsWith('.apk') && n !== file) fs.rm(path.join(DATA, 'app', n), { force: true }, () => {});
-    }
-  }, 30 * 60 * 1000);
+  // Keep whichever APK is current when the timer fires: another may have
+  // been loaded since this one.
+  setTimeout(removeOldApks, 30 * 60 * 1000);
   log(`app loaded: ${info.versionName} (build ${info.versionCode})`);
   return info;
 }
