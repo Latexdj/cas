@@ -16,6 +16,7 @@ const pool    = require('../config/db');
 const { authenticate, superAdminOnly } = require('../middleware/auth');
 const { uploadFile } = require('../services/storage.service');
 const { importPaper, PDF_MIME, DOCX_MIME, IMAGE_MIME } = require('../services/pasco-import.service');
+const { parsePaperText } = require('../services/pasco-text-import.service');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024, files: 20 } });
 
@@ -324,7 +325,7 @@ router.post('/papers/:id/import', upload.array('files', 20), async (req, res, ne
                r.difficulty, r.answer_source, r.needs_review, r.has_diagram]);
           }
           const diagrams = rows.filter(r => r.has_diagram).length;
-          const parts = [`Read ${rows.length} question${rows.length === 1 ? '' : 's'}.`];
+          const parts = rows.length ? [`Read ${rows.length} question${rows.length === 1 ? '' : 's'}.`] : [];
           if (diagrams) parts.push(`${diagrams} need${diagrams === 1 ? 's' : ''} a diagram image.`);
           if (note) parts.push(note);
           await client.query(`UPDATE pasco_papers SET import_status=$1, import_note=$2, updated_at=now() WHERE id=$3`,
@@ -338,6 +339,100 @@ router.post('/papers/:id/import', upload.array('files', 20), async (req, res, ne
           [`The import failed: ${e.message}`, p.id]).catch(() => {});
       }
     })();
+  } catch (err) { next(err); }
+});
+
+// ── Without AI: pasted text and spreadsheet rows ─────────────────────────────
+
+async function insertRows(paper, rows) {
+  const source = [paper.exam, paper.paper_label].filter(Boolean).join(' ');
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    for (const r of rows) {
+      await client.query(`
+        INSERT INTO lms_pasco_questions
+          (school_id, paper_id, subject_name, year, source, question_no, question_type, question_text,
+           options, explanation, marking_scheme, topic, difficulty, answer_source, needs_review, has_diagram)
+        VALUES (NULL,$1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,$10,$11,$12,$13,$14,$15)`,
+        [paper.id, paper.subject_name, paper.year, source, r.question_no, r.question_type, r.question_text,
+         r.options ? JSON.stringify(r.options) : null, r.explanation, r.marking_scheme, r.topic,
+         r.difficulty, r.answer_source, r.needs_review, !!r.has_diagram]);
+    }
+    await client.query(`UPDATE pasco_papers SET updated_at=now() WHERE id=$1`, [paper.id]);
+    await client.query('COMMIT');
+  } catch (e) { await client.query('ROLLBACK'); throw e; }
+  finally { client.release(); }
+  if (paper.status === 'published' && rows.length) await bumpPack();
+}
+
+async function sharedPaper(id) {
+  const { rows } = await pool.query(`SELECT * FROM pasco_papers WHERE id=$1 AND school_id IS NULL`, [id]);
+  return rows[0] || null;
+}
+
+// Typed paper text in the usual numbered layout. No AI.
+router.post('/papers/:id/import-text', async (req, res, next) => {
+  try {
+    const paper = await sharedPaper(req.params.id);
+    if (!paper) return res.status(404).json({ error: 'Paper not found' });
+    const text = String(req.body?.text || '');
+    if (!text.trim()) return res.status(400).json({ error: 'Paste the text of the paper first.' });
+    if (text.length > 500000) return res.status(400).json({ error: 'That is too much text for one paper.' });
+    const { rows, problems } = parsePaperText(text);
+    if (!rows.length) {
+      return res.status(400).json({ error: 'No numbered questions were found. Each question should start with its number, such as "1." or "1)", with options on lines starting "A.", "B." and so on.' });
+    }
+    await insertRows(paper, rows);
+    const toCheck = rows.filter(r => r.needs_review).length;
+    res.json({ added: rows.length, to_check: toCheck, problems });
+  } catch (err) { next(err); }
+});
+
+// Rows from the Excel template (read in the browser). No AI.
+// Each row: { row, question_no, question_type, question_text, options[], answer,
+//             explanation, marking_scheme, topic, difficulty }
+router.post('/papers/:id/import-rows', async (req, res, next) => {
+  try {
+    const paper = await sharedPaper(req.params.id);
+    if (!paper) return res.status(404).json({ error: 'Paper not found' });
+    const input = Array.isArray(req.body?.rows) ? req.body.rows : [];
+    if (!input.length) return res.status(400).json({ error: 'The spreadsheet has no question rows.' });
+    if (input.length > 1000) return res.status(400).json({ error: 'A paper can have up to 1000 rows.' });
+    const rows = [];
+    const problems = [];
+    for (const r of input) {
+      const at = `Row ${r.row ?? '?'}`;
+      const type = String(r.question_type || '').toLowerCase().startsWith('t') ? 'theory' : 'objective';
+      const text = cleanText(r.question_text, 8000);
+      if (!text) { problems.push(`${at}: no question text, skipped.`); continue; }
+      const difficulty = ['easy', 'medium', 'hard'].includes(String(r.difficulty || '').toLowerCase()) ? String(r.difficulty).toLowerCase() : 'medium';
+      const base = {
+        question_no: parseInt(r.question_no, 10) || null, question_type: type, question_text: text,
+        topic: r.topic ? cleanText(r.topic, 120) : null, difficulty, has_diagram: false,
+      };
+      if (type === 'theory') {
+        const scheme = r.marking_scheme ? cleanText(r.marking_scheme, 8000) : null;
+        rows.push({ ...base, options: null, explanation: null, marking_scheme: scheme,
+          answer_source: scheme ? 'paper' : null, needs_review: !scheme });
+        if (!scheme) problems.push(`${at}: theory question without a marking scheme, marked to check.`);
+        continue;
+      }
+      const opts = (Array.isArray(r.options) ? r.options : []).map(o => String(o ?? '').trim());
+      while (opts.length && !opts[opts.length - 1]) opts.pop();   // empty E (or D) columns
+      if (opts.length < 2) { problems.push(`${at}: fewer than two options, skipped.`); continue; }
+      if (opts.length > 5) { problems.push(`${at}: more than five options, skipped.`); continue; }
+      const idx = LETTERS.indexOf(String(r.answer || '').trim().toLowerCase().replace(/[^a-e]/g, '').slice(0, 1));
+      const ok = idx >= 0 && idx < opts.length && !opts.some(o => !o);
+      if (!ok) problems.push(`${at}: ${idx < 0 ? 'no answer letter' : opts.some(o => !o) ? 'an empty option' : 'answer letter has no option'}, marked to check.`);
+      rows.push({ ...base,
+        options: opts.map((t, i) => ({ text: t, is_correct: ok && i === idx })),
+        explanation: r.explanation ? cleanText(r.explanation, 4000) : null, marking_scheme: null,
+        answer_source: ok ? 'paper' : null, needs_review: !ok });
+    }
+    if (!rows.length) return res.status(400).json({ error: 'No row could be used.', problems });
+    await insertRows(paper, rows);
+    res.json({ added: rows.length, to_check: rows.filter(r => r.needs_review).length, problems });
   } catch (err) { next(err); }
 });
 

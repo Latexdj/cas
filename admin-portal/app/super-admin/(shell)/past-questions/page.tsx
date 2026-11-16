@@ -234,15 +234,11 @@ function PaperView({ id, onBack }: { id: string; onBack: () => void }) {
   const [paper,   setPaper]   = useState<(Paper & { questions: Question[] }) | null>(null);
   const [error,   setError]   = useState('');
   const [notice,  setNotice]  = useState('');
-  const [files,   setFiles]   = useState<File[]>([]);
-  const [uploading, setUploading] = useState(false);
-  const [uploadErr, setUploadErr] = useState('');
   const [editing, setEditing] = useState<string | 'new' | null>(null);
   const [filter,  setFilter]  = useState<'all' | 'check'>('all');
   const [confirmDelPaper, setConfirmDelPaper] = useState(false);
   const [pubBusy, setPubBusy] = useState(false);
   const [metaOpen, setMetaOpen] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
     try { const { data } = await saApi.get(`/api/pasco-bank/papers/${id}`); setPaper(data); setError(''); }
@@ -256,19 +252,6 @@ function PaperView({ id, onBack }: { id: string; onBack: () => void }) {
     const t = setInterval(load, 3000);
     return () => clearInterval(t);
   }, [paper?.import_status, load]);
-
-  async function startImport() {
-    if (!files.length) return;
-    setUploading(true); setUploadErr('');
-    try {
-      const fd = new FormData();
-      files.forEach(f => fd.append('files', f));
-      await saApi.post(`/api/pasco-bank/papers/${id}/import`, fd);
-      setFiles([]); if (fileRef.current) fileRef.current.value = '';
-      await load();
-    } catch (e) { setUploadErr(errMsg(e, 'Could not upload the file.')); }
-    finally { setUploading(false); }
-  }
 
   async function setPublished(publish: boolean) {
     setPubBusy(true); setNotice('');
@@ -331,28 +314,7 @@ function PaperView({ id, onBack }: { id: string; onBack: () => void }) {
 
       {metaOpen && <PaperMeta paper={paper} onSaved={async () => { setMetaOpen(false); await load(); }} />}
 
-      {/* Import */}
-      <section style={{ background: P.card, border: `1px solid ${P.border}`, borderRadius: 14, padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <h2 style={{ margin: 0, fontSize: 16, color: P.ink }}>{qs.length ? 'Read more pages' : 'Read the paper'}</h2>
-        <p style={{ margin: 0, fontSize: 13, color: P.muted }}>
-          A PDF, a Word file (.docx), or photos of the pages in order. AI copies out the questions; answers it had to work out itself, and questions with diagrams, are flagged for you to check.
-        </p>
-        {paper.import_status === 'running' ? (
-          <p role="status" style={{ margin: 0, fontSize: 14, color: P.warn }}>Reading the paper. This usually takes 1 to 3 minutes; you can leave this page.</p>
-        ) : (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-            <input ref={fileRef} type="file" multiple accept=".pdf,.docx,image/*" aria-label="Paper files"
-              onChange={e => setFiles(Array.from(e.target.files ?? []))} style={{ color: P.ink2, fontSize: 14 }} />
-            <button style={btn('primary', uploading || !files.length)} disabled={uploading || !files.length} onClick={startImport}>
-              {uploading ? 'Uploading…' : 'Read with AI'}
-            </button>
-          </div>
-        )}
-        {uploadErr && <p role="alert" style={{ margin: 0, fontSize: 13, color: P.bad }}>{uploadErr}</p>}
-        {paper.import_note && paper.import_status !== 'running' && (
-          <p style={{ margin: 0, fontSize: 13, color: paper.import_status === 'failed' ? P.bad : P.ink2 }}>{paper.import_note}</p>
-        )}
-      </section>
+      <ImportPanel paper={paper} questionCount={qs.length} onChanged={load} />
 
       <div style={{ display: 'grid', gap: 16, gridTemplateColumns: source ? 'minmax(0, 1fr) minmax(0, 1fr)' : 'minmax(0, 1fr)' }} className="pq-grid">
         {source && (
@@ -388,7 +350,7 @@ function PaperView({ id, onBack }: { id: string; onBack: () => void }) {
 
           {shown.length === 0 && editing !== 'new' && (
             <p style={{ fontSize: 14, color: P.muted }}>
-              {qs.length === 0 ? 'No questions yet. Read the paper with AI or add questions by hand.' : 'Nothing left to check.'}
+              {qs.length === 0 ? 'No questions yet. Read the paper with AI, paste its text, import a spreadsheet, or add questions by hand.' : 'Nothing left to check.'}
             </p>
           )}
 
@@ -426,6 +388,207 @@ function PaperMeta({ paper, onSaved }: { paper: Paper; onSaved: () => void }) {
         {err && <span role="alert" style={{ fontSize: 13, color: P.bad }}>{err}</span>}
       </div>
     </form>
+  );
+}
+
+// ── Getting questions in: AI, pasted text, or a spreadsheet ──────────────────
+
+const SHEET_HEADERS = ['No', 'Type', 'Question', 'A', 'B', 'C', 'D', 'E', 'Answer', 'Explanation', 'Marking scheme', 'Topic', 'Difficulty'];
+
+async function downloadTemplate(paper: Paper) {
+  const XLSX = await import('xlsx');
+  const wb = XLSX.utils.book_new();
+  const qs = XLSX.utils.aoa_to_sheet([SHEET_HEADERS]);
+  qs['!cols'] = [6, 11, 60, 18, 18, 18, 18, 18, 8, 40, 50, 18, 11].map(w => ({ wch: w }));
+  XLSX.utils.book_append_sheet(wb, qs, 'Questions');
+  const help = XLSX.utils.aoa_to_sheet([
+    ['How to fill in the Questions sheet'],
+    ['One row per question. Keep the headings in row 1.'],
+    ['No: the question number on the paper.'],
+    ['Type: Objective or Theory. Empty means Objective.'],
+    ['Question: the full question. Press Alt+Enter for a new line inside the cell.'],
+    ['A to E: the options of an objective question. Leave E empty when there are four.'],
+    ['Answer: the letter of the correct option, for example B.'],
+    ['Explanation (optional): why the answer is right.'],
+    ['Marking scheme: for theory questions, the answer a marker expects.'],
+    ['Topic and Difficulty (optional): Difficulty is Easy, Medium or Hard.'],
+    ['Diagrams: add the question here, then attach the picture on the CAS page after importing.'],
+    [],
+    ['Examples'],
+    SHEET_HEADERS,
+    [1, 'Objective', 'Which of the following is a non-metal?', 'Sodium', 'Sulphur', 'Calcium', 'Iron', '', 'B', 'Sulphur is a non-metal.', '', 'Matter', 'Easy'],
+    [1, 'Theory', '(a) Define photosynthesis.\n(b) State two conditions necessary for it.', '', '', '', '', '', '', '', '(a) Green plants make food from carbon dioxide and water using light.\n(b) Any two: light, chlorophyll, carbon dioxide, water.', 'Plants', 'Medium'],
+  ]);
+  help['!cols'] = [{ wch: 90 }];
+  XLSX.utils.book_append_sheet(wb, help, 'How to fill');
+  const name = [paper.subject_name, examLabel(paper.exam), paper.year, paper.paper_label].filter(Boolean).join(' ').replace(/[^\w .-]+/g, '');
+  XLSX.writeFile(wb, `${name || 'Past questions'} template.xlsx`);
+}
+
+async function readSheet(file: File) {
+  const XLSX = await import('xlsx');
+  const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+  const sheet = wb.Sheets[wb.SheetNames.find(n => /question/i.test(n)) ?? wb.SheetNames[0]];
+  const grid = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: '', raw: false });
+  const headIdx = grid.findIndex(r => r.some(c => /^question$/i.test(String(c).trim())));
+  if (headIdx < 0) throw new Error('No "Question" column was found. Use the CAS template, with the headings in the first row.');
+  const head = grid[headIdx].map(c => String(c).trim().toLowerCase().replace(/^option\s+/, ''));
+  const col = (...names: string[]) => head.findIndex(h => names.includes(h));
+  const at = {
+    no: col('no', 'no.', 'number', 'question no', '#'), type: col('type'), q: col('question'),
+    opts: ['a', 'b', 'c', 'd', 'e'].map(l => col(l)), answer: col('answer', 'correct', 'correct answer'),
+    explanation: col('explanation'), scheme: col('marking scheme', 'model answer', 'scheme'),
+    topic: col('topic'), difficulty: col('difficulty'),
+  };
+  const cell = (r: unknown[], i: number) => (i >= 0 ? String(r[i] ?? '').trim() : '');
+  const rows = [];
+  for (let i = headIdx + 1; i < grid.length; i++) {
+    const r = grid[i];
+    if (!cell(r, at.q) && at.opts.every(o => !cell(r, o))) continue;
+    rows.push({
+      row: i + 1, question_no: cell(r, at.no), question_type: cell(r, at.type), question_text: cell(r, at.q),
+      options: at.opts.map(o => cell(r, o)), answer: cell(r, at.answer), explanation: cell(r, at.explanation),
+      marking_scheme: cell(r, at.scheme), topic: cell(r, at.topic), difficulty: cell(r, at.difficulty),
+    });
+  }
+  return rows;
+}
+
+type Method = 'ai' | 'text' | 'sheet';
+
+function ImportPanel({ paper, questionCount, onChanged }: { paper: Paper; questionCount: number; onChanged: () => Promise<void> }) {
+  const [method, setMethod] = useState<Method>('ai');
+  const [files, setFiles] = useState<File[]>([]);
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const [result, setResult] = useState<{ added: number; to_check: number; problems: string[] } | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const sheetRef = useRef<HTMLInputElement>(null);
+
+  function pick(m: Method) { setMethod(m); setErr(''); setResult(null); }
+
+  async function readWithAi() {
+    if (!files.length) return;
+    setBusy(true); setErr(''); setResult(null);
+    try {
+      const fd = new FormData();
+      files.forEach(f => fd.append('files', f));
+      await saApi.post(`/api/pasco-bank/papers/${paper.id}/import`, fd);
+      setFiles([]); if (fileRef.current) fileRef.current.value = '';
+      await onChanged();
+    } catch (e) { setErr(errMsg(e, 'Could not upload the file.')); }
+    finally { setBusy(false); }
+  }
+  async function importText() {
+    setBusy(true); setErr(''); setResult(null);
+    try {
+      const { data } = await saApi.post(`/api/pasco-bank/papers/${paper.id}/import-text`, { text });
+      setResult(data); setText('');
+      await onChanged();
+    } catch (e) { setErr(errMsg(e, 'Could not read the text.')); }
+    finally { setBusy(false); }
+  }
+  async function importSheet(file: File) {
+    setBusy(true); setErr(''); setResult(null);
+    try {
+      const rows = await readSheet(file);
+      if (!rows.length) throw new Error('The sheet has no questions under the headings.');
+      const { data } = await saApi.post(`/api/pasco-bank/papers/${paper.id}/import-rows`, { rows });
+      setResult(data);
+      await onChanged();
+    } catch (e) {
+      const ax = e as { response?: { data?: { error?: string; problems?: string[] } } };
+      setErr(ax.response?.data?.error ?? (e instanceof Error ? e.message : 'Could not read the spreadsheet.'));
+      if (ax.response?.data?.problems?.length) setResult({ added: 0, to_check: 0, problems: ax.response.data.problems });
+    } finally { setBusy(false); if (sheetRef.current) sheetRef.current.value = ''; }
+  }
+
+  const tabs: [Method, string][] = [['ai', 'Read with AI'], ['text', 'Paste text'], ['sheet', 'Spreadsheet']];
+  return (
+    <section style={{ background: P.card, border: `1px solid ${P.border}`, borderRadius: 14, padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', justifyContent: 'space-between' }}>
+        <h2 style={{ margin: 0, fontSize: 16, color: P.ink }}>{questionCount ? 'Add more questions' : 'Add the questions'}</h2>
+        <div role="tablist" aria-label="How to add questions" style={{ display: 'flex', gap: 4, background: P.sunken, padding: 4, borderRadius: 10 }}>
+          {tabs.map(([k, l]) => (
+            <button key={k} role="tab" aria-selected={method === k} onClick={() => pick(k)}
+              style={{ minHeight: 36, padding: '0 12px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 600,
+                background: method === k ? P.primary : 'transparent', color: method === k ? P.onPrimary : P.ink2 }}>
+              {l}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {method === 'ai' && (
+        <>
+          <p style={{ margin: 0, fontSize: 13, color: P.muted }}>
+            A PDF, a Word file (.docx), or photos of the pages in order. AI copies out the questions; answers it had to work out itself, and questions with diagrams, are flagged for you to check. Uses AI credit.
+          </p>
+          {paper.import_status === 'running' ? (
+            <p role="status" style={{ margin: 0, fontSize: 14, color: P.warn }}>Reading the paper. This usually takes 1 to 3 minutes; you can leave this page.</p>
+          ) : (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+              <input ref={fileRef} type="file" multiple accept=".pdf,.docx,image/*" aria-label="Paper files"
+                onChange={e => setFiles(Array.from(e.target.files ?? []))} style={{ color: P.ink2, fontSize: 14 }} />
+              <button style={btn('primary', busy || !files.length)} disabled={busy || !files.length} onClick={readWithAi}>
+                {busy ? 'Uploading…' : 'Read with AI'}
+              </button>
+            </div>
+          )}
+          {paper.import_note && paper.import_status !== 'running' && (
+            <p style={{ margin: 0, fontSize: 13, color: paper.import_status === 'failed' ? P.bad : P.ink2 }}>{paper.import_note}</p>
+          )}
+        </>
+      )}
+
+      {method === 'text' && (
+        <>
+          <p style={{ margin: 0, fontSize: 13, color: P.muted }}>
+            For typed papers. Copy the text from Word or a PDF and paste it here. Each question should start with its number (1. or 1)), with options starting A. B. C. D. on one line or separate lines.
+            Put &quot;Answer: B&quot; under a question, or an ANSWERS list at the end (1. B 2. C ...). Questions after a PAPER 2, SECTION B or THEORY heading are read as theory; a &quot;Marking scheme:&quot; line under one becomes its scheme. No AI is used.
+          </p>
+          <textarea value={text} onChange={e => setText(e.target.value)} aria-label="Paper text" spellCheck={false}
+            placeholder={'1. Which of the following is a non-metal?\nA. Sodium  B. Sulphur  C. Calcium  D. Iron\n2. ...\n\nANSWERS\n1. B  2. C'}
+            style={{ ...input, minHeight: 220, fontFamily: 'ui-monospace, Consolas, monospace', fontSize: 13, lineHeight: 1.5 }} />
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <button style={btn('primary', busy || !text.trim())} disabled={busy || !text.trim()} onClick={importText}>
+              {busy ? 'Reading…' : 'Read the text'}
+            </button>
+            <span style={{ fontSize: 12, color: P.muted }}>{text.trim() ? `${text.trim().split('\n').length} lines` : ''}</span>
+          </div>
+        </>
+      )}
+
+      {method === 'sheet' && (
+        <>
+          <p style={{ margin: 0, fontSize: 13, color: P.muted }}>
+            Fill in the CAS Excel template (one row per question: options A to E, the answer letter, and a marking scheme for theory), then import it. Good for scanned papers someone types up. No AI is used.
+          </p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            <button style={btn()} onClick={() => downloadTemplate(paper)}>Download template</button>
+            <label style={{ ...btn('primary', busy), display: 'inline-flex', alignItems: 'center' }}>
+              {busy ? 'Importing…' : 'Import spreadsheet'}
+              <input ref={sheetRef} type="file" accept=".xlsx,.xls,.csv" hidden disabled={busy}
+                onChange={e => { const f = e.target.files?.[0]; if (f) importSheet(f); }} />
+            </label>
+          </div>
+        </>
+      )}
+
+      {err && <p role="alert" style={{ margin: 0, fontSize: 13, color: P.bad }}>{err}</p>}
+      {result && (
+        <div role="status" style={{ fontSize: 13, color: P.ink2, background: P.sunken, borderRadius: 10, padding: 10, display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {result.added > 0 && (
+            <strong style={{ color: P.good }}>
+              Added {result.added} question{result.added === 1 ? '' : 's'}{result.to_check ? `; ${result.to_check} marked to check` : ''}.
+            </strong>
+          )}
+          {result.problems.slice(0, 12).map((p, i) => <span key={i}>{p}</span>)}
+          {result.problems.length > 12 && <span>And {result.problems.length - 12} more.</span>}
+        </div>
+      )}
+    </section>
   );
 }
 

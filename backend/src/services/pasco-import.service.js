@@ -56,6 +56,25 @@ Reply with JSON only, no prose and no code fences:
 {"questions":[{"question_no":1,"question_type":"objective","question_text":"...","options":["...","...","...","..."],"correct_letter":"B","answer_found_on_paper":false,"marking_scheme":null,"explanation":"...","has_diagram":false,"topic":"...","difficulty":"medium"}],"more_after":true}
 more_after is true when the paper has further questions after the last one you returned.`;
 
+const OTHER_WAYS = "Paste the paper's text, import a spreadsheet, or add questions by hand instead.";
+
+/** Turns an AI service error into a sentence the super admin can act on. */
+function aiErrorMessage(e) {
+  const status = e?.status;
+  const msg = String(e?.error?.error?.message || e?.message || '');
+  if (/credit balance|billing|payment|insufficient/i.test(msg) || status === 402) {
+    return `AI reading isn't available: the AI account has run out of credit. ${OTHER_WAYS}`;
+  }
+  if (status === 401 || status === 403 || /api[_ ]key|authentication|permission/i.test(msg)) {
+    return `AI reading isn't set up: the AI key was refused. ${OTHER_WAYS}`;
+  }
+  if (status === 429 || status === 529 || /overloaded|rate limit/i.test(msg)) {
+    return `The AI service is busy. Try Read with AI again in a few minutes, or ${OTHER_WAYS.charAt(0).toLowerCase()}${OTHER_WAYS.slice(1)}`;
+  }
+  if (!status) return `The AI service could not be reached (no internet on the server?). ${OTHER_WAYS}`;
+  return `AI reading failed (${msg.slice(0, 120) || `error ${status}`}). ${OTHER_WAYS}`;
+}
+
 function parseJson(text) {
   const t = String(text || '').trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '');
   try { return JSON.parse(t); } catch { /* fall through */ }
@@ -129,7 +148,9 @@ async function importPaper(files, { exam, subject, year, paperLabel }) {
         messages: [{ role: 'user', content: [...paper, { type: 'text', text: ask }] }],
       });
     } catch (e) {
-      note = `Stopped after ${rows.length} questions: the AI request failed (${e.message}).`;
+      note = rows.length
+        ? `Stopped after ${rows.length} questions: ${aiErrorMessage(e)}`
+        : aiErrorMessage(e);
       break;
     }
     const data = parseJson(extractText(response.content));
@@ -155,4 +176,4 @@ async function importPaper(files, { exam, subject, year, paperLabel }) {
   return { rows, note };
 }
 
-module.exports = { importPaper, PDF_MIME, DOCX_MIME, IMAGE_MIME };
+module.exports = { importPaper, aiErrorMessage, PDF_MIME, DOCX_MIME, IMAGE_MIME };
