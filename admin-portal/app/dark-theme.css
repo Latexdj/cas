@@ -1294,6 +1294,10 @@
 .dark [style*="; color: rgb(120, 53, 15)"],
 .dark [style^="color:#78350F" i],
 .dark [style*=";color:#78350F" i] { color: var(--warn-ink) !important; }
+.dark [style^="color: rgb(122, 90, 30)"],
+.dark [style*="; color: rgb(122, 90, 30)"],
+.dark [style^="color:#7A5A1E" i],
+.dark [style*=";color:#7A5A1E" i] { color: var(--warn-ink) !important; }
 .dark [style^="color: rgb(122, 92, 0)"],
 .dark [style*="; color: rgb(122, 92, 0)"],
 .dark [style^="color:#7A5C00" i],
@@ -1914,14 +1918,14 @@
 .dark [style*="border-top: 1px solid rgb(196, 181, 253)"],
 .dark [style*="border-left: 1px solid rgb(196, 181, 253)"],
 .dark [style*="border-right: 1px solid rgb(196, 181, 253)"],
-.dark [style*="#C4B5FD" i][style*="border" i] { border-color: var(--line) !important; }
+.dark [style*="#c4b5fd" i][style*="border" i] { border-color: var(--line) !important; }
 .dark [style*="border: 1px solid rgb(196, 181, 253)"],
 .dark [style*="border-color: rgb(196, 181, 253)"],
 .dark [style*="border-bottom: 1px solid rgb(196, 181, 253)"],
 .dark [style*="border-top: 1px solid rgb(196, 181, 253)"],
 .dark [style*="border-left: 1px solid rgb(196, 181, 253)"],
 .dark [style*="border-right: 1px solid rgb(196, 181, 253)"],
-.dark [style*="#c4b5fd" i][style*="border" i] { border-color: var(--line) !important; }
+.dark [style*="#C4B5FD" i][style*="border" i] { border-color: var(--line) !important; }
 .dark [style*="border: 1px solid rgb(198, 232, 216)"],
 .dark [style*="border-color: rgb(198, 232, 216)"],
 .dark [style*="border-bottom: 1px solid rgb(198, 232, 216)"],

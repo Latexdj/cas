@@ -269,13 +269,15 @@ function attendanceStatus(pct: number | null): { label: string; color: string; b
 }
 
 function cardCfg(row: ClassroomStatus) {
+  // Colour carries the state so management can spot, at a glance, a class
+  // whose teacher hasn't recorded the lesson and call them.
   if (row.status === 'occupied')
-    return { bg: 'var(--surface)', border: 'var(--line)', dot: '#2D7A4F', label: 'Lesson recorded' };
+    return { bg: '#E8F4EE', border: '#2D7A4F', dot: '#2D7A4F', text: '#145C44', label: 'Lesson recorded' };
   if (row.in_current_period && row.leave_type)
-    return { bg: 'var(--surface)', border: '#C8973A', dot: '#C8973A', label: 'Teacher on leave' };
+    return { bg: '#F7EDDA', border: '#C8973A', dot: '#C8973A', text: '#7A5A1E', label: 'Teacher on leave' };
   if (row.in_current_period)
-    return { bg: 'var(--surface)', border: 'var(--line)', dot: '#6E6253', label: 'Not recorded yet' };
-  return   { bg: 'var(--sunken)', border: 'var(--line)', dot: '#8C7E6E', label: 'Free' };
+    return { bg: '#FEF2F2', border: '#DC2626', dot: '#DC2626', text: '#B91C1C', label: 'Not recorded yet' };
+  return   { bg: 'var(--sunken)', border: 'var(--line)', dot: '#8C7E6E', text: '#6E6253', label: 'Free' };
 }
 
 // ── sub-components ───────────────────────────────────────────────────────────
@@ -285,10 +287,10 @@ function ClassroomCard({ row }: { row: ClassroomStatus }) {
   return (
     <div
       className="rounded-xl p-4"
-      style={{ backgroundColor: cfg.bg, border: `1px solid ${cfg.border}` }}
+      style={{ backgroundColor: cfg.bg, border: `1px solid ${cfg.border}`, borderLeft: `4px solid ${cfg.border}` }}
     >
       <div className="flex items-center justify-between mb-2.5">
-        <span className="text-sm font-medium text-ink-2">
+        <span className="text-sm font-semibold" style={{ color: cfg.text }}>
           {cfg.label}
         </span>
         <span
@@ -305,7 +307,7 @@ function ClassroomCard({ row }: { row: ClassroomStatus }) {
       <p className="text-xs mt-2" style={{ color: '#94A3B8' }}>{row.teacher_name ?? '—'}</p>
       {row.leave_type && !row.submitted_at && (
         <span className="inline-block text-xs font-semibold mt-1 px-2 py-0.5 rounded-full"
-          style={{ background: '#EDE9FE', color: '#7C3AED' }}>
+          style={{ background: '#C8973A22', color: '#7A5A1E' }}>
           {row.leave_type}
         </span>
       )}
