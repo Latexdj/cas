@@ -69,6 +69,7 @@ function InitialLayout() {
         <Stack.Screen name="past-questions/[slug]" options={{ headerShown: true, title: 'Subject', headerBackTitle: 'Back' }} />
         <Stack.Screen name="past-questions/play"   options={{ headerShown: true, title: 'Practice', headerBackTitle: 'Back' }} />
         <Stack.Screen name="past-questions/updates" options={{ headerShown: true, title: 'Get new questions', headerBackTitle: 'Back' }} />
+        <Stack.Screen name="past-questions/papers"  options={{ headerShown: true, title: 'All papers', headerBackTitle: 'Back' }} />
         <Stack.Screen name="timetable"       options={{ headerShown: true, title: 'Timetable',  headerBackTitle: 'Back' }} />
         <Stack.Screen name="calendar"        options={{ headerShown: true, title: 'Calendar',   headerBackTitle: 'Back' }} />
         <Stack.Screen name="fees"            options={{ headerShown: true, title: 'Fees',        headerBackTitle: 'Back' }} />

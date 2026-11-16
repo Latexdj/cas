@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams, useNavigation } from 'expo-router';
 import { useTheme } from '@/context/ThemeContext';
 import { createThemedStyles } from '@/lib/themedStyles';
-import { loadSubject, optionImage, paperTitle, questionImages, type PackQuestion, type SubjectPack } from '@/lib/quizPack';
+import { examFilter, examName, loadSubject, optionImage, paperTitle, questionImages, type PackQuestion, type SubjectPack } from '@/lib/quizPack';
 import { QuestionBody } from '@/components/QuestionBody';
 import { getProgress, recordRound, type TheoryRating } from '@/lib/quizProgress';
 import { clearRound, loadRound, saveRound } from '@/lib/quizRound';
@@ -31,7 +31,7 @@ function mmss(sec: number) {
 export default function PlayScreen() {
   const C = useTheme();
   const nav = useNavigation();
-  const params = useLocalSearchParams<{ slug: string; mode: Mode; count?: string; year?: string; paperId?: string; resume?: string }>();
+  const params = useLocalSearchParams<{ slug: string; mode: Mode; count?: string; year?: string; paperId?: string; resume?: string; exam?: string }>();
   const mode = (params.mode ?? 'practice') as Mode;
 
   const [pack, setPack] = useState<SubjectPack | null>(null);
@@ -51,10 +51,11 @@ export default function PlayScreen() {
     if (!pack) return '';
     if (savedLabel) return savedLabel;
     if (mode === 'paper') { const p = pack.papers.find(x => x.id === params.paperId); return p ? paperTitle(p) : 'Full paper'; }
-    if (mode === 'theory') return params.year ? `Theory ${params.year}` : 'Theory';
+    const ex = params.exam ? `${examName(params.exam)} ` : '';
+    if (mode === 'theory') return `${ex}Theory${params.year ? ` ${params.year}` : ''}`;
     if (mode === 'retry') return 'Retry mistakes';
-    return params.year ? `Practice ${params.year}` : 'Practice';
-  }, [pack, mode, params.paperId, params.year, savedLabel]);
+    return `${ex}Practice${params.year ? ` ${params.year}` : ''}`;
+  }, [pack, mode, params.paperId, params.year, params.exam, savedLabel]);
 
   useEffect(() => {
     (async () => {
@@ -79,7 +80,8 @@ export default function PlayScreen() {
         }
       }
       const year = params.year ? Number(params.year) : null;
-      const inYear = (q: PackQuestion) => year == null || q.year === year;
+      const inExam = examFilter(p, params.exam);
+      const inYear = (q: PackQuestion) => inExam(q) && (year == null || q.year === year);
       let list: PackQuestion[];
       if (mode === 'paper') list = p.questions.filter(q => q.paper_id === params.paperId && q.question_type === 'objective').sort(byNumber);
       else if (mode === 'theory') list = p.questions.filter(q => q.question_type === 'theory' && inYear(q)).sort(byNumber);
@@ -90,7 +92,7 @@ export default function PlayScreen() {
       setQs(list);
       if (mode === 'paper') { setLeft(list.length * 60); leftRef.current = list.length * 60; }
     })();
-  }, [params.slug, params.paperId, params.year, params.count, params.resume, mode]);
+  }, [params.slug, params.paperId, params.year, params.count, params.resume, params.exam, mode]);
 
   // Keep the round so it can be continued after an interruption.
   const remaining = Math.floor(left / 10);

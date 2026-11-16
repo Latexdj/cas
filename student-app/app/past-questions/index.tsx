@@ -4,7 +4,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import { useTheme } from '@/context/ThemeContext';
 import { createThemedStyles } from '@/lib/themedStyles';
-import { loadSubject, type PackManifest } from '@/lib/quizPack';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { EXAM_ORDER, examFilter, examName, loadSubject, type PackManifest } from '@/lib/quizPack';
 import { getProgress } from '@/lib/quizProgress';
 import { loadRound, type SavedRound } from '@/lib/quizRound';
 import { checkForUpdates, startPackSync, usePackSync } from '@/lib/packSync';
@@ -17,16 +18,26 @@ function fmtDate(iso: string | null) {
   return new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-interface SubjectStats { tried: number; right: number; objective: number }
+interface SubjectStats { count: number; tried: number; right: number; objective: number }
+// Per subject: figures for all exams ('all') and for each exam it has papers for.
+type StatsByExam = Record<string, Record<string, SubjectStats>>;
 
-async function subjectStats(manifest: PackManifest): Promise<Record<string, SubjectStats>> {
+const EXAM_KEY = 'cas_s_pq_exam';
+
+async function subjectStats(manifest: PackManifest): Promise<StatsByExam> {
   const progress = await getProgress();
-  const out: Record<string, SubjectStats> = {};
+  const out: StatsByExam = {};
   for (const s of manifest.subjects) {
     const pack = await loadSubject(s.slug);
-    const obj = (pack?.questions ?? []).filter(q => q.question_type === 'objective');
-    const tried = obj.filter(q => progress.objective[q.id]);
-    out[s.slug] = { objective: obj.length, tried: tried.length, right: tried.filter(q => progress.objective[q.id].ok).length };
+    if (!pack) continue;
+    const per: Record<string, SubjectStats> = {};
+    for (const key of ['all', ...EXAM_ORDER.filter(e => pack.papers.some(p => p.exam === e))]) {
+      const qs = pack.questions.filter(examFilter(pack, key === 'all' ? null : key));
+      const obj = qs.filter(q => q.question_type === 'objective');
+      const tried = obj.filter(q => progress.objective[q.id]);
+      per[key] = { count: qs.length, objective: obj.length, tried: tried.length, right: tried.filter(q => progress.objective[q.id].ok).length };
+    }
+    out[s.slug] = per;
   }
   return out;
 }
@@ -35,7 +46,14 @@ export default function PastQuestionsHome() {
   const C = useTheme();
   const { width } = useWindowDimensions();
   const sync = usePackSync();
-  const [stats, setStats] = useState<Record<string, SubjectStats>>({});
+  const [stats, setStats] = useState<StatsByExam>({});
+  const [exam, setExam] = useState<string | null>(null);
+
+  useEffect(() => { AsyncStorage.getItem(EXAM_KEY).then(v => setExam(v || null)).catch(() => {}); }, []);
+  function pickExam(e: string | null) {
+    setExam(e);
+    (e ? AsyncStorage.setItem(EXAM_KEY, e) : AsyncStorage.removeItem(EXAM_KEY)).catch(() => {});
+  }
   const [round, setRound] = useState<SavedRound | null>(null);
 
   useEffect(() => { startPackSync(); }, []);
@@ -50,9 +68,17 @@ export default function PastQuestionsHome() {
     return <View style={[s.center, { backgroundColor: C.bg }]}><ActivityIndicator color={C.primaryText} /></View>;
   }
 
-  const subjects = sync.manifest?.subjects ?? [];
-  const total = subjects.reduce((n, x) => n + x.count, 0);
+  const allSubjects = sync.manifest?.subjects ?? [];
+  // Exams any subject on the tablet has papers for; the filter shows only when there is a choice.
+  const exams = EXAM_ORDER.filter(e => Object.values(stats).some(per => per[e]));
+  const activeExam = exam && exams.includes(exam) ? exam : null;
+  const subjects = activeExam ? allSubjects.filter(x => stats[x.slug]?.[activeExam]) : allSubjects;
+  const countFor = (slug: string, fallback: number) => stats[slug]?.[activeExam ?? 'all']?.count ?? fallback;
+  const total = subjects.reduce((n, x) => n + countFor(x.slug, x.count), 0);
   const cols = width >= 900 ? 3 : width >= 600 ? 2 : 1;
+  // Card width from the screen, so cards line up from the left with even gaps.
+  const GAP = 12;
+  const cardW = Math.floor((Math.min(width, 1400) - 40 - GAP * (cols - 1)) / cols);
   const connected = !!sync.server;
   const roundSubjectHere = round && subjects.some(x => x.slug === round.slug);
 
@@ -112,16 +138,31 @@ export default function PastQuestionsHome() {
             <Text style={[s.sectionTitle, { color: C.text }]}>Subjects</Text>
             <Text style={[s.sectionMeta, { color: C.muted }]}>{total} questions</Text>
           </View>
+          {exams.length > 1 && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={s.filterRow} accessibilityLabel="Exam">
+              {[null, ...exams].map(e => {
+                const on = activeExam === e;
+                return (
+                  <Pressable key={e ?? 'all'} onPress={() => pickExam(e)} accessibilityRole="button" accessibilityState={{ selected: on }}
+                    style={[s.filterChip, { borderColor: on ? C.primaryText : C.border, backgroundColor: on ? C.primaryLight : C.surface }]}>
+                    <Text style={[s.filterText, { color: on ? C.primaryText : C.textSoft }]}>{e ? examName(e) : 'All exams'}</Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          )}
           <View style={s.grid}>
             {subjects.map(sub => {
-              const st = stats[sub.slug];
+              const st = stats[sub.slug]?.[activeExam ?? 'all'];
+              const n = countFor(sub.slug, sub.count);
               const frac = st && st.objective ? st.tried / st.objective : 0;
               const pct = st && st.tried ? Math.round((st.right / st.tried) * 100) : null;
               return (
-                <Pressable key={sub.slug} onPress={() => router.push({ pathname: '/past-questions/[slug]', params: { slug: sub.slug } })}
-                  accessibilityRole="button" accessibilityLabel={`${sub.name}, ${sub.count} questions`}
+                <Pressable key={sub.slug}
+                  onPress={() => router.push({ pathname: '/past-questions/[slug]', params: { slug: sub.slug, ...(activeExam ? { exam: activeExam } : {}) } })}
+                  accessibilityRole="button" accessibilityLabel={`${sub.name}, ${n} questions`}
                   style={({ pressed }) => [s.card, {
-                    width: cols === 1 ? '100%' : `${100 / cols - 2}%`,
+                    width: cols === 1 ? '100%' : cardW,
                     backgroundColor: C.surface, borderColor: C.border, opacity: pressed ? 0.9 : 1,
                   }]}>
                   <View style={s.cardTop}>
@@ -130,7 +171,7 @@ export default function PastQuestionsHome() {
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={[s.cardTitle, { color: C.text }]} numberOfLines={2}>{sub.name}</Text>
-                      <Text style={[s.cardMeta, { color: C.textSoft }]}>{sub.count} questions</Text>
+                      <Text style={[s.cardMeta, { color: C.textSoft }]}>{n} questions</Text>
                     </View>
                   </View>
                   <View style={[s.track, { backgroundColor: C.border }]}>
@@ -173,7 +214,10 @@ const s = createThemedStyles({
   sectionHead:   { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginTop: 10 },
   sectionTitle:  { fontSize: 20, fontWeight: '800' },
   sectionMeta:   { fontSize: 13 },
-  grid:          { flexDirection: 'row', flexWrap: 'wrap', gap: 12, justifyContent: 'space-between' },
+  filterRow:     { flexDirection: 'row', alignItems: 'center', gap: 8, paddingRight: 8 },
+  filterChip:    { minHeight: 40, paddingHorizontal: 16, borderRadius: 20, borderWidth: 1, justifyContent: 'center' },
+  filterText:    { fontSize: 14, fontWeight: '600' },
+  grid:          { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   card:          { padding: 16, borderRadius: 16, borderWidth: 1, gap: 12 },
   cardTop:       { flexDirection: 'row', alignItems: 'center', gap: 12 },
   initial:       { width: 46, height: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },

@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect, useLocalSearchParams, useNavigation } from 'expo-router';
 import { useTheme } from '@/context/ThemeContext';
 import { createThemedStyles } from '@/lib/themedStyles';
-import { loadSubject, paperTitle, type SubjectPack } from '@/lib/quizPack';
+import { EXAM_ORDER, examFilter, examName, loadSubject, paperTitle, type SubjectPack } from '@/lib/quizPack';
 import { clearSubject, getProgress, type QuizProgress } from '@/lib/quizProgress';
 import { RouteError } from '@/components/RouteError';
 
@@ -17,12 +17,14 @@ export default function SubjectScreen() {
   const C = useTheme();
   const nav = useNavigation();
   const { width } = useWindowDimensions();
-  const { slug } = useLocalSearchParams<{ slug: string }>();
+  const params = useLocalSearchParams<{ slug: string; exam?: string }>();
+  const slug = params.slug;
   const [pack, setPack] = useState<SubjectPack | null | undefined>(undefined);
   const [progress, setProgress] = useState<QuizProgress | null>(null);
   const [year, setYear] = useState<number | null>(null);
   const [count, setCount] = useState(20);
   const [confirmClear, setConfirmClear] = useState(false);
+  const [exam, setExam] = useState<string | null>(params.exam || null);
 
   useEffect(() => {
     loadSubject(String(slug)).then(p => {
@@ -32,10 +34,16 @@ export default function SubjectScreen() {
   }, [slug, nav]);
   useFocusEffect(useCallback(() => { getProgress().then(setProgress); }, []));
 
+  // The exams this subject has papers for; an exam that no longer exists falls back to all.
+  const exams = useMemo(() => EXAM_ORDER.filter(e => pack?.papers.some(p => p.exam === e)), [pack]);
+  const activeExam = exam && exams.includes(exam) ? exam : null;
+
   const stats = useMemo(() => {
     if (!pack || !progress) return null;
-    const obj = pack.questions.filter(q => q.question_type === 'objective');
-    const theory = pack.questions.filter(q => q.question_type === 'theory');
+    const inExam = examFilter(pack, activeExam);
+    const qs = pack.questions.filter(inExam);
+    const obj = qs.filter(q => q.question_type === 'objective');
+    const theory = qs.filter(q => q.question_type === 'theory');
     const done = obj.filter(q => progress.objective[q.id]);
     return {
       obj, theory,
@@ -43,10 +51,10 @@ export default function SubjectScreen() {
       right: done.filter(q => progress.objective[q.id].ok).length,
       wrong: obj.filter(q => progress.objective[q.id] && !progress.objective[q.id].ok).length,
       theoryDone: theory.filter(q => progress.theory[q.id]).length,
-      years: [...new Set(pack.questions.map(q => q.year).filter((y): y is number => y != null))].sort((a, b) => b - a),
+      years: [...new Set(qs.map(q => q.year).filter((y): y is number => y != null))].sort((a, b) => b - a),
       sessions: progress.sessions.filter(x => x.slug === pack.slug).slice(0, 5),
     };
-  }, [pack, progress]);
+  }, [pack, progress, activeExam]);
 
   if (pack === undefined || !stats) {
     return <View style={[s.center, { backgroundColor: C.bg }]}><ActivityIndicator color={C.primaryText} /></View>;
@@ -55,11 +63,15 @@ export default function SubjectScreen() {
     return <View style={[s.center, { backgroundColor: C.bg }]}><Text style={{ color: C.textSoft }}>This subject is no longer on the tablet.</Text></View>;
   }
 
-  const go = (params: Record<string, string>) => router.push({ pathname: '/past-questions/play', params: { slug: pack.slug, ...params } });
-  const inYear = (t: 'objective' | 'theory') => pack.questions.filter(q => q.question_type === t && (year == null || q.year === year)).length;
+  const go = (extra: Record<string, string>) => router.push({ pathname: '/past-questions/play', params: { slug: pack.slug, ...(activeExam ? { exam: activeExam } : {}), ...extra } });
+  const inExam = examFilter(pack, activeExam);
+  const inYear = (t: 'objective' | 'theory') => pack.questions.filter(q => inExam(q) && q.question_type === t && (year == null || q.year === year)).length;
   const papers = pack.papers
+    .filter(p => !activeExam || p.exam === activeExam)
     .map(p => ({ ...p, n: pack.questions.filter(q => q.paper_id === p.id && q.question_type === 'objective').length }))
-    .filter(p => p.n > 0);
+    .filter(p => p.n > 0)
+    .sort((a, b) => (b.year ?? 0) - (a.year ?? 0) || String(a.paper_label).localeCompare(String(b.paper_label)));
+  const shownPapers = papers.slice(0, 3);
   const wide = width >= 700;
   const pctRight = stats.done ? Math.round((stats.right / stats.done) * 100) : null;
   const objInYear = inYear('objective');
@@ -90,6 +102,13 @@ export default function SubjectScreen() {
 
   return (
     <ScrollView style={{ backgroundColor: C.bg }} contentContainerStyle={s.page}>
+      {exams.length > 1 && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.chipScroll} contentContainerStyle={s.chipRow} accessibilityRole="radiogroup" accessibilityLabel="Exam">
+          <Chip on={!activeExam} label="All exams" onPress={() => { setExam(null); setYear(null); }} />
+          {exams.map(e => <Chip key={e} on={activeExam === e} label={examName(e)} onPress={() => { setExam(e); setYear(null); }} />)}
+        </ScrollView>
+      )}
+
       {/* How far the student has got */}
       <View style={card}>
         <View style={s.summaryRow}>
@@ -115,10 +134,10 @@ export default function SubjectScreen() {
           <View style={[card, wide && s.half]}>
             <ModeHead icon="flash-outline" title="Practice" sub="Mixed questions, marked straight away with the explanation." />
             {stats.years.length > 1 && (
-              <View style={s.chips}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.chipScroll} contentContainerStyle={s.chipRow} accessibilityLabel="Year">
                 <Chip on={year == null} label="All years" onPress={() => setYear(null)} />
                 {stats.years.map(y => <Chip key={y} on={year === y} label={String(y)} onPress={() => setYear(y)} />)}
-              </View>
+              </ScrollView>
             )}
             <View style={s.chips}>
               {COUNTS.map(n => <Chip key={n} on={count === n} label={`${n} questions`} onPress={() => setCount(n)} />)}
@@ -131,7 +150,7 @@ export default function SubjectScreen() {
         {papers.length > 0 && (
           <View style={[card, wide && s.half]}>
             <ModeHead icon="time-outline" title="Full paper" sub="Like the real exam: one minute a question, marked at the end." />
-            {papers.map(p => (
+            {shownPapers.map(p => (
               <Pressable key={p.id} onPress={() => go({ mode: 'paper', paperId: p.id })} accessibilityRole="button"
                 style={({ pressed }) => [s.paperRow, { borderColor: C.border, opacity: pressed ? 0.8 : 1 }]}>
                 <View style={{ flex: 1 }}>
@@ -141,6 +160,14 @@ export default function SubjectScreen() {
                 <Ionicons name="chevron-forward" size={20} color={C.muted} />
               </Pressable>
             ))}
+            {papers.length > shownPapers.length && (
+              <Pressable accessibilityRole="button"
+                onPress={() => router.push({ pathname: '/past-questions/papers', params: { slug: pack.slug, ...(activeExam ? { exam: activeExam } : {}) } })}
+                style={({ pressed }) => [s.paperRow, { borderColor: C.border, opacity: pressed ? 0.8 : 1 }]}>
+                <Text style={[s.paperTitle, { color: C.primaryText, flex: 1 }]}>Show all {papers.length} papers</Text>
+                <Ionicons name="chevron-forward" size={20} color={C.primaryText} />
+              </Pressable>
+            )}
           </View>
         )}
 
@@ -210,6 +237,8 @@ const s = createThemedStyles({
   modeTitle:    { fontSize: 17, fontWeight: '700' },
   modeSub:      { fontSize: 14, lineHeight: 20 },
   chips:        { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  chipRow:      { flexDirection: 'row', alignItems: 'center', gap: 8, paddingRight: 8 },
+  chipScroll:   { flexGrow: 0, flexShrink: 0 },
   chip:         { minHeight: 40, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, justifyContent: 'center' },
   chipText:     { fontSize: 14, fontWeight: '600' },
   primary:      { minHeight: 50, borderRadius: 10, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 },
