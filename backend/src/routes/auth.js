@@ -129,7 +129,10 @@ router.post('/login', loginLimiter, (req, res, next) => {
       const valid   = await bcrypt.compare(String(password), teacher.pin_hash);
       if (!valid) return res.status(401).json({ error: 'Invalid username or password' });
 
-      const role  = teacher.is_admin ? 'admin' : 'teacher';
+      // The portal decides the role, not the account: an admin who signs in on
+      // the teacher portal (web or app) gets a teacher session, so admin-only
+      // data and actions stay in the admin portal.
+      const role  = isAdminLogin ? 'admin' : 'teacher';
       const token = signToken(
         { id: teacher.id, name: teacher.name, role, schoolId },
         '8h'
