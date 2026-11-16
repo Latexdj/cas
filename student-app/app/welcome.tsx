@@ -39,9 +39,26 @@ export default function WelcomeScreen() {
           </View>
           <View style={s.materialText}>
             <Text style={s.materialTitle}>Learning Materials</Text>
-            <Text style={s.materialSub}>Browse offline study resources — no login needed</Text>
+            <Text style={s.materialSub}>Browse offline study resources. No login needed.</Text>
           </View>
           <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.6)" />
+        </TouchableOpacity>
+
+        {/* Past Questions — offline practice, no login */}
+        <TouchableOpacity
+          style={s.loginCard}
+          onPress={() => router.push('/past-questions')}
+          activeOpacity={0.82}
+          accessibilityRole="button"
+        >
+          <View style={[s.loginIconWrap]}>
+            <Ionicons name="help-circle-outline" size={34} color={tc('#9A6F1E')} />
+          </View>
+          <View style={s.loginText}>
+            <Text style={s.loginTitle}>Past Questions</Text>
+            <Text style={s.loginSub}>Practise WASSCE and BECE questions offline</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={tc('#8C7E6E')} />
         </TouchableOpacity>
 
         {/* Login — secondary action */}
