@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, BackHandler, Pressable, RefreshControl, ScrollView, Text, View, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import { useTheme } from '@/context/ThemeContext';
@@ -10,6 +10,8 @@ import { getProgress } from '@/lib/quizProgress';
 import { loadRound, type SavedRound } from '@/lib/quizRound';
 import { checkForUpdates, startPackSync, usePackSync } from '@/lib/packSync';
 import { RouteError } from '@/components/RouteError';
+import { AppUpdateBanner } from '@/components/AppUpdateBanner';
+import { useAuth } from '@/context/AuthContext';
 
 export { RouteError as ErrorBoundary };
 
@@ -56,7 +58,19 @@ export default function PastQuestionsHome() {
   }
   const [round, setRound] = useState<SavedRound | null>(null);
 
+  const { user } = useAuth();
   useEffect(() => { startPackSync(); }, []);
+
+  // Back always leads somewhere: if nothing is behind this screen, go to the
+  // landing page (or the student's home when logged in) instead of closing.
+  useFocusEffect(useCallback(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (router.canGoBack()) return false;
+      router.replace(user ? '/(tabs)' : '/welcome');
+      return true;
+    });
+    return () => sub.remove();
+  }, [user]));
 
   // Progress and any unfinished round change while the student practises.
   useFocusEffect(useCallback(() => {
@@ -85,6 +99,8 @@ export default function PastQuestionsHome() {
   return (
     <ScrollView style={{ backgroundColor: C.bg }} contentContainerStyle={s.page}
       refreshControl={<RefreshControl refreshing={false} onRefresh={() => checkForUpdates(true)} tintColor={C.primaryText} />}>
+
+      <AppUpdateBanner />
 
       {/* Where the questions came from, and how fresh they are */}
       <Pressable onPress={() => router.push('/past-questions/updates')} accessibilityRole="button"

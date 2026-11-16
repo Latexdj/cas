@@ -32,7 +32,7 @@
         "android.permission.MANAGE_EXTERNAL_STORAGE",
         "android.permission.REQUEST_INSTALL_PACKAGES"
       ],
-      "versionCode": 4
+      "versionCode": 5
     },
     "web": {
       "favicon": "./assets/favicon.png",
