@@ -43,7 +43,7 @@ function shapeQuestion(q) {
     correct: ci >= 0 ? LETTERS[ci] : null,
     explanation: q.explanation, marking_scheme: q.marking_scheme, image_url: q.image_url,
     topic: q.topic, difficulty: q.difficulty, year: q.year,
-    answer_source: q.answer_source, needs_review: q.needs_review,
+    answer_source: q.answer_source, needs_review: q.needs_review, has_diagram: q.has_diagram,
   };
 }
 
@@ -299,11 +299,11 @@ router.post('/papers/:id/import', upload.array('files', 20), async (req, res, ne
             await client.query(`
               INSERT INTO lms_pasco_questions
                 (school_id, paper_id, subject_name, year, source, question_no, question_type, question_text,
-                 options, explanation, marking_scheme, topic, difficulty, answer_source, needs_review)
-              VALUES (NULL,$1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,$10,$11,$12,$13,$14)`,
+                 options, explanation, marking_scheme, topic, difficulty, answer_source, needs_review, has_diagram)
+              VALUES (NULL,$1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,$10,$11,$12,$13,$14,$15)`,
               [p.id, p.subject_name, p.year, source, r.question_no, r.question_type, r.question_text,
                r.options ? JSON.stringify(r.options) : null, r.explanation, r.marking_scheme, r.topic,
-               r.difficulty, r.answer_source, r.needs_review]);
+               r.difficulty, r.answer_source, r.needs_review, r.has_diagram]);
           }
           const diagrams = rows.filter(r => r.has_diagram).length;
           const parts = [`Read ${rows.length} question${rows.length === 1 ? '' : 's'}.`];

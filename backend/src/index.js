@@ -2856,6 +2856,7 @@ async function runMigrations() {
       await pool.query(`ALTER TABLE lms_pasco_questions ADD COLUMN IF NOT EXISTS marking_scheme TEXT`);
       await pool.query(`ALTER TABLE lms_pasco_questions ADD COLUMN IF NOT EXISTS answer_source TEXT`);
       await pool.query(`ALTER TABLE lms_pasco_questions ADD COLUMN IF NOT EXISTS needs_review BOOLEAN NOT NULL DEFAULT false`);
+      await pool.query(`ALTER TABLE lms_pasco_questions ADD COLUMN IF NOT EXISTS has_diagram BOOLEAN NOT NULL DEFAULT false`);
       await pool.query(`ALTER TABLE lms_pasco_questions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now()`);
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_lms_pasco_paper ON lms_pasco_questions(paper_id)`);
       await pool.query(`

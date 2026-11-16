@@ -70,7 +70,8 @@ const LETTERS = ['a', 'b', 'c', 'd', 'e'];
 // Normalises one model question into a row for lms_pasco_questions, or null.
 function toRow(q) {
   const type = q?.question_type === 'theory' ? 'theory' : 'objective';
-  const text = String(q?.question_text || '').trim();
+  // The number lives in question_no; drop a printed "1." or "1)" from the text.
+  const text = String(q?.question_text || '').trim().replace(/^\d{1,3}\s*[.)]\s+/, '');
   if (!text) return null;
   const found = q.answer_found_on_paper === true;
   const diagram = q.has_diagram === true;
