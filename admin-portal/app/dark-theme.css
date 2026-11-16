@@ -108,6 +108,14 @@
 .dark [style*="; background: rgb(110, 231, 183)"],
 .dark [style^="background:#6EE7B7" i],
 .dark [style*=";background:#6EE7B7" i] { background: #15372A !important; }
+.dark [style^="background-color: rgb(125, 211, 168)"],
+.dark [style*="; background-color: rgb(125, 211, 168)"],
+.dark [style^="background-color:#7DD3A8" i],
+.dark [style*=";background-color:#7DD3A8" i],
+.dark [style^="background: rgb(125, 211, 168)"],
+.dark [style*="; background: rgb(125, 211, 168)"],
+.dark [style^="background:#7DD3A8" i],
+.dark [style*=";background:#7DD3A8" i] { background: #153726 !important; }
 .dark [style^="background-color: rgb(134, 239, 172)"],
 .dark [style*="; background-color: rgb(134, 239, 172)"],
 .dark [style^="background-color:#86EFAC" i],
@@ -292,6 +300,14 @@
 .dark [style*="; background: rgb(225, 224, 217)"],
 .dark [style^="background:#e1e0d9" i],
 .dark [style*=";background:#e1e0d9" i] { background: var(--sunken) !important; }
+.dark [style^="background-color: rgb(226, 192, 122)"],
+.dark [style*="; background-color: rgb(226, 192, 122)"],
+.dark [style^="background-color:#E2C07A" i],
+.dark [style*=";background-color:#E2C07A" i],
+.dark [style^="background: rgb(226, 192, 122)"],
+.dark [style*="; background: rgb(226, 192, 122)"],
+.dark [style^="background:#E2C07A" i],
+.dark [style*=";background:#E2C07A" i] { background: #372C15 !important; }
 .dark [style^="background-color: rgb(226, 217, 204)"],
 .dark [style*="; background-color: rgb(226, 217, 204)"],
 .dark [style^="background-color:#E2D9CC" i],
@@ -1310,6 +1326,10 @@
 .dark [style*="; color: rgb(124, 58, 237)"],
 .dark [style^="color:#7C3AED" i],
 .dark [style*=";color:#7C3AED" i] { color: var(--gold-ink) !important; }
+.dark [style^="color: rgb(125, 211, 168)"],
+.dark [style*="; color: rgb(125, 211, 168)"],
+.dark [style^="color:#7DD3A8" i],
+.dark [style*=";color:#7DD3A8" i] { color: var(--brand-ink) !important; }
 .dark [style^="color: rgb(126, 34, 206)"],
 .dark [style*="; color: rgb(126, 34, 206)"],
 .dark [style^="color:#7E22CE" i],
@@ -1849,6 +1869,13 @@
 .dark [style*="border-left: 1px solid rgb(110, 231, 183)"],
 .dark [style*="border-right: 1px solid rgb(110, 231, 183)"],
 .dark [style*="#6EE7B7" i][style*="border" i] { border-color: var(--line) !important; }
+.dark [style*="border: 1px solid rgb(125, 211, 168)"],
+.dark [style*="border-color: rgb(125, 211, 168)"],
+.dark [style*="border-bottom: 1px solid rgb(125, 211, 168)"],
+.dark [style*="border-top: 1px solid rgb(125, 211, 168)"],
+.dark [style*="border-left: 1px solid rgb(125, 211, 168)"],
+.dark [style*="border-right: 1px solid rgb(125, 211, 168)"],
+.dark [style*="#7DD3A8" i][style*="border" i] { border-color: var(--line) !important; }
 .dark [style*="border: 1px solid rgb(134, 239, 172)"],
 .dark [style*="border-color: rgb(134, 239, 172)"],
 .dark [style*="border-bottom: 1px solid rgb(134, 239, 172)"],
@@ -1918,14 +1945,14 @@
 .dark [style*="border-top: 1px solid rgb(196, 181, 253)"],
 .dark [style*="border-left: 1px solid rgb(196, 181, 253)"],
 .dark [style*="border-right: 1px solid rgb(196, 181, 253)"],
-.dark [style*="#c4b5fd" i][style*="border" i] { border-color: var(--line) !important; }
+.dark [style*="#C4B5FD" i][style*="border" i] { border-color: var(--line) !important; }
 .dark [style*="border: 1px solid rgb(196, 181, 253)"],
 .dark [style*="border-color: rgb(196, 181, 253)"],
 .dark [style*="border-bottom: 1px solid rgb(196, 181, 253)"],
 .dark [style*="border-top: 1px solid rgb(196, 181, 253)"],
 .dark [style*="border-left: 1px solid rgb(196, 181, 253)"],
 .dark [style*="border-right: 1px solid rgb(196, 181, 253)"],
-.dark [style*="#C4B5FD" i][style*="border" i] { border-color: var(--line) !important; }
+.dark [style*="#c4b5fd" i][style*="border" i] { border-color: var(--line) !important; }
 .dark [style*="border: 1px solid rgb(198, 232, 216)"],
 .dark [style*="border-color: rgb(198, 232, 216)"],
 .dark [style*="border-bottom: 1px solid rgb(198, 232, 216)"],
@@ -2066,6 +2093,13 @@
 .dark [style*="border-left: 1px solid rgb(225, 224, 217)"],
 .dark [style*="border-right: 1px solid rgb(225, 224, 217)"],
 .dark [style*="#e1e0d9" i][style*="border" i] { border-color: var(--line) !important; }
+.dark [style*="border: 1px solid rgb(226, 192, 122)"],
+.dark [style*="border-color: rgb(226, 192, 122)"],
+.dark [style*="border-bottom: 1px solid rgb(226, 192, 122)"],
+.dark [style*="border-top: 1px solid rgb(226, 192, 122)"],
+.dark [style*="border-left: 1px solid rgb(226, 192, 122)"],
+.dark [style*="border-right: 1px solid rgb(226, 192, 122)"],
+.dark [style*="#E2C07A" i][style*="border" i] { border-color: var(--line) !important; }
 .dark [style*="border: 1px solid rgb(226, 217, 204)"],
 .dark [style*="border-color: rgb(226, 217, 204)"],
 .dark [style*="border-bottom: 1px solid rgb(226, 217, 204)"],
@@ -2706,6 +2740,7 @@
 .dark .text-\[\#5C4F42\] { color: var(--ink-2) !important; }
 .dark .text-\[\#5DAA82\] { color: var(--brand-ink) !important; }
 .dark .text-\[\#6B5D4D\] { color: var(--ink-2) !important; }
+.dark .text-\[\#6E6253\] { color: var(--ink-muted) !important; }
 .dark .text-\[\#78350F\] { color: var(--warn-ink) !important; }
 .dark .text-\[\#7A2222\] { color: var(--bad-ink) !important; }
 .dark .text-\[\#7a2222\] { color: var(--bad-ink) !important; }
@@ -2718,6 +2753,7 @@
 .dark .text-\[\#B45309\] { color: var(--warn-ink) !important; }
 .dark .text-\[\#B83232\] { color: var(--bad-ink) !important; }
 .dark .hover\:text-\[\#B83232\]:hover { color: var(--bad-ink) !important; }
+.dark .text-\[\#B91C1C\] { color: var(--bad-ink) !important; }
 .dark .text-\[\#C0B5A5\] { color: var(--ink-2) !important; }
 .dark .text-\[\#C8BFB5\] { color: var(--ink-2) !important; }
 .dark .text-\[\#FF9090\] { color: var(--bad-ink) !important; }
@@ -2938,6 +2974,10 @@ html:not(.dark) main:is([data-admin], [data-staff], [data-teacher]) [style^="col
 html:not(.dark) main:is([data-admin], [data-staff], [data-teacher]) [style*="; color: rgb(99, 102, 241)"],
 html:not(.dark) main:is([data-admin], [data-staff], [data-teacher]) [style^="color:#6366f1" i],
 html:not(.dark) main:is([data-admin], [data-staff], [data-teacher]) [style*=";color:#6366f1" i] { color: var(--brand-ink) !important; }
+html:not(.dark) main:is([data-admin], [data-staff], [data-teacher]) [style^="color: rgb(125, 211, 168)"],
+html:not(.dark) main:is([data-admin], [data-staff], [data-teacher]) [style*="; color: rgb(125, 211, 168)"],
+html:not(.dark) main:is([data-admin], [data-staff], [data-teacher]) [style^="color:#7DD3A8" i],
+html:not(.dark) main:is([data-admin], [data-staff], [data-teacher]) [style*=";color:#7DD3A8" i] { color: var(--ok-ink) !important; }
 html:not(.dark) main:is([data-admin], [data-staff], [data-teacher]) [style^="color: rgb(129, 140, 248)"],
 html:not(.dark) main:is([data-admin], [data-staff], [data-teacher]) [style*="; color: rgb(129, 140, 248)"],
 html:not(.dark) main:is([data-admin], [data-staff], [data-teacher]) [style^="color:#818cf8" i],
@@ -3042,6 +3082,10 @@ html:not(.dark) main:is([data-admin], [data-staff], [data-teacher]) [style^="col
 html:not(.dark) main:is([data-admin], [data-staff], [data-teacher]) [style*="; color: rgb(217, 119, 6)"],
 html:not(.dark) main:is([data-admin], [data-staff], [data-teacher]) [style^="color:#D97706" i],
 html:not(.dark) main:is([data-admin], [data-staff], [data-teacher]) [style*=";color:#D97706" i] { color: var(--gold-ink) !important; }
+html:not(.dark) main:is([data-admin], [data-staff], [data-teacher]) [style^="color: rgb(226, 192, 122)"],
+html:not(.dark) main:is([data-admin], [data-staff], [data-teacher]) [style*="; color: rgb(226, 192, 122)"],
+html:not(.dark) main:is([data-admin], [data-staff], [data-teacher]) [style^="color:#E2C07A" i],
+html:not(.dark) main:is([data-admin], [data-staff], [data-teacher]) [style*=";color:#E2C07A" i] { color: var(--gold-ink) !important; }
 html:not(.dark) main:is([data-admin], [data-staff], [data-teacher]) [style^="color: rgb(234, 88, 12)"],
 html:not(.dark) main:is([data-admin], [data-staff], [data-teacher]) [style*="; color: rgb(234, 88, 12)"],
 html:not(.dark) main:is([data-admin], [data-staff], [data-teacher]) [style^="color:#EA580C" i],

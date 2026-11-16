@@ -33,7 +33,7 @@ const SECTIONS: Section[] = [
   { label: 'Overview', hrefs: ['/teacher'] },
   { label: 'Attendance', hrefs: ['/teacher/submit', '/teacher/history', '/teacher/absences', '/teacher/meetings', '/teacher/invigilation', '/teacher/timetable'] },
   { label: 'Students', hrefs: ['/teacher/student-attendance'] },
-  { label: 'Academics', hrefs: ['/teacher/assessments', '/teacher/results', '/teacher/lms'] },
+  { label: 'Academics', hrefs: ['/teacher/assessments', '/teacher/results', '/teacher/lms', '/teacher/resources'] },
   { label: 'Administrative', hrefs: ['/teacher/absences/leaves', '/teacher/conduct', '/teacher/memos', '/teacher/letters', '/teacher/clinic', '/teacher/id-scan', '/teacher/observations'] },
   { label: 'Responsibilities', hrefs: ['/teacher/form-class', '/teacher/hod', '/teacher/hod/inventory', '/teacher/hod/observations', '/teacher/budgets', '/teacher/house-students', '/teacher/resumption', '/teacher/roll-call', '/teacher/library', '/teacher/clearance'] },
   { label: 'Account', hrefs: ['/teacher/notifications', '/teacher/profile'] },
@@ -213,6 +213,18 @@ const NAV_ITEMS: NavItem[] = [
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
         <path d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+      </svg>
+    ),
+  },
+  {
+    href:  '/teacher/resources',
+    label: 'Resources',
+    module: 'teacher_resources',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+        <path d="M4 5a2 2 0 012-2h9l5 5v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5z" />
+        <path d="M14 3v5h5" />
+        <path d="M9 14l2 2 4-4" />
       </svg>
     ),
   },

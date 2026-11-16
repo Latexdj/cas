@@ -79,6 +79,7 @@ const disciplineRoutes        = require('./routes/discipline');
 const letterChatRoutes        = require('./routes/letter-chat');
 const boardReportRoutes       = require('./routes/board-report');
 const lessonObservationRoutes = require('./routes/lesson-observation');
+const teacherResourcesRoutes  = require('./routes/teacher-resources');
 const departmentBudgetsRoutes = require('./routes/department-budgets');
 const helpChatRoutes          = require('./routes/help-chat');
 const policyDocumentsRoutes   = require('./routes/policy-documents');
@@ -205,6 +206,7 @@ app.use('/api/admin-module-access',   require('./routes/admin-module-access'));
 app.use('/api/letter-chat',           letterChatRoutes);
 app.use('/api/board-report',          boardReportRoutes);
 app.use('/api/lesson-observation',    lessonObservationRoutes);
+app.use('/api/teacher-resources',     teacherResourcesRoutes);
 app.use('/api/department-budgets',    departmentBudgetsRoutes);
 app.use('/api/policy-documents',      policyDocumentsRoutes);
 app.use('/api/resumption',            resumptionRoutes);
@@ -2747,6 +2749,50 @@ async function runMigrations() {
              AND s.department_id IS NULL`);
       }
     } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] subjects.department_id:', e.message); }
+
+    // Teacher Resources: Subject App launcher (Playlab AI apps).
+    // school_id NULL = shared with every school (super admin); otherwise a
+    // school's own addition. Schools can hide shared apps.
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS subject_app_links (
+          id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          school_id        UUID REFERENCES schools(id) ON DELETE CASCADE,
+          group_label      TEXT NOT NULL,
+          group_sort_order INT  NOT NULL DEFAULT 0,
+          subject          TEXT NOT NULL,
+          url              TEXT NOT NULL,
+          is_active        BOOLEAN NOT NULL DEFAULT true,
+          created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+          updated_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+        )`);
+      await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS uq_subject_app_links
+        ON subject_app_links (COALESCE(school_id, '00000000-0000-0000-0000-000000000000'::uuid), LOWER(group_label), LOWER(subject))`);
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS subject_app_hidden (
+          school_id UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+          link_id   UUID NOT NULL REFERENCES subject_app_links(id) ON DELETE CASCADE,
+          PRIMARY KEY (school_id, link_id)
+        )`);
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS subject_app_launches (
+          id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          school_id   UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+          link_id     UUID NOT NULL REFERENCES subject_app_links(id) ON DELETE CASCADE,
+          teacher_id  UUID REFERENCES teachers(id) ON DELETE SET NULL,
+          launched_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_subject_app_launches ON subject_app_launches(school_id, link_id)`);
+      // Module on for existing schools. Only schools that already have module
+      // rows: a school with none is treated as "everything on", and one row
+      // would shrink it to just this module. ON CONFLICT keeps a school that
+      // has had it switched off.
+      await pool.query(`
+        INSERT INTO school_modules (school_id, module_key, enabled)
+        SELECT s.id, 'teacher_resources', true FROM schools s
+         WHERE EXISTS (SELECT 1 FROM school_modules sm WHERE sm.school_id = s.id)
+        ON CONFLICT (school_id, module_key) DO NOTHING`);
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] teacher resources:', e.message); }
 
     // Academic year date range
     try {

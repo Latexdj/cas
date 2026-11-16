@@ -112,6 +112,11 @@ const pages: NavSection[] = [
         icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M15 12a3 3 0 11-6 0 3 3 0 016 0z" />,
         module: 'lesson_observation',
       },
+      {
+        href: '/teacher-resources', label: 'Teacher Resources',
+        icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M4 5a2 2 0 012-2h9l5 5v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zM14 3v5h5M9 14l2 2 4-4" />,
+        module: 'teacher_resources',
+      },
     ],
   },
   {
@@ -515,7 +520,7 @@ export const NAV: NavSection[] = [
   { label: 'Today', items: [p('/dashboard'), p('/notice-board'), p('/attendance'), p('/roll-call'), p('/resumption')] },
   { label: 'People', items: [p('/students'), p('/teachers'), p('/teacher-profile-requests'), p('/staff-accounts'), p('/houses'), p('/promotions'), p('/form-teachers'), p('/management')] },
   { label: 'Teaching', items: [
-    p('/timetable'), p('/school-breaks'), p('/lesson-observation'),
+    p('/timetable'), p('/school-breaks'), p('/lesson-observation'), p('/teacher-resources'),
     mod('LMS', ['/lms', '/lms/pasco']),
     p('/meetings'), p('/absences'), p('/leave-excuses'), p('/student-attendance'), p('/manual-entry'),
   ] },
