@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { teacherApi } from '@/lib/teacher-api';
+import { WebsitesCard } from '@/components/teacher-resources/WebsitesCard';
 
 interface SubjectApp { id: string; group_label: string; subject: string; url: string }
 
@@ -154,6 +155,8 @@ export default function TeacherResourcesPage() {
             </>
           )}
         </section>
+
+        <WebsitesCard />
       </div>
     </div>
   );

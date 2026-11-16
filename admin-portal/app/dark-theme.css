@@ -1945,14 +1945,14 @@
 .dark [style*="border-top: 1px solid rgb(196, 181, 253)"],
 .dark [style*="border-left: 1px solid rgb(196, 181, 253)"],
 .dark [style*="border-right: 1px solid rgb(196, 181, 253)"],
-.dark [style*="#C4B5FD" i][style*="border" i] { border-color: var(--line) !important; }
+.dark [style*="#c4b5fd" i][style*="border" i] { border-color: var(--line) !important; }
 .dark [style*="border: 1px solid rgb(196, 181, 253)"],
 .dark [style*="border-color: rgb(196, 181, 253)"],
 .dark [style*="border-bottom: 1px solid rgb(196, 181, 253)"],
 .dark [style*="border-top: 1px solid rgb(196, 181, 253)"],
 .dark [style*="border-left: 1px solid rgb(196, 181, 253)"],
 .dark [style*="border-right: 1px solid rgb(196, 181, 253)"],
-.dark [style*="#c4b5fd" i][style*="border" i] { border-color: var(--line) !important; }
+.dark [style*="#C4B5FD" i][style*="border" i] { border-color: var(--line) !important; }
 .dark [style*="border: 1px solid rgb(198, 232, 216)"],
 .dark [style*="border-color: rgb(198, 232, 216)"],
 .dark [style*="border-bottom: 1px solid rgb(198, 232, 216)"],

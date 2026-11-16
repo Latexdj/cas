@@ -2783,6 +2783,38 @@ async function runMigrations() {
           launched_at TIMESTAMPTZ NOT NULL DEFAULT now()
         )`);
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_subject_app_launches ON subject_app_launches(school_id, link_id)`);
+      // Websites and tools: any https site, in a fixed category, with
+      // optional subject tags. Same shared/school/hidden pattern as above.
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS teacher_resource_links (
+          id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          school_id   UUID REFERENCES schools(id) ON DELETE CASCADE,
+          title       TEXT NOT NULL,
+          description TEXT,
+          url         TEXT NOT NULL,
+          category    TEXT NOT NULL CHECK (category IN ('curriculum','lesson_planning','videos','past_questions','professional_development','tools')),
+          subjects    TEXT[] NOT NULL DEFAULT '{}',
+          is_active   BOOLEAN NOT NULL DEFAULT true,
+          created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+          updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+        )`);
+      await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS uq_teacher_resource_links
+        ON teacher_resource_links (COALESCE(school_id, '00000000-0000-0000-0000-000000000000'::uuid), LOWER(title))`);
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS teacher_resource_hidden (
+          school_id UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+          link_id   UUID NOT NULL REFERENCES teacher_resource_links(id) ON DELETE CASCADE,
+          PRIMARY KEY (school_id, link_id)
+        )`);
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS teacher_resource_launches (
+          id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          school_id   UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+          link_id     UUID NOT NULL REFERENCES teacher_resource_links(id) ON DELETE CASCADE,
+          teacher_id  UUID REFERENCES teachers(id) ON DELETE SET NULL,
+          launched_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_teacher_resource_launches ON teacher_resource_launches(school_id, link_id)`);
       // Module on for existing schools. Only schools that already have module
       // rows: a school with none is treated as "everything on", and one row
       // would shrink it to just this module. ON CONFLICT keeps a school that

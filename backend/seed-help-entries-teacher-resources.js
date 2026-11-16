@@ -24,7 +24,9 @@ To open one:
 
 Your last choice is remembered on that device, and the apps you opened most recently appear under Recent so you can open them again with one tap.
 
-If the page says "No subject apps have been added yet", your school has none switched on; ask your admin.`,
+If the page says "No subject apps have been added yet", your school has none switched on; ask your admin.
+
+Websites and tools, further down the same page, lists trusted websites for teachers. Each one shows its name, a short description and its web address (for example nacca.gov.gh); tap it to open the site in a new tab. Search by name, tap a category (Curriculum & syllabus, Lesson planning, Videos, Past questions & exams, Professional development, Tools) to narrow the list, or choose a subject. Sites without a subject show for every subject. The sites you opened most recently appear under Recent.`,
   },
   {
     feature_area: 'teacher_resources',
@@ -36,7 +38,9 @@ Shared apps come from CAS and appear for every school. You can't edit them, but 
 
 Your own apps: click Add app, then enter the Form or curriculum (pick an existing one or type a new one; a new one goes at the end), the Subject, and the Playlab link. Links must start with https:// and be on playlab.ai. Teachers never see the link itself. Use Edit to change an app, Turn off to take it out of the teachers' list for a while, or Delete to remove it.
 
-Open tests an app's link. Launches shows how many times your teachers have opened each app.`,
+Open tests an app's link. Launches shows how many times your teachers have opened each app.
+
+Websites and tools (the second tab) works the same way for other websites. Click Add website and enter the name, the full address (starting with https://), a category and, optionally, a one-line description and the subjects it's for. Leave subjects empty for a site that suits every subject. Shared websites from CAS can be hidden; your own can be edited, turned off or deleted. Opens shows how often teachers open each site.`,
   },
 ];
 
