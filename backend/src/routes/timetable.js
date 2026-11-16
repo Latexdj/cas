@@ -5,6 +5,7 @@ const pool   = require('../config/db');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
 const { fetchBreaks, effectivePeriods } = require('../utils/breaks');
 const { getClassRoster } = require('../services/classHistory.service');
+const { findClashes } = require('../services/timetable-clashes.service');
 
 router.use(authenticate, requireActiveSubscription);
 
@@ -371,36 +372,21 @@ router.post('/upload', adminOnly, upload.single('file'), async (req, res, next) 
 
     await client.query('COMMIT');
 
-    // Attach coverage summary so the upload result can show gaps immediately
-    let coverage = null;
+    // Attach gaps and clashes so the upload result can show them immediately
+    let coverage = null, clashes = null;
     try {
       const { rows: covRows } = await pool.query(
-        `SELECT
-           COUNT(*) FILTER (WHERE status = 'unscheduled')::int AS unscheduled,
-           COUNT(*) FILTER (WHERE status = 'unteachered')::int AS unteachered,
-           COUNT(*)::int AS total
-         FROM (
-           SELECT
-             CASE
-               WHEN COUNT(t.id) = 0 THEN 'unscheduled'
-               WHEN COUNT(t.id) FILTER (WHERE t.teacher_id IS NULL) > 0 THEN 'unteachered'
-               ELSE 'covered'
-             END AS status
-           FROM class_subjects cs
-           JOIN subjects s ON s.id = cs.subject_id
-           LEFT JOIN timetable t
-             ON t.school_id = cs.school_id
-             AND LOWER(t.subject) = LOWER(s.name)
-             AND ',' || REPLACE(t.class_names,' ','') || ',' LIKE '%,' || REPLACE(cs.class_name,' ','') || ',%'
-           WHERE cs.school_id = $1
-           GROUP BY cs.id, cs.class_name, s.name, cs.periods_per_week
-         ) sub`,
+        `SELECT COUNT(*) FILTER (WHERE status = 'unscheduled')::int AS unscheduled,
+                COUNT(*) FILTER (WHERE status = 'unteachered')::int AS unteachered,
+                COUNT(*)::int AS total
+           FROM (${COVERAGE_SQL}) sub`,
         [req.schoolId]
       );
       coverage = covRows[0];
     } catch { /* non-fatal */ }
+    try { clashes = await findClashes(req.schoolId, { yearId: academic_year_id, semester: semInt }); } catch { /* non-fatal */ }
 
-    res.json({ inserted: valid.length, errors, coverage });
+    res.json({ inserted: valid.length, errors, coverage, clashes });
   } catch (err) {
     await client.query('ROLLBACK');
     next(err);
@@ -736,7 +722,17 @@ router.get('/coverage/summary', async (req, res, next) => {
        FROM (${COVERAGE_SQL}) sub`,
       [req.schoolId]
     );
-    res.json(rows[0] ?? { unscheduled: 0, unteachered: 0, total: 0 });
+    const summary = rows[0] ?? { unscheduled: 0, unteachered: 0, total: 0 };
+    let clashes = 0;
+    try { clashes = (await findClashes(req.schoolId)).total; } catch { /* non-fatal */ }
+    res.json({ ...summary, clashes });
+  } catch (err) { next(err); }
+});
+
+// GET /api/timetable/clashes?academic_year_id=&semester= (defaults to the current term)
+router.get('/clashes', adminOnly, async (req, res, next) => {
+  try {
+    res.json(await findClashes(req.schoolId, { yearId: req.query.academic_year_id, semester: req.query.semester }));
   } catch (err) { next(err); }
 });
 
@@ -763,7 +759,9 @@ router.post('/', adminOnly, async (req, res, next) => {
       }
       throw e;
     }
-    res.status(201).json(rows[0]);
+    let clashes = null;
+    try { clashes = await findClashes(req.schoolId, { yearId: rows[0].academic_year_id, semester: rows[0].semester, onlyId: rows[0].id }); } catch { /* non-fatal */ }
+    res.status(201).json({ ...rows[0], clashes });
   } catch (err) { next(err); }
 });
 
@@ -788,7 +786,9 @@ router.put('/:id', adminOnly, async (req, res, next) => {
        req.params.id, req.schoolId]
     );
     if (!rows.length) return res.status(404).json({ error: 'Timetable entry not found' });
-    res.json(rows[0]);
+    let clashes = null;
+    try { clashes = await findClashes(req.schoolId, { yearId: rows[0].academic_year_id, semester: rows[0].semester, onlyId: rows[0].id }); } catch { /* non-fatal */ }
+    res.json({ ...rows[0], clashes });
   } catch (err) { next(err); }
 });
 
@@ -1002,7 +1002,9 @@ router.post('/bulk-update', adminOnly, upload.single('file'), async (req, res, n
       updated++;
     }
 
-    res.json({ updated, notFound, errors });
+    let clashes = null;
+    try { clashes = await findClashes(req.schoolId); } catch { /* non-fatal */ }
+    res.json({ updated, notFound, errors, clashes });
   } catch (err) { next(err); }
 });
 

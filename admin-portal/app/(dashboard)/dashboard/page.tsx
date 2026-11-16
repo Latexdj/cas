@@ -427,7 +427,7 @@ export default function DashboardPage() {
   const [loading,        setLoading]        = useState(true);
   const [filter,         setFilter]         = useState<OccupancyFilter>('all');
   const [showConflicts,  setShowConflicts]  = useState(false);
-  const [timetableGaps,  setTimetableGaps]  = useState<{ unscheduled: number; unteachered: number } | null>(null);
+  const [timetableGaps,  setTimetableGaps]  = useState<{ unscheduled: number; unteachered: number; clashes?: number } | null>(null);
   const [dayStatus,      setDayStatus]      = useState<{ status: string; label: string | null } | null>(null);
   const [pendingLeaves,  setPendingLeaves]  = useState(0);
   const [pendingProfiles, setPendingProfiles] = useState(0);
@@ -482,7 +482,7 @@ export default function DashboardPage() {
       const [s, c, g, ds] = await Promise.allSettled([
         api.get<AdminStats>('/api/admin/stats'),
         api.get<ClassroomStatus[]>('/api/admin/classroom-status'),
-        api.get<{ unscheduled: number; unteachered: number; total: number }>('/api/timetable/coverage/summary'),
+        api.get<{ unscheduled: number; unteachered: number; total: number; clashes?: number }>('/api/timetable/coverage/summary'),
         api.get(`/api/school-calendar/day-status?date=${today0}`),
       ]);
       if (s.status  === 'fulfilled') setStats(s.value.data);
@@ -650,7 +650,7 @@ export default function DashboardPage() {
           <p className="text-xs mt-0.5" style={{ color: '#94A3B8' }}>{today} · live snapshot · auto-refreshes every 60 s</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          {timetableGaps && (timetableGaps.unscheduled > 0 || timetableGaps.unteachered > 0) && (
+          {timetableGaps && (timetableGaps.unscheduled > 0 || timetableGaps.unteachered > 0 || (timetableGaps.clashes ?? 0) > 0) && (
             <a href="/timetable"
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-red-300 bg-red-50 text-red-700 text-xs font-semibold hover:bg-red-100 transition-colors">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
@@ -660,6 +660,8 @@ export default function DashboardPage() {
               {timetableGaps.unscheduled > 0 && <span>{timetableGaps.unscheduled} unscheduled</span>}
               {timetableGaps.unscheduled > 0 && timetableGaps.unteachered > 0 && <span>·</span>}
               {timetableGaps.unteachered > 0 && <span>{timetableGaps.unteachered} no teacher</span>}
+              {(timetableGaps.clashes ?? 0) > 0 && (timetableGaps.unscheduled > 0 || timetableGaps.unteachered > 0) && <span>·</span>}
+              {(timetableGaps.clashes ?? 0) > 0 && <span>{timetableGaps.clashes} clash{timetableGaps.clashes !== 1 ? 'es' : ''}</span>}
             </a>
           )}
           <button
@@ -685,7 +687,7 @@ export default function DashboardPage() {
         { label: 'Unresolved absence flags',      count: stats?.outstanding_absences ?? 0,        href: '/absences',                 action: 'Resolve' },
         { label: 'Remedial lessons not yet held', count: stats?.pending_remedials ?? 0,           href: '/absences',                 action: 'View' },
         { label: 'Teacher profile changes',       count: pendingProfiles,                        href: '/teacher-profile-requests', action: 'Review' },
-        { label: 'Timetable gaps',                count: (timetableGaps?.unscheduled ?? 0) + (timetableGaps?.unteachered ?? 0), href: '/timetable', action: 'Fix' },
+        { label: 'Timetable gaps',                count: (timetableGaps?.unscheduled ?? 0) + (timetableGaps?.unteachered ?? 0) + (timetableGaps?.clashes ?? 0), href: '/timetable', action: 'Fix' },
       ] satisfies QueueItem[]} />
 
       {stats && (

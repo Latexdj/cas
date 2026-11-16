@@ -58,6 +58,8 @@ Class-subject links: the timetable upload creates class-subject assignments auto
 
 Coverage check: click the Coverage button to see which class-period combinations have no teacher assigned, so you can spot gaps before the term starts.
 
+Clashes: the timetable checks for lessons whose times overlap. A note at the top of the Timetable page counts them, and "View clashes" lists each one. Two kinds are flagged: a class with two lessons at once, and a teacher in two lessons at once. Lessons that only meet end to end (8:00 to 9:00, then 9:00 to 10:00) don't clash. A class taking two subjects at the same time is fine when it splits into groups, for example part of 3A takes ICT while the rest takes Literature: set those subjects to "Some students" under Curriculum › Allocations and they stop being flagged. Clashes are warnings, not errors: an upload still saves every row, then lists the clashes it found, and adding or editing a slot tells you if it clashes. The dashboard's timetable note includes the clash count.
+
 Bulk update: use the Bulk Update template to change many slots at once without re-uploading the entire timetable.`,
   },
 

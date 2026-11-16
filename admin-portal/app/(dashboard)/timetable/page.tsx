@@ -12,15 +12,60 @@ const EMPTY_FORM = { teacher_id: '', day_of_week: '1', start_time: '08:00', end_
 
 interface AcademicYear { id: string; name: string; is_current: boolean; current_semester: number; }
 
+interface ClassClash {
+  class_name: string; day_of_week: number;
+  a_subject: string; a_start: string; a_end: string; a_teacher: string | null;
+  b_subject: string; b_start: string; b_end: string; b_teacher: string | null;
+}
+interface TeacherClash {
+  teacher_name: string; teacher_code: string | null; day_of_week: number;
+  a_subject: string; a_classes: string; a_start: string; a_end: string;
+  b_subject: string; b_classes: string; b_start: string; b_end: string;
+}
+interface Clashes { class_clashes: ClassClash[]; teacher_clashes: TeacherClash[]; total: number }
+
+// One line per clash, for the list and for the message after a save.
+function classClashText(c: ClassClash) {
+  return `${c.class_name}, ${DAYS[c.day_of_week]}: ${c.a_subject} ${c.a_start}–${c.a_end}${c.a_teacher ? ` (${c.a_teacher})` : ''} and ${c.b_subject} ${c.b_start}–${c.b_end}${c.b_teacher ? ` (${c.b_teacher})` : ''}`;
+}
+function teacherClashText(c: TeacherClash) {
+  return `${c.teacher_name}, ${DAYS[c.day_of_week]}: ${c.a_subject} with ${c.a_classes} ${c.a_start}–${c.a_end} and ${c.b_subject} with ${c.b_classes} ${c.b_start}–${c.b_end}`;
+}
+
+function ClashList({ clashes }: { clashes: Clashes }) {
+  return (
+    <div className="space-y-4">
+      {clashes.class_clashes.length > 0 && (
+        <div>
+          <p className="text-sm font-semibold text-slate-800 mb-1.5">A class with two lessons at once ({clashes.class_clashes.length})</p>
+          <ul className="rounded-lg border border-slate-200 divide-y divide-slate-100">
+            {clashes.class_clashes.map((c, i) => <li key={i} className="px-3 py-2 text-sm text-slate-700">{classClashText(c)}</li>)}
+          </ul>
+        </div>
+      )}
+      {clashes.teacher_clashes.length > 0 && (
+        <div>
+          <p className="text-sm font-semibold text-slate-800 mb-1.5">A teacher in two lessons at once ({clashes.teacher_clashes.length})</p>
+          <ul className="rounded-lg border border-slate-200 divide-y divide-slate-100">
+            {clashes.teacher_clashes.map((c, i) => <li key={i} className="px-3 py-2 text-sm text-slate-700">{teacherClashText(c)}</li>)}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface UploadResult {
   inserted: number;
   errors: { row: number; message: string }[];
   coverage?: { unscheduled: number; unteachered: number; total: number } | null;
+  clashes?: Clashes | null;
 }
 interface BulkUpdateResult {
   updated: number;
   notFound: { row: number; code: string }[];
   errors: { row: number; message: string }[];
+  clashes?: Clashes | null;
 }
 interface CoverageSummary { unscheduled: number; unteachered: number; total: number }
 interface CoverageRow {
@@ -144,7 +189,8 @@ export default function TimetablePage() {
   const [subjects,  setSubjects]  = useState<Subject[]>([]);
   const [classes,   setClasses]   = useState<ClassItem[]>([]);
   const [loading,   setLoading]   = useState(true);
-  const [modal,     setModal]     = useState<'create' | 'edit' | 'upload' | 'coverage' | 'bulkUpdate' | null>(null);
+  const [modal,     setModal]     = useState<'create' | 'edit' | 'upload' | 'coverage' | 'bulkUpdate' | 'clashes' | null>(null);
+  const [clashes,   setClashes]   = useState<Clashes | null>(null);
   const [coverage,  setCoverage]  = useState<CoverageSummary | null>(null);
   const [form,      setForm]      = useState(EMPTY_FORM);
   const [selCls,    setSelCls]    = useState<Set<string>>(new Set());
@@ -177,15 +223,17 @@ export default function TimetablePage() {
 
   const load = useCallback(async (yearId: string, sem: 1|2) => {
     try {
-      const [e, t, s, c, cov] = await Promise.all([
+      const [e, t, s, c, cov, cl] = await Promise.all([
         api.get<TimetableEntry[]>(`/api/timetable${yearId ? `?academic_year_id=${yearId}&semester=${sem}` : ''}`),
         api.get<Teacher[]>('/api/teachers'),
         api.get<Subject[]>('/api/subjects'),
         api.get<ClassItem[]>('/api/classes'),
         api.get<CoverageSummary>('/api/timetable/coverage/summary').catch(() => null),
+        api.get<Clashes>(`/api/timetable/clashes${yearId ? `?academic_year_id=${yearId}&semester=${sem}` : ''}`).catch(() => null),
       ]);
       setEntries(e.data); setTeachers(t.data); setSubjects(s.data); setClasses(c.data);
       if (cov) setCoverage(cov.data);
+      setClashes(cl ? cl.data : null);
     } finally { setLoading(false); }
   }, []);
 
@@ -305,9 +353,15 @@ export default function TimetablePage() {
         academic_year_id: selYearId,
         semester: selSemester,
       };
-      if (modal === 'create') await api.post('/api/timetable', body);
-      else                    await api.put(`/api/timetable/${editId}`, body);
+      const { data } = modal === 'create'
+        ? await api.post<{ clashes?: Clashes | null }>('/api/timetable', body)
+        : await api.put<{ clashes?: Clashes | null }>(`/api/timetable/${editId}`, body);
       setModal(null); await load(selYearId, selSemester);
+      const cl = data?.clashes;
+      if (cl && cl.total > 0) {
+        const lines = [...cl.class_clashes.map(classClashText), ...cl.teacher_clashes.map(teacherClashText)];
+        notify(`Saved, but this lesson clashes with another. ${lines.join('. ')}.`, 'info');
+      }
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
       setError(msg ?? 'Failed to save entry.');
@@ -398,6 +452,18 @@ export default function TimetablePage() {
             className="shrink-0 px-3 py-1.5 rounded-lg bg-amber-700 text-white text-xs font-semibold hover:bg-amber-800 transition-colors">
             View Report
           </button>
+        </div>
+      )}
+      {clashes && clashes.total > 0 && (
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-[#C8973A]/40 bg-[#FBF6EC] px-4 py-3">
+          <p className="text-sm text-[#4A3F32]">
+            <span className="font-semibold">{clashes.total} clash{clashes.total !== 1 ? 'es' : ''}: </span>
+            {[
+              clashes.class_clashes.length ? `${clashes.class_clashes.length} where a class has two lessons at once` : '',
+              clashes.teacher_clashes.length ? `${clashes.teacher_clashes.length} where a teacher is in two lessons at once` : '',
+            ].filter(Boolean).join(', ')}. Classes split into groups (subjects taken by some students) are not counted.
+          </p>
+          <Button variant="secondary" size="sm" className="shrink-0 whitespace-nowrap" onClick={() => setModal('clashes')}>View clashes</Button>
         </div>
       )}
       {coverage && coverage.total > 0 && coverage.unscheduled === 0 && coverage.unteachered === 0 && (
@@ -535,6 +601,12 @@ export default function TimetablePage() {
                   <p className="text-xs mt-1 text-amber-600">See the Coverage Report on the timetable page for details.</p>
                 </div>
               )}
+              {uploadResult.clashes && uploadResult.clashes.total > 0 && (
+                <div className="rounded-lg border border-[#C8973A]/40 bg-[#FBF6EC] px-4 py-3 space-y-2 max-h-64 overflow-y-auto">
+                  <p className="text-sm font-semibold text-[#4A3F32]">{uploadResult.clashes.total} clash{uploadResult.clashes.total !== 1 ? 'es' : ''} found. The rows were saved; fix them in the file or on the timetable.</p>
+                  <ClashList clashes={uploadResult.clashes} />
+                </div>
+              )}
               {uploadResult.errors.length > 0 && (
                 <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 space-y-1 max-h-48 overflow-y-auto">
                   <p className="font-semibold">{uploadResult.errors.length} row{uploadResult.errors.length !== 1 ? 's' : ''} skipped:</p>
@@ -629,6 +701,17 @@ export default function TimetablePage() {
       {/* Coverage report modal */}
       <CoverageModal open={modal === 'coverage'} onClose={() => setModal(null)} />
 
+      <Modal open={modal === 'clashes'} onClose={() => setModal(null)} title="Timetable clashes" maxWidth="max-w-2xl">
+        {clashes && clashes.total > 0 ? (
+          <div className="space-y-3">
+            <p className="text-sm text-slate-600">
+              Lessons whose times overlap. A class taking two subjects at once is only allowed when it splits into groups: set one of the subjects to Some students in Curriculum › Allocations.
+            </p>
+            <div className="max-h-[60vh] overflow-y-auto"><ClashList clashes={clashes} /></div>
+          </div>
+        ) : <p className="text-sm text-slate-600">No clashes.</p>}
+      </Modal>
+
       {/* ── Bulk Update modal ── */}
       <Modal open={modal === 'bulkUpdate'} onClose={() => setModal(null)} title="Update Timetable Records" maxWidth="max-w-lg">
         <div className="space-y-4">
@@ -666,6 +749,12 @@ export default function TimetablePage() {
               <div className="rounded-lg bg-[#E8F4EE] border border-[#B8D9C8] px-4 py-3 text-sm text-[#0B3D2E]">
                 <span className="font-semibold">{updateResult.updated}</span> timetable slot{updateResult.updated !== 1 ? 's' : ''} updated successfully
               </div>
+              {updateResult.clashes && updateResult.clashes.total > 0 && (
+                <div className="rounded-lg border border-[#C8973A]/40 bg-[#FBF6EC] px-4 py-3 space-y-2 max-h-64 overflow-y-auto">
+                  <p className="text-sm font-semibold text-[#4A3F32]">{updateResult.clashes.total} clash{updateResult.clashes.total !== 1 ? 'es' : ''} on this term&apos;s timetable.</p>
+                  <ClashList clashes={updateResult.clashes} />
+                </div>
+              )}
               {updateResult.notFound.length > 0 && (
                 <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 space-y-1 max-h-36 overflow-y-auto">
                   <p className="font-semibold">{updateResult.notFound.length} Entry ID{updateResult.notFound.length !== 1 ? 's' : ''} not found:</p>
