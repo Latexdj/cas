@@ -195,6 +195,12 @@ for h in sorted(inline['bg'], key=str.upper):
     v = bg_map(h)
     if v:
         rule(prop_sel('background-color', h) + prop_sel('background', h), f'background: {v}')
+# Inline backgrounds written as the keyword 'white' (React keeps the word in
+# the style attribute, so the hex rules above never match them).
+_w = bg_map('#FFFFFF')
+if _w:
+    rule([f'[style^="{q}: white"]' for q in ('background', 'background-color')] +
+         [f'[style*="; {q}: white"]' for q in ('background', 'background-color')], f'background: {_w}')
 out.append('\n/* ── Inline text ── */')
 for h in sorted(inline['text'], key=str.upper):
     v = text_map(h)
