@@ -929,6 +929,34 @@ router.post('/teachers/send-credentials-bulk', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// GET /api/admin/attendance/lessons?teacherId=&date=
+// Lessons the teacher already recorded that day, with the classes that still
+// have no student register, so the admin can take just the register.
+router.get('/attendance/lessons', async (req, res, next) => {
+  try {
+    const { teacherId, date } = req.query;
+    if (!teacherId || !/^\d{4}-\d{2}-\d{2}$/.test(String(date || ''))) {
+      return res.status(400).json({ error: 'teacherId and date (YYYY-MM-DD) are required' });
+    }
+    const { rows } = await pool.query(
+      `SELECT a.id, a.subject, a.class_names,
+              ARRAY(
+                SELECT TRIM(c) FROM unnest(string_to_array(a.class_names, ',')) AS c
+                 WHERE TRIM(c) <> ''
+                   AND NOT EXISTS (
+                     SELECT 1 FROM student_attendance_sessions s
+                      WHERE s.school_id = a.school_id AND s.date = a.date AND s.teacher_id = a.teacher_id
+                        AND LOWER(s.subject) = LOWER(a.subject) AND LOWER(s.class_name) = LOWER(TRIM(c))
+                   )
+              ) AS missing_classes
+         FROM attendance a
+        WHERE a.school_id = $1 AND a.teacher_id = $2 AND a.date = $3`,
+      [req.schoolId, teacherId, date]
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
 // POST /api/admin/attendance â€” manually record attendance on behalf of a teacher
 router.post('/attendance', async (req, res, next) => {
   try {

@@ -14,6 +14,9 @@ interface TimetableSlot {
   periods: number;
 }
 
+// A lesson the teacher already recorded that day, and its classes with no register
+interface RecordedLesson { id: string; subject: string; class_names: string; missing_classes: string[] }
+
 interface Student {
   id: string;
   student_code: string;
@@ -49,6 +52,7 @@ export default function ManualEntryPage() {
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<TimetableSlot | null>(null);
   const [selCls,       setSelCls]       = useState<Set<string>>(new Set());
+  const [lessons,      setLessons]      = useState<RecordedLesson[]>([]);
 
   // Step 2 state
   const [step,         setStep]         = useState<1 | 2>(1);
@@ -79,17 +83,39 @@ export default function ManualEntryPage() {
     setSelectedSlot(null);
     setSelCls(new Set());
     setError('');
-    api.get<TimetableSlot[]>(`/api/timetable/by-date?teacherId=${form.teacherId}&date=${form.date}`)
-      .then(r => {
+    Promise.all([
+      api.get<TimetableSlot[]>(`/api/timetable/by-date?teacherId=${form.teacherId}&date=${form.date}`),
+      api.get<RecordedLesson[]>(`/api/admin/attendance/lessons?teacherId=${form.teacherId}&date=${form.date}`).catch(() => ({ data: [] as RecordedLesson[] })),
+    ])
+      .then(([r, l]) => {
         setSlots(r.data);
+        setLessons(l.data);
         if (r.data.length === 1) {
           applySlot(r.data[0]);
         }
       })
-      .catch(() => setSlots([]))
+      .catch(() => { setSlots([]); setLessons([]); })
       .finally(() => setSlotsLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.teacherId, form.date]);
+
+  // The teacher's own record of this lesson, if they already submitted it
+  function recordedFor(slot: TimetableSlot) {
+    const mine = new Set(slot.classes.map(c => c.trim().toLowerCase()));
+    return lessons.find(l => l.subject.trim().toLowerCase() === slot.subject.trim().toLowerCase()
+      && l.class_names.split(',').some(c => mine.has(c.trim().toLowerCase())));
+  }
+  const recorded = selectedSlot ? recordedFor(selectedSlot) : undefined;
+
+  // Register only: the lesson exists, so go straight to the classes missing a register
+  async function takeRegisterOnly() {
+    if (!recorded || recorded.missing_classes.length === 0) return;
+    setAttendanceId(recorded.id);
+    setClassQueue(recorded.missing_classes);
+    setQueueIdx(0);
+    await loadClassStudents(recorded.missing_classes[0]);
+    setStep(2);
+  }
 
   function applySlot(slot: TimetableSlot) {
     setSelectedSlot(slot);
@@ -402,6 +428,17 @@ export default function ManualEntryPage() {
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-semibold text-slate-900">{slot.subject}</p>
+                          {(() => {
+                            const r = recordedFor(slot);
+                            if (!r) return null;
+                            return (
+                              <p className="text-xs font-semibold mt-0.5" style={{ color: r.missing_classes.length ? '#B45309' : '#145C44' }}>
+                                {r.missing_classes.length
+                                  ? `Recorded by the teacher, no register for ${r.missing_classes.join(', ')}`
+                                  : 'Recorded by the teacher, register taken'}
+                              </p>
+                            );
+                          })()}
                           <p className="text-xs text-slate-500 mt-0.5">
                             {fmt(slot.start_time)} – {fmt(slot.end_time)}
                             {' · '}{slot.periods} period{slot.periods !== 1 ? 's' : ''}
@@ -433,8 +470,26 @@ export default function ManualEntryPage() {
           </div>
         )}
 
+        {selectedSlot && recorded && (
+          <div className="rounded-xl border border-[#C8973A]/40 bg-[#FBF6EC] px-4 py-3 space-y-3">
+            {recorded.missing_classes.length ? (
+              <>
+                <p className="text-sm text-[#4A3F32]">
+                  {selectedTeacher?.name} already recorded this lesson but didn&apos;t take the student register for {recorded.missing_classes.join(', ')}. Take it now; the lesson record stays as the teacher submitted it.
+                </p>
+                <button type="button" onClick={takeRegisterOnly}
+                  className="w-full py-2.5 rounded-xl text-sm font-semibold text-white" style={{ backgroundColor: '#145C44' }}>
+                  Take register for {recorded.missing_classes.join(', ')}
+                </button>
+              </>
+            ) : (
+              <p className="text-sm text-[#4A3F32]">{selectedTeacher?.name} already recorded this lesson and took the register. There is nothing to add.</p>
+            )}
+          </div>
+        )}
+
         {/* Auto-filled summary (shown once a slot is selected) */}
-        {selectedSlot && (
+        {selectedSlot && !recorded && (
           <>
             {/* Subject (read-only) */}
             <div>
@@ -498,11 +553,11 @@ export default function ManualEntryPage() {
           </>
         )}
 
-        <button type="submit" disabled={saving || !selectedSlot || slots.length === 0}
+        {!recorded && <button type="submit" disabled={saving || !selectedSlot || slots.length === 0}
           className="w-full py-2.5 rounded-xl text-sm font-semibold text-white transition-opacity disabled:opacity-60"
           style={{ backgroundColor: '#145C44' }}>
           {saving ? 'Recording…' : 'Next: Mark Student Attendance →'}
-        </button>
+        </button>}
       </form>
     </div>
   );

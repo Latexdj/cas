@@ -39,7 +39,9 @@ Topic — required. Type the lesson topic (for example, "Quadratic equations"). 
 
 Location — optional. A dropdown of the school's defined locations. Select the room where the lesson took place if you know it.
 
-Click Next: Mark Student Attendance → to save the teacher attendance record and move to Step 2.`,
+Click Next: Mark Student Attendance → to save the teacher attendance record and move to Step 2.
+
+When the teacher recorded the lesson but skipped the student register: the slot card says "Recorded by the teacher, no register for" and names the classes. Select it and click "Take register for" those classes. You go straight to Step 2; no topic is needed, and the teacher's own lesson record is kept as they submitted it. A card that says "Recorded by the teacher, register taken" has nothing left to add.`,
   },
 
   {
