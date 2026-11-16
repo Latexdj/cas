@@ -42,19 +42,19 @@ pause >nul
 echo.
 
 :: ── Grant storage permission ───────────────────────────
-echo  [1/4] Granting storage access...
+echo  [1/5] Granting storage access...
 %ADB% shell appops set com.cas.student MANAGE_EXTERNAL_STORAGE allow
 echo        Done.
 echo.
 
 :: ── Create app LM folder ──────────────────────────────
-echo  [2/4] Creating app LM folder...
+echo  [2/5] Creating app LM folder...
 %ADB% shell "mkdir -p /storage/emulated/0/Android/data/com.cas.student/files/LM"
 echo        Done.
 echo.
 
 :: ── Find the LM source folder ─────────────────────────
-echo  [3/4] Looking for learning materials on tablet...
+echo  [3/5] Looking for learning materials on tablet...
 set LM_SRC=
 
 :: Check common folder names
@@ -82,8 +82,35 @@ if "!LM_SRC!"=="" (
 )
 echo.
 
+:: ── Past Questions pack ───────────────────────────────
+:: Download the pack from Super Admin, Past Questions, "Download pack for USB",
+:: unzip it, and copy the "Past Questions" folder onto the tablet, either
+:: inside the LM folder (copied above) or on its own at the top level.
+echo  [4/5] Looking for a Past Questions folder...
+%ADB% shell "test -f '/storage/emulated/0/Past Questions/manifest.json' && echo FOUND" > "%TEMP%\cas_pq.txt" 2>&1
+findstr /c:"FOUND" "%TEMP%\cas_pq.txt" >nul 2>&1
+if !errorlevel! equ 0 (
+    %ADB% shell "mkdir -p '/storage/emulated/0/Android/data/com.cas.student/files/LM/Past Questions'"
+    %ADB% shell "cp -r '/storage/emulated/0/Past Questions/.' '/storage/emulated/0/Android/data/com.cas.student/files/LM/Past Questions/'"
+    echo        Copied. The app loads the questions the next time Past Questions is opened.
+) else (
+    if not "!LM_SRC!"=="" (
+        %ADB% shell "test -f '!LM_SRC!/Past Questions/manifest.json' && echo FOUND" > "%TEMP%\cas_pq.txt" 2>&1
+        findstr /c:"FOUND" "%TEMP%\cas_pq.txt" >nul 2>&1
+        if !errorlevel! equ 0 (
+            echo        Found inside the LM folder; it was copied with the learning materials.
+        ) else (
+            echo        None found. Skipping. Tablets with internet download the questions themselves.
+        )
+    ) else (
+        echo        None found. Skipping. Tablets with internet download the questions themselves.
+    )
+)
+del "%TEMP%\cas_pq.txt" >nul 2>&1
+echo.
+
 :: ── Restart app ───────────────────────────────────────
-echo  [4/4] Restarting CAS Student app...
+echo  [5/5] Restarting CAS Student app...
 %ADB% shell am force-stop com.cas.student
 echo        Done.
 echo.

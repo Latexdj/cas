@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
 import { api } from '@/lib/api';
@@ -135,6 +135,10 @@ export default function PascoScreen() {
         </View>
 
         <Text style={[s.questionText, { color: C.text }]}>{q.question_text}</Text>
+        {!!q.image_url && (
+          <Image source={{ uri: q.image_url }} resizeMode="contain" accessibilityLabel="Diagram for this question"
+            style={{ width: '100%', height: 220, backgroundColor: '#FFFFFF', borderRadius: 12, marginBottom: 12 }} />
+        )}
 
         {(['a', 'b', 'c', 'd'] as const).map(letter => {
           const text = q[`option_${letter}`];

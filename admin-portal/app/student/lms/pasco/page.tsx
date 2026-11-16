@@ -16,6 +16,7 @@ interface PascoQuestion {
   difficulty?: string;
   year?: number;
   subject_name?: string;
+  image_url?: string | null;
 }
 
 type Phase = 'setup' | 'practice' | 'done';
@@ -309,7 +310,11 @@ export default function PascoPage() {
             </span>
           )}
         </div>
-        <p className="text-base font-semibold text-slate-800 leading-relaxed">{currentQ.question_text}</p>
+        <p className="text-base font-semibold text-slate-800 leading-relaxed whitespace-pre-wrap">{currentQ.question_text}</p>
+        {currentQ.image_url && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={currentQ.image_url} alt="Diagram for this question" className="mt-3 max-h-72 w-full object-contain rounded-lg bg-white" />
+        )}
       </div>
 
       {/* Options */}

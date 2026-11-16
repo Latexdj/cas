@@ -313,6 +313,7 @@ export interface PascoQuestion {
   difficulty?:    string | null;
   year?:          number | null;
   subject_name?:  string | null;
+  image_url?:     string | null;
 }
 
 export interface ClinicVisit {
