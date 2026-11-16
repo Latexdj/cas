@@ -182,13 +182,15 @@ After the update, the modal shows how many records were changed, how many Studen
     feature_area: 'students',
     applicable_roles: ['admin'],
     title: 'Promoting and Graduating Students',
-    body: `Two workflow buttons at the top of the Students page handle end-of-year class transitions.
+    body: `End of year, in this order: graduate the final year first, then promote each level into the one above. If you promote first, the incoming students join the final-year classes and you'd have to untick them when graduating.
 
-Promote Class — moves students from one class to another. Click the button, then choose the source class in the From Class dropdown. A list of all active students in that class appears with all of them checked by default. Uncheck any student who should repeat the year and not be moved. Type or select the destination class in the To Class field. Click Promote to move all checked students. The student count in the button label updates as you check and uncheck names.
+Graduate a whole level: go to PEOPLE › Promotions and use "Graduate a level". Choose the level (for example SHS 3). Every class in that level is listed with all its active students ticked. Click Choose on a class to see its students and untick anyone staying back; they stay in their class. Click Graduate, then confirm. Graduated students leave the class lists, and their attendance, results and other records are kept. Find them later by setting the Students page status filter to Graduated.
 
-Graduate Class — marks students as Graduated without moving them to another class. Click the button, choose the class to graduate, and review the student list. Uncheck anyone who should not yet graduate. Click Graduate to mark all checked students. A browser confirmation appears before the action runs. All historical attendance and assessment data for graduated students is preserved.
+Promote a whole level: on the same page, choose From Level and To Level, click Preview Mapping, check each class's destination, and use Choose to untick students repeating the year. Then click Promote.
 
-Both actions only affect active students. Students already marked Graduated or Inactive are not shown in the selection lists.`,
+One class at a time: on the Students page, open More and choose "Promote a class" or "Graduate a class" under End of year. Choose the class, untick anyone who should stay, then confirm.
+
+These actions only affect active students. Students already marked Graduated or Inactive are not shown in the selection lists.`,
   },
 
   {
