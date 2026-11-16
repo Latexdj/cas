@@ -7,6 +7,10 @@ import { createThemedStyles } from '@/lib/themedStyles';
 import { loadSubject, optionImage, paperTitle, questionImages, type PackQuestion, type SubjectPack } from '@/lib/quizPack';
 import { QuestionBody } from '@/components/QuestionBody';
 import { getProgress, recordRound, type TheoryRating } from '@/lib/quizProgress';
+import { clearRound, loadRound, saveRound } from '@/lib/quizRound';
+import { RouteError } from '@/components/RouteError';
+
+export { RouteError as ErrorBoundary };
 
 type Mode = 'practice' | 'paper' | 'retry' | 'theory';
 const LETTERS = ['a', 'b', 'c', 'd', 'e'];
@@ -27,7 +31,7 @@ function mmss(sec: number) {
 export default function PlayScreen() {
   const C = useTheme();
   const nav = useNavigation();
-  const params = useLocalSearchParams<{ slug: string; mode: Mode; count?: string; year?: string; paperId?: string }>();
+  const params = useLocalSearchParams<{ slug: string; mode: Mode; count?: string; year?: string; paperId?: string; resume?: string }>();
   const mode = (params.mode ?? 'practice') as Mode;
 
   const [pack, setPack] = useState<SubjectPack | null>(null);
@@ -39,21 +43,41 @@ export default function PlayScreen() {
   const [done, setDone] = useState(false);
   const [confirmFinish, setConfirmFinish] = useState(false);
   const [left, setLeft] = useState(0);
+  const [savedLabel, setSavedLabel] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const leftRef = useRef(0);
 
   const label = useMemo(() => {
     if (!pack) return '';
+    if (savedLabel) return savedLabel;
     if (mode === 'paper') { const p = pack.papers.find(x => x.id === params.paperId); return p ? paperTitle(p) : 'Full paper'; }
     if (mode === 'theory') return params.year ? `Theory ${params.year}` : 'Theory';
     if (mode === 'retry') return 'Retry mistakes';
     return params.year ? `Practice ${params.year}` : 'Practice';
-  }, [pack, mode, params.paperId, params.year]);
+  }, [pack, mode, params.paperId, params.year, savedLabel]);
 
   useEffect(() => {
     (async () => {
       const p = await loadSubject(String(params.slug));
       if (!p) { setQs([]); return; }
       setPack(p);
+      // Continue a round the student had not finished.
+      if (params.resume === '1') {
+        const saved = await loadRound();
+        if (saved && saved.slug === p.slug) {
+          const byId = new Map(p.questions.map(q => [q.id, q]));
+          const list = saved.ids.map(id => byId.get(id)).filter((q): q is PackQuestion => !!q);
+          if (list.length) {
+            setSavedLabel(saved.label);
+            setQs(list);
+            setI(Math.min(saved.i, list.length - 1));
+            setAnswers(saved.answers);
+            setRatings(saved.ratings as Record<string, TheoryRating>);
+            setLeft(saved.left); leftRef.current = saved.left;
+            return;
+          }
+        }
+      }
       const year = params.year ? Number(params.year) : null;
       const inYear = (q: PackQuestion) => year == null || q.year === year;
       let list: PackQuestion[];
@@ -64,9 +88,19 @@ export default function PlayScreen() {
         list = shuffle(p.questions.filter(q => q.question_type === 'objective' && prog.objective[q.id]?.ok === false));
       } else list = shuffle(p.questions.filter(q => q.question_type === 'objective' && inYear(q))).slice(0, Number(params.count) || 20);
       setQs(list);
-      if (mode === 'paper') setLeft(list.length * 60);
+      if (mode === 'paper') { setLeft(list.length * 60); leftRef.current = list.length * 60; }
     })();
-  }, [params.slug, params.paperId, params.year, params.count, mode]);
+  }, [params.slug, params.paperId, params.year, params.count, params.resume, mode]);
+
+  // Keep the round so it can be continued after an interruption.
+  const remaining = Math.floor(left / 10);
+  useEffect(() => {
+    if (!qs?.length || !pack || done) return;
+    saveRound({
+      slug: pack.slug, subject: pack.subject, mode, label, ids: qs.map(q => q.id), i,
+      answers, ratings, left: leftRef.current,
+    });
+  }, [qs, pack, done, mode, label, i, answers, ratings, remaining]);
 
   useEffect(() => { if (label) nav.setOptions({ title: label }); }, [label, nav]);
 
@@ -76,6 +110,7 @@ export default function PlayScreen() {
     const objective = qs.filter(q => q.question_type === 'objective' && answers[q.id]).map(q => ({ id: q.id, ok: answers[q.id] === q.correct }));
     const theory = qs.filter(q => q.question_type === 'theory' && ratings[q.id]).map(q => ({ id: q.id, rating: ratings[q.id] }));
     await recordRound(pack.slug, label, objective, theory);
+    await clearRound();
     setDone(true);
   }, [qs, pack, answers, ratings, label]);
 
@@ -85,10 +120,12 @@ export default function PlayScreen() {
   useEffect(() => {
     if (mode !== 'paper' || !qs?.length || done) return;
     timer.current = setInterval(() => {
-      setLeft(t => {
-        if (t <= 1) { finishRef.current(); return 0; }
-        return t - 1;
-      });
+      leftRef.current = Math.max(0, leftRef.current - 1);
+      setLeft(leftRef.current);
+      if (leftRef.current === 0) {
+        if (timer.current) { clearInterval(timer.current); timer.current = null; }
+        finishRef.current();
+      }
     }, 1000);
     return () => { if (timer.current) clearInterval(timer.current); timer.current = null; };
   }, [mode, qs, done]);
@@ -119,12 +156,12 @@ export default function PlayScreen() {
           {obj.length > 0 ? (
             <>
               <Text style={[s.big, { color: C.text }]}>{right}/{obj.length}</Text>
-              <Text style={[s.body, { color: C.textSoft }]}>{pct}% right{skipped > 0 ? ` · ${skipped} not answered` : ''}</Text>
+              <Text style={[s.body, { color: C.textSoft }]}>{pct}% right{skipped > 0 ? `, ${skipped} not answered` : ''}</Text>
             </>
           ) : (
             <>
               <Text style={[s.big, { color: C.text }]}>{got}/{theory.length}</Text>
-              <Text style={[s.body, { color: C.textSoft }]}>marked &quot;Got it&quot; · {theory.filter(q => ratings[q.id] === 'partly').length} partly</Text>
+              <Text style={[s.body, { color: C.textSoft }]}>marked &quot;Got it&quot;, {theory.filter(q => ratings[q.id] === 'partly').length} partly</Text>
             </>
           )}
           <Text style={[s.small, { color: C.muted, marginTop: 6 }]}>Saved on this tablet.</Text>
@@ -138,7 +175,7 @@ export default function PlayScreen() {
             <View key={q.id} style={[s.card, { backgroundColor: C.surface, borderColor: ok ? C.success : C.border }]}>
               <View style={s.reviewHead}>
                 <Ionicons name={ok ? 'checkmark-circle' : mine ? 'close-circle' : 'remove-circle'} size={20} color={ok ? C.success : mine ? C.danger : C.muted} />
-                <Text style={[s.small, { color: C.textSoft }]}>Question {q.question_no ?? n + 1}{q.year ? ` · ${q.year}` : ''}</Text>
+                <Text style={[s.small, { color: C.textSoft }]}>Question {q.question_no ?? n + 1}{q.year ? `, ${q.year}` : ''}</Text>
               </View>
               <QuestionBody text={q.question_text} images={questionImages(q)} placedElsewhere={q.marking_scheme} textStyle={[s.body, { color: C.text }]} imageHeight={160} />
               <Text style={[s.small, { color: C.textSoft }]}>
@@ -172,7 +209,7 @@ export default function PlayScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: C.bg }}>
       <View style={[s.topBar, { borderColor: C.border, backgroundColor: C.surface }]}>
-        <Text style={[s.small, { color: C.textSoft }]}>Question {i + 1} of {qs.length}{q.year ? ` · ${q.year}` : ''}</Text>
+        <Text style={[s.small, { color: C.textSoft }]}>Question {i + 1} of {qs.length}{q.year ? `, ${q.year}` : ''}</Text>
         {mode === 'paper' && (
           <Text style={[s.timer, { color: left < 60 ? C.danger : C.text }]} accessibilityLabel={`${Math.ceil(left / 60)} minutes left`}>{mmss(left)}</Text>
         )}

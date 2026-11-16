@@ -1,269 +1,192 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, RefreshControl, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, View, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
-import * as DocumentPicker from 'expo-document-picker';
 import { useTheme } from '@/context/ThemeContext';
 import { createThemedStyles } from '@/lib/themedStyles';
-import { importUsb, importZip, localManifest, updatePack, type PackManifest } from '@/lib/quizPack';
-import { findSchoolServer, getManualAddress, setManualAddress, tryAddress, type SchoolServer } from '@/lib/schoolServer';
-import { getProgress, type QuizSession } from '@/lib/quizProgress';
+import { loadSubject, type PackManifest } from '@/lib/quizPack';
+import { getProgress } from '@/lib/quizProgress';
+import { loadRound, type SavedRound } from '@/lib/quizRound';
+import { checkForUpdates, startPackSync, usePackSync } from '@/lib/packSync';
+import { RouteError } from '@/components/RouteError';
+
+export { RouteError as ErrorBoundary };
 
 function fmtDate(iso: string | null) {
   if (!iso) return '';
   return new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
+interface SubjectStats { tried: number; right: number; objective: number }
+
+async function subjectStats(manifest: PackManifest): Promise<Record<string, SubjectStats>> {
+  const progress = await getProgress();
+  const out: Record<string, SubjectStats> = {};
+  for (const s of manifest.subjects) {
+    const pack = await loadSubject(s.slug);
+    const obj = (pack?.questions ?? []).filter(q => q.question_type === 'objective');
+    const tried = obj.filter(q => progress.objective[q.id]);
+    out[s.slug] = { objective: obj.length, tried: tried.length, right: tried.filter(q => progress.objective[q.id].ok).length };
+  }
+  return out;
+}
+
 export default function PastQuestionsHome() {
   const C = useTheme();
-  const [manifest, setManifest] = useState<PackManifest | null>(null);
-  const [loading,  setLoading]  = useState(true);
-  const [busy,     setBusy]     = useState(false);
-  const [status,   setStatus]   = useState('');
-  const [last,     setLast]     = useState<Record<string, QuizSession>>({});
-  // Loading a pack .zip from a USB drive.
-  const [usbBusy,  setUsbBusy]  = useState(false);
-  const [usbMsg,   setUsbMsg]   = useState<{ text: string; tone: 'ok' | 'bad' | 'info' } | null>(null);
-  const [olderUri, setOlderUri] = useState<string | null>(null);
-  // The CAS School Server on the school Wi-Fi.
-  const [server,   setServer]   = useState<SchoolServer | null | undefined>(undefined);   // undefined = searching
-  const [manual,   setManual]   = useState<string | null>(null);
-  const [editAddr, setEditAddr] = useState(false);
-  const [addr,     setAddr]     = useState('');
-  const [addrMsg,  setAddrMsg]  = useState('');
-  const [addrBusy, setAddrBusy] = useState(false);
+  const { width } = useWindowDimensions();
+  const sync = usePackSync();
+  const [stats, setStats] = useState<Record<string, SubjectStats>>({});
+  const [round, setRound] = useState<SavedRound | null>(null);
 
-  async function loadZip(uri: string, force = false) {
-    setUsbBusy(true); setOlderUri(null);
-    setUsbMsg({ text: 'Loading the questions from the drive…', tone: 'info' });
-    const r = await importZip(uri, { force });
-    if (r.status === 'loaded') {
-      setManifest(r.manifest);
-      setUsbMsg({ text: `Loaded ${r.questions} questions in ${r.manifest.subjects.length} subject${r.manifest.subjects.length === 1 ? '' : 's'}. You can remove the drive.`, tone: 'ok' });
-    } else if (r.status === 'older') {
-      setOlderUri(uri);
-      setUsbMsg({
-        text: r.fileVersion === r.tabletVersion
-          ? 'This tablet already has these questions (same pack version).'
-          : `This pack (version ${r.fileVersion}) is older than the questions on this tablet (version ${r.tabletVersion}).`,
-        tone: 'info',
-      });
-    } else setUsbMsg({ text: r.message, tone: 'bad' });
-    setUsbBusy(false);
-  }
+  useEffect(() => { startPackSync(); }, []);
 
-  async function pickFromDrive() {
-    setUsbMsg(null); setOlderUri(null);
-    const res = await DocumentPicker.getDocumentAsync({
-      type: ['application/zip', 'application/x-zip-compressed', 'application/octet-stream'],
-      copyToCacheDirectory: true,
-      multiple: false,
-    });
-    if (res.canceled || !res.assets?.[0]) return;
-    const a = res.assets[0];
-    if (!/\.zip$/i.test(a.name ?? '')) { setUsbMsg({ text: 'Choose the .zip file of the Past Questions pack.', tone: 'bad' }); return; }
-    await loadZip(a.uri);
-  }
-
-  const check = useCallback(async (fresh = false) => {
-    setBusy(true);
-    setStatus('Checking for new questions…');
-    setServer(undefined);
-    const local = await localManifest();
-    const find = () => findSchoolServer({ fresh, packVersion: local?.version ?? null }).then(sv => { setServer(sv); return sv; });
-    const r = await updatePack(find, msg => setStatus(msg));
-    const from = r.status === 'updated' || r.status === 'current'
-      ? (r.source === 'school' ? ' from the school server' : r.source === 'online' ? ' from the internet' : '') : '';
-    if (r.status === 'updated') { setManifest(r.manifest); setStatus(`Updated ${r.changed} subject${r.changed === 1 ? '' : 's'}${from}.`); }
-    else if (r.status === 'current') { setManifest(r.manifest); setStatus(`You have the latest questions${from ? ` (checked${from})` : ''}.`); }
-    else if (r.status === 'offline') setStatus('No internet or school server. You can still practise with the questions on this tablet.');
-    else setStatus('The update stopped part way. Try again when the connection is better.');
-    setBusy(false);
-  }, []);
-
-  useEffect(() => { getManualAddress().then(setManual); }, []);
-
-  async function saveAddress() {
-    const v = addr.trim();
-    if (!v) return;
-    setAddrBusy(true); setAddrMsg('');
-    const sv = await tryAddress(v);
-    setAddrBusy(false);
-    if (sv) { setServer(sv); setManual(sv.address); setEditAddr(false); setAddr(''); check(); }
-    else setAddrMsg('No school server answered at that address. Check the address on the server PC and that this tablet is on the school Wi-Fi.');
-  }
-  async function forgetAddress() {
-    await setManualAddress(null); setManual(null); check(true);
-  }
-
-  useEffect(() => {
-    (async () => {
-      setManifest(await localManifest());
-      const usb = await importUsb();
-      if (usb) { setManifest(usb); setStatus('Loaded new questions from the Past Questions folder.'); }
-      setLoading(false);
-      await check();
-    })();
-  }, [check]);
-
-  // Refresh each subject's last round when coming back from a round.
+  // Progress and any unfinished round change while the student practises.
   useFocusEffect(useCallback(() => {
-    getProgress().then(p => {
-      const m: Record<string, QuizSession> = {};
-      for (const s of p.sessions) if (!m[s.slug]) m[s.slug] = s;
-      setLast(m);
-    });
-  }, []));
+    loadRound().then(setRound);
+    if (sync.manifest) subjectStats(sync.manifest).then(setStats);
+  }, [sync.manifest]));
 
-  if (loading) {
+  if (!sync.ready) {
     return <View style={[s.center, { backgroundColor: C.bg }]}><ActivityIndicator color={C.primaryText} /></View>;
   }
 
-  const subjects = manifest?.subjects ?? [];
+  const subjects = sync.manifest?.subjects ?? [];
+  const total = subjects.reduce((n, x) => n + x.count, 0);
+  const cols = width >= 900 ? 3 : width >= 600 ? 2 : 1;
+  const connected = !!sync.server;
+  const roundSubjectHere = round && subjects.some(x => x.slug === round.slug);
+
   return (
     <ScrollView style={{ backgroundColor: C.bg }} contentContainerStyle={s.page}
-      refreshControl={<RefreshControl refreshing={false} onRefresh={() => check()} tintColor={C.primaryText} />}>
-      <View style={[s.statusCard, { backgroundColor: C.surface, borderColor: C.border }]}>
-        <View style={{ flex: 1 }}>
-          <Text style={[s.statusTitle, { color: C.text }]}>
-            {manifest?.published_at ? `Questions updated ${fmtDate(manifest.published_at)}` : 'No questions on this tablet yet'}
-          </Text>
-          {!!status && <Text style={[s.statusText, { color: C.textSoft }]} accessibilityLiveRegion="polite">{status}</Text>}
-        </View>
-        <TouchableOpacity onPress={() => check()} disabled={busy} accessibilityRole="button" accessibilityLabel="Check for updates"
-          style={[s.updateBtn, { borderColor: C.border, opacity: busy ? 0.5 : 1 }]}>
-          {busy ? <ActivityIndicator size="small" color={C.primaryText} /> : <Ionicons name="refresh" size={20} color={C.primaryText} />}
-        </TouchableOpacity>
-      </View>
+      refreshControl={<RefreshControl refreshing={false} onRefresh={() => checkForUpdates(true)} tintColor={C.primaryText} />}>
 
-      <View style={[s.usbCard, { backgroundColor: C.surface, borderColor: C.border }]}>
-        <View style={s.usbHead}>
-          <Ionicons name="server-outline" size={22} color={C.primaryText} />
-          <View style={{ flex: 1 }}>
-            <Text style={[s.statusTitle, { color: C.text }]}>School server</Text>
-            <Text style={[s.statusText, { color: server ? C.success : C.textSoft }]} accessibilityLiveRegion="polite">
-              {server === undefined ? 'Looking on the school Wi-Fi…'
-                : server ? `Connected${server.info.school_name ? ` to ${server.info.school_name}` : ''} at ${server.address}`
-                : 'Not found on this Wi-Fi.'}
+      {/* Where the questions came from, and how fresh they are */}
+      <Pressable onPress={() => router.push('/past-questions/updates')} accessibilityRole="button"
+        accessibilityLabel="Get new questions"
+        style={({ pressed }) => [s.statusBar, { backgroundColor: C.surface, borderColor: C.border, opacity: pressed ? 0.85 : 1 }]}>
+        <View style={[s.dot, { backgroundColor: sync.busy ? C.accent : connected ? C.success : C.muted }]} />
+        <View style={{ flex: 1 }}>
+          <Text style={[s.statusTitle, { color: C.text }]} numberOfLines={1}>
+            {sync.busy ? 'Checking for new questions'
+              : sync.manifest?.published_at ? `Questions from ${fmtDate(sync.manifest.published_at)}` : 'No questions yet'}
+          </Text>
+          <Text style={[s.statusSub, { color: C.textSoft }]} numberOfLines={2} accessibilityLiveRegion="polite">
+            {sync.busy ? sync.status
+              : connected ? `School server connected${sync.server?.info.school_name ? `, ${sync.server.info.school_name}` : ''}`
+              : sync.status || 'Tap to get new questions'}
+          </Text>
+        </View>
+        {sync.busy ? <ActivityIndicator size="small" color={C.primaryText} /> : <Ionicons name="chevron-forward" size={20} color={C.muted} />}
+      </Pressable>
+
+      {roundSubjectHere && round && (
+        <View style={[s.continueCard, { backgroundColor: C.surface, borderColor: C.accent }]}>
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text style={[s.continueTitle, { color: C.text }]}>Continue where you stopped</Text>
+            <Text style={[s.statusSub, { color: C.textSoft }]}>
+              {round.label}, {round.subject}. Question {round.i + 1} of {round.ids.length}.
             </Text>
           </View>
-          {server === undefined && <ActivityIndicator size="small" color={C.primaryText} />}
+          <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/past-questions/play', params: { slug: round.slug, mode: round.mode, resume: '1' } })}
+            style={({ pressed }) => [s.smallBtn, { backgroundColor: C.primary, opacity: pressed ? 0.85 : 1 }]}>
+            <Text style={s.smallBtnText}>Continue</Text>
+          </Pressable>
         </View>
-        {editAddr ? (
-          <View style={{ gap: 8 }}>
-            <Text style={[s.statusText, { color: C.textSoft }]}>Type the address shown on the school server PC, for example 192.168.88.10.</Text>
-            <TextInput value={addr} onChangeText={setAddr} placeholder="192.168.88.10" placeholderTextColor={C.placeholder}
-              autoCapitalize="none" autoCorrect={false} keyboardType="numbers-and-punctuation" accessibilityLabel="School server address"
-              style={[s.input, { borderColor: C.border, color: C.text, backgroundColor: C.bg }]} onSubmitEditing={saveAddress} />
-            <View style={s.rowBtns}>
-              <TouchableOpacity accessibilityRole="button" onPress={saveAddress} disabled={addrBusy || !addr.trim()}
-                style={[s.usbBtn, { flex: 1, backgroundColor: C.primary, opacity: addrBusy || !addr.trim() ? 0.5 : 1 }]}>
-                {addrBusy ? <ActivityIndicator color="#FFFFFF" /> : <Text style={s.usbBtnText}>Connect</Text>}
-              </TouchableOpacity>
-              <TouchableOpacity accessibilityRole="button" onPress={() => { setEditAddr(false); setAddrMsg(''); }}
-                style={[s.usbBtn, s.outlineBtn, { borderColor: C.border }]}>
-                <Text style={[s.outlineText, { color: C.text }]}>Cancel</Text>
-              </TouchableOpacity>
-            </View>
-            {!!addrMsg && <Text style={[s.statusText, { color: C.danger }]}>{addrMsg}</Text>}
-          </View>
-        ) : (
-          <View style={s.rowBtns}>
-            <TouchableOpacity accessibilityRole="button" onPress={() => check(true)} disabled={busy}
-              style={[s.usbBtn, s.outlineBtn, { borderColor: C.border, opacity: busy ? 0.5 : 1 }]}>
-              <Text style={[s.outlineText, { color: C.text }]}>Find again</Text>
-            </TouchableOpacity>
-            <TouchableOpacity accessibilityRole="button" onPress={() => setEditAddr(true)} style={[s.usbBtn, s.outlineBtn, { borderColor: C.border }]}>
-              <Text style={[s.outlineText, { color: C.text }]}>Enter address</Text>
-            </TouchableOpacity>
-            {!!manual && (
-              <TouchableOpacity accessibilityRole="button" onPress={forgetAddress} style={[s.usbBtn, s.outlineBtn, { borderColor: C.border }]}>
-                <Text style={[s.outlineText, { color: C.text }]}>Forget {manual}</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        )}
-      </View>
-
-      <View style={[s.usbCard, { backgroundColor: C.surface, borderColor: C.border }]}>
-        <View style={s.usbHead}>
-          <Ionicons name="hardware-chip-outline" size={22} color={C.primaryText} />
-          <Text style={[s.statusTitle, { color: C.text, flex: 1 }]}>Load from USB drive</Text>
-        </View>
-        <Text style={[s.statusText, { color: C.textSoft }]}>
-          Plug in the flash drive with the Past Questions .zip file, tap Choose file, then pick the file on the drive.
-        </Text>
-        <TouchableOpacity onPress={pickFromDrive} disabled={usbBusy} accessibilityRole="button"
-          style={[s.usbBtn, { backgroundColor: C.primary, opacity: usbBusy ? 0.5 : 1 }]}>
-          {usbBusy ? <ActivityIndicator color="#FFFFFF" /> : <Text style={s.usbBtnText}>Choose file</Text>}
-        </TouchableOpacity>
-        {usbMsg && (
-          <Text accessibilityLiveRegion="polite"
-            style={[s.statusText, { color: usbMsg.tone === 'ok' ? C.success : usbMsg.tone === 'bad' ? C.danger : C.textSoft }]}>
-            {usbMsg.text}
-          </Text>
-        )}
-        {olderUri && !usbBusy && (
-          <TouchableOpacity onPress={() => loadZip(olderUri, true)} accessibilityRole="button" style={[s.usbLink]}>
-            <Text style={[s.usbLinkText, { color: C.primaryText }]}>Load it anyway</Text>
-          </TouchableOpacity>
-        )}
-      </View>
+      )}
 
       {subjects.length === 0 ? (
         <View style={[s.empty, { backgroundColor: C.surface, borderColor: C.border }]}>
-          <Ionicons name="cloud-download-outline" size={36} color={C.muted} />
-          <Text style={[s.emptyTitle, { color: C.text }]}>Get the past questions</Text>
+          <Ionicons name="library-outline" size={34} color={C.primaryText} />
+          <Text style={[s.emptyTitle, { color: C.text }]}>No past questions on this tablet yet</Text>
           <Text style={[s.emptyText, { color: C.textSoft }]}>
-            Join the school Wi-Fi with the school server, connect to the internet, or load the Past Questions pack from a USB drive above, then tap the refresh button.
+            They come from the school server on the Wi-Fi, from the internet, or from a USB drive.
           </Text>
+          <Pressable accessibilityRole="button" onPress={() => router.push('/past-questions/updates')}
+            style={({ pressed }) => [s.primaryBtn, { backgroundColor: C.primary, opacity: pressed ? 0.85 : 1 }]}>
+            <Text style={s.primaryBtnText}>Get questions</Text>
+          </Pressable>
         </View>
-      ) : subjects.map(sub => {
-        const l = last[sub.slug];
-        return (
-          <TouchableOpacity key={sub.slug} onPress={() => router.push({ pathname: '/past-questions/[slug]', params: { slug: sub.slug } })}
-            accessibilityRole="button" accessibilityLabel={`${sub.name}, ${sub.count} questions`}
-            style={[s.row, { backgroundColor: C.surface, borderColor: C.border }]} activeOpacity={0.8}>
-            <View style={[s.badge, { backgroundColor: C.primaryLight }]}>
-              <Text style={[s.badgeText, { color: C.primaryText }]}>{sub.name.slice(0, 1).toUpperCase()}</Text>
-            </View>
+      ) : (
+        <>
+          <View style={s.sectionHead}>
+            <Text style={[s.sectionTitle, { color: C.text }]}>Subjects</Text>
+            <Text style={[s.sectionMeta, { color: C.muted }]}>{total} questions</Text>
+          </View>
+          <View style={s.grid}>
+            {subjects.map(sub => {
+              const st = stats[sub.slug];
+              const frac = st && st.objective ? st.tried / st.objective : 0;
+              const pct = st && st.tried ? Math.round((st.right / st.tried) * 100) : null;
+              return (
+                <Pressable key={sub.slug} onPress={() => router.push({ pathname: '/past-questions/[slug]', params: { slug: sub.slug } })}
+                  accessibilityRole="button" accessibilityLabel={`${sub.name}, ${sub.count} questions`}
+                  style={({ pressed }) => [s.card, {
+                    width: cols === 1 ? '100%' : `${100 / cols - 2}%`,
+                    backgroundColor: C.surface, borderColor: C.border, opacity: pressed ? 0.9 : 1,
+                  }]}>
+                  <View style={s.cardTop}>
+                    <View style={[s.initial, { backgroundColor: C.primaryLight }]}>
+                      <Text style={[s.initialText, { color: C.primaryText }]}>{sub.name.slice(0, 1).toUpperCase()}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[s.cardTitle, { color: C.text }]} numberOfLines={2}>{sub.name}</Text>
+                      <Text style={[s.cardMeta, { color: C.textSoft }]}>{sub.count} questions</Text>
+                    </View>
+                  </View>
+                  <View style={[s.track, { backgroundColor: C.border }]}>
+                    <View style={[s.fill, { width: `${Math.round(frac * 100)}%`, backgroundColor: C.primaryText }]} />
+                  </View>
+                  <Text style={[s.cardMeta, { color: C.textSoft }]}>
+                    {!st || st.tried === 0 ? 'Not started' : `${st.tried} of ${st.objective} tried, ${pct}% right`}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          <Pressable onPress={() => router.push('/past-questions/updates')} accessibilityRole="button"
+            style={({ pressed }) => [s.linkRow, { borderColor: C.border, opacity: pressed ? 0.85 : 1 }]}>
+            <Ionicons name="cloud-download-outline" size={22} color={C.primaryText} />
             <View style={{ flex: 1 }}>
-              <Text style={[s.rowTitle, { color: C.text }]}>{sub.name}</Text>
-              <Text style={[s.rowSub, { color: C.textSoft }]}>
-                {sub.count} question{sub.count === 1 ? '' : 's'}{l ? ` · last round ${l.score}/${l.total}` : ''}
-              </Text>
+              <Text style={[s.linkTitle, { color: C.text }]}>Get new questions</Text>
+              <Text style={[s.statusSub, { color: C.textSoft }]}>School server, internet or USB drive</Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color={C.muted} />
-          </TouchableOpacity>
-        );
-      })}
+          </Pressable>
+        </>
+      )}
     </ScrollView>
   );
 }
 
 const s = createThemedStyles({
-  center:      { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  page:        { padding: 16, gap: 10, paddingBottom: 40 },
-  statusCard:  { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 16, borderWidth: 1, marginBottom: 6 },
-  statusTitle: { fontSize: 15, fontWeight: '700' },
-  statusText:  { fontSize: 13, marginTop: 3 },
-  updateBtn:   { width: 44, height: 44, borderRadius: 22, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  usbCard:     { padding: 14, borderRadius: 16, borderWidth: 1, gap: 10, marginBottom: 6 },
-  usbHead:     { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  usbBtn:      { minHeight: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  usbBtnText:  { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
-  rowBtns:     { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  outlineBtn:  { paddingHorizontal: 14, borderWidth: 1, backgroundColor: 'transparent' },
-  outlineText: { fontSize: 15, fontWeight: '600' },
-  input:       { minHeight: 48, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, fontSize: 16 },
-  usbLink:     { minHeight: 44, justifyContent: 'center', alignSelf: 'flex-start' },
-  usbLinkText: { fontSize: 15, fontWeight: '700' },
-  empty:       { alignItems: 'center', padding: 24, borderRadius: 16, borderWidth: 1, gap: 8 },
-  emptyTitle:  { fontSize: 17, fontWeight: '700' },
-  emptyText:   { fontSize: 14, textAlign: 'center', lineHeight: 20 },
-  row:         { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 14, borderRadius: 16, borderWidth: 1, minHeight: 64 },
-  badge:       { width: 42, height: 42, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  badgeText:   { fontSize: 18, fontWeight: '800' },
-  rowTitle:    { fontSize: 16, fontWeight: '700' },
-  rowSub:      { fontSize: 13, marginTop: 2 },
+  center:        { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  page:          { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 48, gap: 14 },
+  statusBar:     { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 14, borderWidth: 1, minHeight: 64 },
+  dot:           { width: 10, height: 10, borderRadius: 5 },
+  statusTitle:   { fontSize: 15, fontWeight: '700' },
+  statusSub:     { fontSize: 13, lineHeight: 18, marginTop: 1 },
+  continueCard:  { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, borderRadius: 16, borderWidth: 1.5 },
+  continueTitle: { fontSize: 16, fontWeight: '700' },
+  smallBtn:      { minHeight: 44, paddingHorizontal: 18, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  smallBtnText:  { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
+  sectionHead:   { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginTop: 10 },
+  sectionTitle:  { fontSize: 20, fontWeight: '800' },
+  sectionMeta:   { fontSize: 13 },
+  grid:          { flexDirection: 'row', flexWrap: 'wrap', gap: 12, justifyContent: 'space-between' },
+  card:          { padding: 16, borderRadius: 16, borderWidth: 1, gap: 12 },
+  cardTop:       { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  initial:       { width: 46, height: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  initialText:   { fontSize: 20, fontWeight: '800' },
+  cardTitle:     { fontSize: 17, fontWeight: '700' },
+  cardMeta:      { fontSize: 13, marginTop: 2 },
+  track:         { height: 6, borderRadius: 3, overflow: 'hidden' },
+  fill:          { height: 6, borderRadius: 3 },
+  linkRow:       { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 4, borderTopWidth: 1, marginTop: 8, minHeight: 60 },
+  linkTitle:     { fontSize: 15, fontWeight: '700' },
+  empty:         { padding: 20, borderRadius: 16, borderWidth: 1, gap: 10 },
+  emptyTitle:    { fontSize: 18, fontWeight: '700' },
+  emptyText:     { fontSize: 14, lineHeight: 20 },
+  primaryBtn:    { minHeight: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
+  primaryBtnText:{ color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
 });

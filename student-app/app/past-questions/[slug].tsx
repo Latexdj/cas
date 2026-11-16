@@ -1,16 +1,22 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect, useLocalSearchParams, useNavigation } from 'expo-router';
 import { useTheme } from '@/context/ThemeContext';
 import { createThemedStyles } from '@/lib/themedStyles';
 import { loadSubject, paperTitle, type SubjectPack } from '@/lib/quizPack';
 import { clearSubject, getProgress, type QuizProgress } from '@/lib/quizProgress';
+import { RouteError } from '@/components/RouteError';
+
+export { RouteError as ErrorBoundary };
 
 const COUNTS = [10, 20, 40];
+type IconName = keyof typeof Ionicons.glyphMap;
 
 export default function SubjectScreen() {
   const C = useTheme();
   const nav = useNavigation();
+  const { width } = useWindowDimensions();
   const { slug } = useLocalSearchParams<{ slug: string }>();
   const [pack, setPack] = useState<SubjectPack | null | undefined>(undefined);
   const [progress, setProgress] = useState<QuizProgress | null>(null);
@@ -54,114 +60,136 @@ export default function SubjectScreen() {
   const papers = pack.papers
     .map(p => ({ ...p, n: pack.questions.filter(q => q.paper_id === p.id && q.question_type === 'objective').length }))
     .filter(p => p.n > 0);
+  const wide = width >= 700;
+  const pctRight = stats.done ? Math.round((stats.right / stats.done) * 100) : null;
+  const objInYear = inYear('objective');
+  const theoryInYear = inYear('theory');
 
   const Chip = ({ on, label, onPress }: { on: boolean; label: string; onPress: () => void }) => (
-    <TouchableOpacity onPress={onPress} accessibilityRole="button" accessibilityState={{ selected: on }}
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityState={{ selected: on }}
       style={[s.chip, { borderColor: on ? C.primaryText : C.border, backgroundColor: on ? C.primaryLight : 'transparent' }]}>
       <Text style={[s.chipText, { color: on ? C.primaryText : C.textSoft }]}>{label}</Text>
-    </TouchableOpacity>
+    </Pressable>
   );
-  const Card = ({ children }: { children: React.ReactNode }) => (
-    <View style={[s.card, { backgroundColor: C.surface, borderColor: C.border }]}>{children}</View>
+  const ModeHead = ({ icon, title, sub }: { icon: IconName; title: string; sub: string }) => (
+    <View style={s.modeHead}>
+      <View style={[s.modeIcon, { backgroundColor: C.primaryLight }]}><Ionicons name={icon} size={22} color={C.primaryText} /></View>
+      <View style={{ flex: 1 }}>
+        <Text style={[s.modeTitle, { color: C.text }]}>{title}</Text>
+        <Text style={[s.modeSub, { color: C.textSoft }]}>{sub}</Text>
+      </View>
+    </View>
   );
   const Primary = ({ label, onPress, disabled }: { label: string; onPress: () => void; disabled?: boolean }) => (
-    <TouchableOpacity onPress={onPress} disabled={disabled} accessibilityRole="button"
-      style={[s.primary, { backgroundColor: C.primary, opacity: disabled ? 0.45 : 1 }]}>
+    <Pressable onPress={onPress} disabled={disabled} accessibilityRole="button"
+      style={({ pressed }) => [s.primary, { backgroundColor: C.primary, opacity: disabled ? 0.45 : pressed ? 0.85 : 1 }]}>
       <Text style={s.primaryText}>{label}</Text>
-    </TouchableOpacity>
+    </Pressable>
   );
+  const card = [s.card, { backgroundColor: C.surface, borderColor: C.border }];
 
-  const objInYear = inYear('objective');
   return (
     <ScrollView style={{ backgroundColor: C.bg }} contentContainerStyle={s.page}>
-      <View style={s.statRow}>
-        <View style={[s.stat, { backgroundColor: C.surface, borderColor: C.border }]}>
-          <Text style={[s.statNum, { color: C.text }]}>{stats.done}/{stats.obj.length}</Text>
-          <Text style={[s.statLabel, { color: C.textSoft }]}>objectives tried</Text>
+      {/* How far the student has got */}
+      <View style={card}>
+        <View style={s.summaryRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={[s.summaryBig, { color: C.text }]}>{stats.done} of {stats.obj.length}</Text>
+            <Text style={[s.modeSub, { color: C.textSoft }]}>objective questions tried</Text>
+          </View>
+          <View style={{ alignItems: 'flex-end' }}>
+            <Text style={[s.summaryBig, { color: pctRight == null ? C.muted : C.text }]}>{pctRight == null ? 'None' : `${pctRight}%`}</Text>
+            <Text style={[s.modeSub, { color: C.textSoft }]}>right last time</Text>
+          </View>
         </View>
-        <View style={[s.stat, { backgroundColor: C.surface, borderColor: C.border }]}>
-          <Text style={[s.statNum, { color: C.text }]}>{stats.done ? Math.round((stats.right / stats.done) * 100) : 0}%</Text>
-          <Text style={[s.statLabel, { color: C.textSoft }]}>right last time</Text>
+        <View style={[s.track, { backgroundColor: C.border }]}>
+          <View style={[s.fill, { width: `${stats.obj.length ? (stats.done / stats.obj.length) * 100 : 0}%`, backgroundColor: C.primaryText }]} />
         </View>
+        {stats.theory.length > 0 && (
+          <Text style={[s.modeSub, { color: C.textSoft }]}>Theory: {stats.theoryDone} of {stats.theory.length} marked</Text>
+        )}
       </View>
 
-      {stats.obj.length > 0 && (
-        <Card>
-          <Text style={[s.cardTitle, { color: C.text }]}>Practice</Text>
-          <Text style={[s.cardSub, { color: C.textSoft }]}>Mixed objectives. Each answer is marked straight away with the explanation.</Text>
-          {stats.years.length > 1 && (
+      <View style={[s.modes, wide && { flexDirection: 'row', flexWrap: 'wrap' }]}>
+        {stats.obj.length > 0 && (
+          <View style={[card, wide && s.half]}>
+            <ModeHead icon="flash-outline" title="Practice" sub="Mixed questions, marked straight away with the explanation." />
+            {stats.years.length > 1 && (
+              <View style={s.chips}>
+                <Chip on={year == null} label="All years" onPress={() => setYear(null)} />
+                {stats.years.map(y => <Chip key={y} on={year === y} label={String(y)} onPress={() => setYear(y)} />)}
+              </View>
+            )}
             <View style={s.chips}>
-              <Chip on={year == null} label="All years" onPress={() => setYear(null)} />
-              {stats.years.map(y => <Chip key={y} on={year === y} label={String(y)} onPress={() => setYear(y)} />)}
+              {COUNTS.map(n => <Chip key={n} on={count === n} label={`${n} questions`} onPress={() => setCount(n)} />)}
             </View>
-          )}
-          <View style={s.chips}>
-            {COUNTS.map(n => <Chip key={n} on={count === n} label={`${n} questions`} onPress={() => setCount(n)} />)}
+            <Primary label={objInYear ? `Start ${Math.min(count, objInYear)} questions` : 'No objective questions for this year'} disabled={!objInYear}
+              onPress={() => go({ mode: 'practice', count: String(count), ...(year != null ? { year: String(year) } : {}) })} />
           </View>
-          <Primary label={objInYear ? `Start (${Math.min(count, objInYear)} questions)` : 'No objectives for this year'} disabled={!objInYear}
-            onPress={() => go({ mode: 'practice', count: String(count), ...(year != null ? { year: String(year) } : {}) })} />
-        </Card>
-      )}
+        )}
 
-      {papers.length > 0 && (
-        <Card>
-          <Text style={[s.cardTitle, { color: C.text }]}>Full paper</Text>
-          <Text style={[s.cardSub, { color: C.textSoft }]}>Like the real exam: timed, one minute a question, marked at the end.</Text>
-          {papers.map(p => (
-            <TouchableOpacity key={p.id} onPress={() => go({ mode: 'paper', paperId: p.id })} accessibilityRole="button"
-              style={[s.paperRow, { borderColor: C.border }]}>
-              <Text style={[s.paperTitle, { color: C.text }]}>{paperTitle(p)}</Text>
-              <Text style={[s.paperSub, { color: C.textSoft }]}>{p.n} questions · {p.n} min</Text>
-            </TouchableOpacity>
-          ))}
-        </Card>
-      )}
+        {papers.length > 0 && (
+          <View style={[card, wide && s.half]}>
+            <ModeHead icon="time-outline" title="Full paper" sub="Like the real exam: one minute a question, marked at the end." />
+            {papers.map(p => (
+              <Pressable key={p.id} onPress={() => go({ mode: 'paper', paperId: p.id })} accessibilityRole="button"
+                style={({ pressed }) => [s.paperRow, { borderColor: C.border, opacity: pressed ? 0.8 : 1 }]}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[s.paperTitle, { color: C.text }]}>{paperTitle(p)}</Text>
+                  <Text style={[s.modeSub, { color: C.textSoft }]}>{p.n} questions, {p.n} minutes</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={C.muted} />
+              </Pressable>
+            ))}
+          </View>
+        )}
 
-      {stats.theory.length > 0 && (
-        <Card>
-          <Text style={[s.cardTitle, { color: C.text }]}>Theory</Text>
-          <Text style={[s.cardSub, { color: C.textSoft }]}>
-            Write your answer on paper, then compare it with the marking scheme and mark yourself. {stats.theoryDone} of {stats.theory.length} done.
-          </Text>
-          <Primary label={inYear('theory') ? `Start theory (${inYear('theory')})` : 'No theory for this year'} disabled={!inYear('theory')}
-            onPress={() => go({ mode: 'theory', ...(year != null ? { year: String(year) } : {}) })} />
-        </Card>
-      )}
+        {stats.theory.length > 0 && (
+          <View style={[card, wide && s.half]}>
+            <ModeHead icon="create-outline" title="Theory" sub="Write your answer on paper, then mark yourself against the marking scheme." />
+            <Primary label={theoryInYear ? `Start ${theoryInYear} theory question${theoryInYear === 1 ? '' : 's'}` : 'No theory for this year'}
+              disabled={!theoryInYear} onPress={() => go({ mode: 'theory', ...(year != null ? { year: String(year) } : {}) })} />
+          </View>
+        )}
 
-      {stats.wrong > 0 && (
-        <Card>
-          <Text style={[s.cardTitle, { color: C.text }]}>Retry my mistakes</Text>
-          <Text style={[s.cardSub, { color: C.textSoft }]}>{stats.wrong} question{stats.wrong === 1 ? '' : 's'} you got wrong last time.</Text>
-          <Primary label="Retry" onPress={() => go({ mode: 'retry' })} />
-        </Card>
-      )}
+        {stats.wrong > 0 && (
+          <View style={[card, wide && s.half]}>
+            <ModeHead icon="refresh-outline" title="Retry my mistakes"
+              sub={`${stats.wrong} question${stats.wrong === 1 ? '' : 's'} you got wrong last time.`} />
+            <Primary label="Retry" onPress={() => go({ mode: 'retry' })} />
+          </View>
+        )}
+      </View>
 
       {stats.sessions.length > 0 && (
-        <Card>
-          <Text style={[s.cardTitle, { color: C.text }]}>Recent rounds</Text>
+        <View style={card}>
+          <Text style={[s.modeTitle, { color: C.text }]}>Recent rounds</Text>
           {stats.sessions.map(x => (
-            <View key={x.at} style={s.sessionRow}>
-              <Text style={[s.sessionLabel, { color: C.textSoft }]}>{x.label} · {new Date(x.at).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}</Text>
+            <View key={x.at} style={[s.sessionRow, { borderColor: C.border }]}>
+              <View style={{ flex: 1 }}>
+                <Text style={[s.sessionLabel, { color: C.text }]}>{x.label}</Text>
+                <Text style={[s.modeSub, { color: C.muted }]}>{new Date(x.at).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}</Text>
+              </View>
               <Text style={[s.sessionScore, { color: C.text }]}>{x.score}/{x.total}</Text>
             </View>
           ))}
           {confirmClear ? (
-            <View style={s.confirm}>
-              <Text style={[s.cardSub, { color: C.text }]}>Forget your answers for {pack.subject} on this tablet?</Text>
+            <View style={{ gap: 10 }}>
+              <Text style={[s.modeSub, { color: C.text }]}>Forget your answers for {pack.subject} on this tablet?</Text>
               <View style={s.chips}>
-                <TouchableOpacity accessibilityRole="button" style={[s.chip, { borderColor: C.danger }]}
+                <Pressable accessibilityRole="button" style={[s.chip, { borderColor: C.danger }]}
                   onPress={async () => { await clearSubject(pack.slug, pack.questions.map(q => q.id)); setConfirmClear(false); setProgress(await getProgress()); }}>
                   <Text style={[s.chipText, { color: C.danger }]}>Clear progress</Text>
-                </TouchableOpacity>
+                </Pressable>
                 <Chip on={false} label="Cancel" onPress={() => setConfirmClear(false)} />
               </View>
             </View>
           ) : (
-            <TouchableOpacity accessibilityRole="button" onPress={() => setConfirmClear(true)} style={s.clearLink}>
+            <Pressable accessibilityRole="button" onPress={() => setConfirmClear(true)} style={s.clearLink}>
               <Text style={[s.chipText, { color: C.danger }]}>Clear progress</Text>
-            </TouchableOpacity>
+            </Pressable>
           )}
-        </Card>
+        </View>
       )}
     </ScrollView>
   );
@@ -169,25 +197,27 @@ export default function SubjectScreen() {
 
 const s = createThemedStyles({
   center:       { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  page:         { padding: 16, gap: 12, paddingBottom: 40 },
-  statRow:      { flexDirection: 'row', gap: 10 },
-  stat:         { flex: 1, padding: 14, borderRadius: 16, borderWidth: 1 },
-  statNum:      { fontSize: 22, fontWeight: '800' },
-  statLabel:    { fontSize: 13, marginTop: 2 },
-  card:         { padding: 16, borderRadius: 16, borderWidth: 1, gap: 10 },
-  cardTitle:    { fontSize: 17, fontWeight: '700' },
-  cardSub:      { fontSize: 14, lineHeight: 20 },
+  page:         { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 48, gap: 16 },
+  card:         { padding: 18, borderRadius: 16, borderWidth: 1, gap: 14 },
+  half:         { width: '48.5%' },
+  modes:        { gap: 16, justifyContent: 'space-between' },
+  summaryRow:   { flexDirection: 'row', alignItems: 'flex-end', gap: 12 },
+  summaryBig:   { fontSize: 26, fontWeight: '800' },
+  track:        { height: 8, borderRadius: 4, overflow: 'hidden' },
+  fill:         { height: 8, borderRadius: 4 },
+  modeHead:     { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  modeIcon:     { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  modeTitle:    { fontSize: 17, fontWeight: '700' },
+  modeSub:      { fontSize: 14, lineHeight: 20 },
   chips:        { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip:         { minHeight: 40, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, justifyContent: 'center' },
   chipText:     { fontSize: 14, fontWeight: '600' },
-  primary:      { minHeight: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 },
+  primary:      { minHeight: 50, borderRadius: 10, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 },
   primaryText:  { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
-  paperRow:     { borderTopWidth: 1, paddingVertical: 12, minHeight: 56 },
-  paperTitle:   { fontSize: 15, fontWeight: '600' },
-  paperSub:     { fontSize: 13, marginTop: 2 },
-  sessionRow:   { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 },
-  sessionLabel: { fontSize: 14, flex: 1 },
-  sessionScore: { fontSize: 14, fontWeight: '700' },
-  confirm:      { gap: 8 },
+  paperRow:     { flexDirection: 'row', alignItems: 'center', borderTopWidth: 1, paddingVertical: 12, minHeight: 60 },
+  paperTitle:   { fontSize: 15, fontWeight: '700' },
+  sessionRow:   { flexDirection: 'row', alignItems: 'center', borderTopWidth: 1, paddingVertical: 10 },
+  sessionLabel: { fontSize: 15, fontWeight: '600' },
+  sessionScore: { fontSize: 16, fontWeight: '800' },
   clearLink:    { minHeight: 44, justifyContent: 'center', alignSelf: 'flex-start' },
 });
