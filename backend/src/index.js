@@ -80,6 +80,7 @@ const letterChatRoutes        = require('./routes/letter-chat');
 const boardReportRoutes       = require('./routes/board-report');
 const lessonObservationRoutes = require('./routes/lesson-observation');
 const teacherResourcesRoutes  = require('./routes/teacher-resources');
+const pascoBankRoutes         = require('./routes/pasco-bank');
 const departmentBudgetsRoutes = require('./routes/department-budgets');
 const helpChatRoutes          = require('./routes/help-chat');
 const policyDocumentsRoutes   = require('./routes/policy-documents');
@@ -207,6 +208,7 @@ app.use('/api/letter-chat',           letterChatRoutes);
 app.use('/api/board-report',          boardReportRoutes);
 app.use('/api/lesson-observation',    lessonObservationRoutes);
 app.use('/api/teacher-resources',     teacherResourcesRoutes);
+app.use('/api/pasco-bank',            pascoBankRoutes);
 app.use('/api/department-budgets',    departmentBudgetsRoutes);
 app.use('/api/policy-documents',      policyDocumentsRoutes);
 app.use('/api/resumption',            resumptionRoutes);
@@ -2825,6 +2827,62 @@ async function runMigrations() {
          WHERE EXISTS (SELECT 1 FROM school_modules sm WHERE sm.school_id = s.id)
         ON CONFLICT (school_id, module_key) DO NOTHING`);
     } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] teacher resources:', e.message); }
+
+    // Past Questions: shared papers (school_id NULL, super admin) feed the
+    // offline quiz in the student app and the online Pasco bank.
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS pasco_papers (
+          id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          school_id       UUID REFERENCES schools(id) ON DELETE CASCADE,
+          exam            TEXT NOT NULL DEFAULT 'WASSCE',
+          subject_name    TEXT NOT NULL,
+          year            INTEGER,
+          paper_label     TEXT,
+          source_files    JSONB NOT NULL DEFAULT '[]',
+          status          TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','published')),
+          import_status   TEXT NOT NULL DEFAULT 'idle' CHECK (import_status IN ('idle','running','done','failed')),
+          import_note     TEXT,
+          created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+          updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+        )`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_pasco_papers_subject ON pasco_papers(school_id, subject_name)`);
+      await pool.query(`ALTER TABLE lms_pasco_questions ALTER COLUMN school_id DROP NOT NULL`);
+      await pool.query(`ALTER TABLE lms_pasco_questions ALTER COLUMN options DROP NOT NULL`);
+      await pool.query(`ALTER TABLE lms_pasco_questions ADD COLUMN IF NOT EXISTS paper_id UUID REFERENCES pasco_papers(id) ON DELETE CASCADE`);
+      await pool.query(`ALTER TABLE lms_pasco_questions ADD COLUMN IF NOT EXISTS question_no INTEGER`);
+      await pool.query(`ALTER TABLE lms_pasco_questions ADD COLUMN IF NOT EXISTS question_type TEXT NOT NULL DEFAULT 'objective'`);
+      await pool.query(`ALTER TABLE lms_pasco_questions ADD COLUMN IF NOT EXISTS image_url TEXT`);
+      await pool.query(`ALTER TABLE lms_pasco_questions ADD COLUMN IF NOT EXISTS marking_scheme TEXT`);
+      await pool.query(`ALTER TABLE lms_pasco_questions ADD COLUMN IF NOT EXISTS answer_source TEXT`);
+      await pool.query(`ALTER TABLE lms_pasco_questions ADD COLUMN IF NOT EXISTS needs_review BOOLEAN NOT NULL DEFAULT false`);
+      await pool.query(`ALTER TABLE lms_pasco_questions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now()`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_lms_pasco_paper ON lms_pasco_questions(paper_id)`);
+      await pool.query(`
+        DO $$ BEGIN
+          ALTER TABLE lms_pasco_questions ADD CONSTRAINT lms_pasco_questions_type_check
+            CHECK (question_type IN ('objective','theory'));
+        EXCEPTION WHEN duplicate_object THEN NULL; END $$`);
+      await pool.query(`
+        DO $$ BEGIN
+          ALTER TABLE lms_pasco_questions ADD CONSTRAINT lms_pasco_questions_options_check
+            CHECK (question_type = 'theory' OR options IS NOT NULL);
+        EXCEPTION WHEN duplicate_object THEN NULL; END $$`);
+      await pool.query(`
+        DO $$ BEGIN
+          ALTER TABLE lms_pasco_questions ADD CONSTRAINT lms_pasco_questions_owner_check
+            CHECK (school_id IS NOT NULL OR paper_id IS NOT NULL);
+        EXCEPTION WHEN duplicate_object THEN NULL; END $$`);
+      // One row: bumped whenever the shared published set changes, so
+      // tablets can tell there is something new to download.
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS pasco_pack_state (
+          id           BOOLEAN PRIMARY KEY DEFAULT true CHECK (id),
+          version      INTEGER NOT NULL DEFAULT 0,
+          published_at TIMESTAMPTZ
+        )`);
+      await pool.query(`INSERT INTO pasco_pack_state (id) VALUES (true) ON CONFLICT DO NOTHING`);
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] past questions:', e.message); }
 
     // Academic year date range
     try {

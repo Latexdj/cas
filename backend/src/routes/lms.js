@@ -942,18 +942,26 @@ router.delete('/announcements/:id', teacherOrAdmin, async (req, res, next) => {
 
 router.get('/pasco', async (req, res, next) => {
   try {
-    const { subject_name, topic, difficulty, year, limit = 20, randomise } = req.query;
+    const { subject_name, topic, difficulty, year, limit = 20, randomise, include_theory, shared } = req.query;
     const params = [req.schoolId];
-    const conds  = ['school_id=$1'];
-    if (subject_name) { params.push(subject_name); conds.push(`subject_name=$${params.length}`); }
-    if (topic)        { params.push(`%${topic}%`); conds.push(`topic ILIKE $${params.length}`); }
-    if (difficulty)   { params.push(difficulty);   conds.push(`difficulty=$${params.length}`); }
-    if (year)         { params.push(parseInt(year)); conds.push(`year=$${params.length}`); }
+    // The school's own questions, plus the shared Past Questions bank once a
+    // paper is published (shared=false leaves the shared bank out). Theory
+    // questions only go to clients that ask for them.
+    const conds  = [shared === 'false'
+      ? 'q.school_id=$1'
+      : `(q.school_id=$1 OR (q.school_id IS NULL AND EXISTS (
+           SELECT 1 FROM pasco_papers pp WHERE pp.id = q.paper_id AND pp.status = 'published')))`];
+    if (include_theory !== 'true') conds.push(`q.question_type = 'objective'`);
+    if (subject_name) { params.push(subject_name); conds.push(`LOWER(q.subject_name)=LOWER($${params.length})`); }
+    if (topic)        { params.push(`%${topic}%`); conds.push(`q.topic ILIKE $${params.length}`); }
+    if (difficulty)   { params.push(difficulty);   conds.push(`q.difficulty=$${params.length}`); }
+    if (year)         { params.push(parseInt(year)); conds.push(`q.year=$${params.length}`); }
 
-    const order = randomise === 'true' ? 'RANDOM()' : 'created_at DESC';
+    const order = randomise === 'true' ? 'RANDOM()' : 'q.created_at DESC';
     params.push(Math.min(parseInt(limit) || 20, 100));
     const { rows } = await pool.query(
-      `SELECT * FROM lms_pasco_questions WHERE ${conds.join(' AND ')} ORDER BY ${order} LIMIT $${params.length}`,
+      `SELECT q.*, (q.school_id IS NULL) AS is_shared FROM lms_pasco_questions q
+        WHERE ${conds.join(' AND ')} ORDER BY ${order} LIMIT $${params.length}`,
       params);
     // Flatten JSONB options into option_a/b/c/d + correct_option, same convention
     // as GET /quizzes/:id/questions — the raw `options` array has no use on the wire.

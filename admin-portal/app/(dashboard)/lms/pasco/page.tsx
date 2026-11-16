@@ -89,7 +89,7 @@ export default function PascoPage() {
 
   function load() {
     setLoading(true);
-    api.get<PascoQuestion[]>('/api/lms/pasco?limit=100')
+    api.get<PascoQuestion[]>('/api/lms/pasco?limit=100&shared=false')
       .then(r => setQuestions(r.data))
       .catch(() => {})
       .finally(() => setLoading(false));
