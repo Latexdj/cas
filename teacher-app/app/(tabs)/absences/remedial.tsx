@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Alert, FlatList, Modal, ScrollView, StyleSheet,
+  FlatList, Modal, ScrollView, StyleSheet,
   Text, TouchableOpacity, View,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/Input';
 import { Colors } from '@/constants/colors';
 import { Location } from '@/types/api';
 import { createThemedStyles } from '@/lib/themedStyles';
+import { notify } from '@/lib/notify';
 
 export default function ScheduleRemedialScreen() {
   const { user } = useAuth();
@@ -32,7 +33,7 @@ export default function ScheduleRemedialScreen() {
 
   async function handleSchedule() {
     if (!remedialDate || !remedialTime) {
-      Alert.alert('Required', 'Date and time are required.');
+      notify('Date and time are required.', 'bad');
       return;
     }
     setSubmitting(true);
@@ -51,10 +52,10 @@ export default function ScheduleRemedialScreen() {
         locationName:         locationName || undefined,
         notes:                notes || undefined,
       });
-      Alert.alert('✅ Scheduled', 'Remedial lesson has been scheduled.');
+      notify('Remedial lesson has been scheduled.', 'info');
       router.back();
     } catch (err: any) {
-      Alert.alert('Error', err?.response?.data?.error ?? 'Could not schedule remedial.');
+      notify(err?.response?.data?.error ?? 'Could not schedule remedial.', 'bad');
     } finally {
       setSubmitting(false);
     }

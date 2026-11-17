@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from 'react';
 import {
-  Alert, Image, Modal, RefreshControl, ScrollView, StyleSheet,
+  Image, Modal, RefreshControl, ScrollView, StyleSheet,
   Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
@@ -9,6 +9,7 @@ import { useTheme } from '@/context/ThemeContext';
 import { Button } from '@/components/ui/Button';
 import { LessonObservation, LessonObservationDetail } from '@/types/api';
 import { createThemedStyles, tc } from '@/lib/themedStyles';
+import { notify } from '@/lib/notify';
 
 function fmt(iso: string | null) {
   if (!iso) return '—';
@@ -60,7 +61,7 @@ export default function ObservationsScreen() {
       const res = await api.get(`/api/lesson-observation/${id}`);
       setDetail(res.data);
     } catch {
-      Alert.alert('Error', 'Could not load this observation.');
+      notify('Could not load this observation.', 'bad');
       setActiveId(null);
     } finally { setDetailLoading(false); }
   }
@@ -76,7 +77,7 @@ export default function ObservationsScreen() {
       setDetail(res.data);
       load();
     } catch (err: any) {
-      Alert.alert('Error', err?.response?.data?.error ?? 'Failed to acknowledge.');
+      notify(err?.response?.data?.error ?? 'Failed to acknowledge.', 'bad');
     } finally { setAcking(false); }
   }
 
@@ -89,7 +90,7 @@ export default function ObservationsScreen() {
       setDetail(res.data);
       load();
     } catch {
-      Alert.alert('Error', 'Failed to update action item.');
+      notify('Failed to update action item.', 'bad');
     } finally { setTogglingAction(null); }
   }
 

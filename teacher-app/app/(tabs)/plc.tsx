@@ -1,6 +1,6 @@
 import React, { useCallback, useRef, useState } from 'react';
 import {
-  Alert, Image, Platform, ScrollView,
+  Image, Platform, ScrollView,
   StyleSheet, Text, TouchableOpacity, View,
 } from 'react-native';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { useTheme } from '@/context/ThemeContext';
 import { createThemedStyles, tc } from '@/lib/themedStyles';
+import { notify } from '@/lib/notify';
 
 interface PlcSession {
   id: string;
@@ -112,7 +113,7 @@ export default function PlcScreen() {
   async function openQrScanner() {
     if (!camPermission?.granted) {
       const res = await requestCamPermission();
-      if (!res.granted) { Alert.alert('Camera permission denied'); return; }
+      if (!res.granted) { notify('Camera permission denied', 'bad'); return; }
     }
     qrScannedRef.current = false;
     setQrError('');
@@ -188,7 +189,7 @@ export default function PlcScreen() {
     }
     if (!camPermission?.granted) {
       const res = await requestCamPermission();
-      if (!res.granted) { Alert.alert('Camera permission denied'); return; }
+      if (!res.granted) { notify('Camera permission denied', 'bad'); return; }
     }
     setShowCamera(true);
   }
@@ -212,7 +213,7 @@ export default function PlcScreen() {
       setPhotoSizeKb(Math.round((compressed.base64!.length * 0.75) / 1024));
       setShowCamera(false);
     } catch {
-      Alert.alert('Error', 'Could not capture photo.');
+      notify('Could not capture photo.', 'bad');
     }
   }
 
@@ -231,18 +232,18 @@ export default function PlcScreen() {
   // ── Submit ────────────────────────────────────────────────────
   async function handleSubmit(asPending = false) {
     if (!todayData?.session) return;
-    if (gpsAcquiring)  { Alert.alert('GPS acquiring', 'GPS is still being determined. Please wait.'); return; }
-    if (!gps && !asPending) { Alert.alert('GPS required', gpsError || 'GPS coordinates are required. Tap Refresh.'); return; }
-    if (!photoBase64)  { Alert.alert('Photo required', 'Please take a photo at the PLC venue.'); return; }
-    if (!IS_WEB && !qrVerified) { Alert.alert('QR Required', 'Please scan the PLC venue QR code to verify your presence.'); return; }
-    if (asPending && !pendingReason.trim()) { Alert.alert('Reason required', 'Please explain why you believe your location is correct.'); return; }
+    if (gpsAcquiring)  { notify('GPS is still being determined. Please wait.', 'info'); return; }
+    if (!gps && !asPending) { notify(gpsError || 'GPS coordinates are required. Tap Refresh.', 'bad'); return; }
+    if (!photoBase64)  { notify('Please take a photo at the PLC venue.', 'bad'); return; }
+    if (!IS_WEB && !qrVerified) { notify('Please scan the PLC venue QR code to verify your presence.', 'bad'); return; }
+    if (asPending && !pendingReason.trim()) { notify('Please explain why you believe your location is correct.', 'bad'); return; }
 
     setSubmitting(true);
     if (!asPending) setLocationFailure(false);
     try {
       const netState = await NetInfo.fetch();
       if (!netState.isConnected) {
-        Alert.alert('No Internet', 'You are offline. Please connect and try again.');
+        notify('You are offline. Please connect and try again.', 'info');
         return;
       }
       await api.post('/api/plc/submit', {
@@ -253,16 +254,13 @@ export default function PlcScreen() {
         photoSizeKb:    photoSizeKb ?? undefined,
         ...(asPending ? { submitPending: true, pendingReason: pendingReason.trim() } : {}),
       }, { timeout: 60000 });
-      Alert.alert(
-        asPending ? 'Submitted for Review' : 'PLC Attendance Recorded',
-        asPending ? "Your attendance for today's PLC session has been sent for admin review." : "Your attendance for today's PLC session has been submitted."
-      );
+      notify(asPending ? "Your attendance for today's PLC session has been sent for admin review." : "Your attendance for today's PLC session has been submitted.", 'ok');
       setLocationFailure(false);
       resetForm();
       await loadToday();
     } catch (err: any) {
       const data = err?.response?.data;
-      Alert.alert('Error', data?.error ?? 'Submission failed.');
+      notify(data?.error ?? 'Submission failed.', 'bad');
       if (data?.locationFailure) setLocationFailure(true);
     } finally {
       setSubmitting(false);

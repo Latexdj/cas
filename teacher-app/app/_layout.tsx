@@ -13,6 +13,7 @@ import { useTheme } from '@/context/ThemeContext';
 import { headerOptions } from '@/lib/nav';
 import { Platform } from 'react-native';
 import { ReminderTapHandler } from '@/components/ReminderTapHandler';
+import { NoticeHost } from '@/components/NoticeHost';
 
 // Header titles for the screens opened from More (same names as the web menu).
 const SCREEN_TITLES: [string, string][] = [
@@ -68,6 +69,7 @@ function InitialLayout() {
 
       {/* Tapping a lesson reminder opens Submit attendance for that lesson. */}
       {user && Platform.OS !== 'web' && <ReminderTapHandler />}
+      <NoticeHost />
 
       {(isLoading || schoolCode === undefined) && (
         <View style={styles.loadingOverlay}>

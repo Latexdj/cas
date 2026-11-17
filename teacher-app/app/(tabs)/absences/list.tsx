@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from 'react';
 import {
-  Alert, RefreshControl, ScrollView, StyleSheet,
+  RefreshControl, ScrollView, StyleSheet,
   Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { useFocusEffect, router } from 'expo-router';
@@ -9,6 +9,7 @@ import { api } from '@/lib/api';
 import { useTheme } from '@/context/ThemeContext';
 import { AbsenceRecord } from '@/types/api';
 import { createThemedStyles, tc } from '@/lib/themedStyles';
+import { notify } from '@/lib/notify';
 
 function fmt(iso: string) {
   const [y, m, d] = iso.slice(0, 10).split('-').map(Number);
@@ -41,13 +42,13 @@ export default function AbsenceListScreen() {
   const onRefresh = () => { setRefreshing(true); load(); };
 
   async function saveReason(id: string) {
-    if (!reasonText.trim()) { Alert.alert('Enter a reason'); return; }
+    if (!reasonText.trim()) { notify('Enter a reason', 'info'); return; }
     setSaving(true);
     try {
       await api.patch(`/api/absences/${id}/reason`, { reason: reasonText.trim() });
       setReasonId(''); setReasonText(''); load();
     } catch (err: any) {
-      Alert.alert('Error', err?.response?.data?.error ?? 'Could not save reason.');
+      notify(err?.response?.data?.error ?? 'Could not save reason.', 'bad');
     } finally { setSaving(false); }
   }
 

@@ -1,6 +1,6 @@
 import React, { useCallback, useRef, useState } from 'react';
 import {
-  Alert, Image, Linking, Modal, ScrollView, StyleSheet, Text, TextInput,
+  Image, Linking, Modal, ScrollView, StyleSheet, Text, TextInput,
   TouchableOpacity, View, ActivityIndicator,
 } from 'react-native';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -15,6 +15,8 @@ import { api } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { createThemedStyles, tc } from '@/lib/themedStyles';
+import { notify } from '@/lib/notify';
+import { InlineConfirm } from '@/components/ui/kit';
 
 const GENDERS   = ['Male', 'Female'];
 const RELIGIONS = ['Christianity', 'Islam', 'Traditional', 'Other'];
@@ -176,6 +178,8 @@ export default function ProfileScreen() {
   const Colors = useTheme();
   const { user, logout } = useAuth();
 
+  const [confirmDoc, setConfirmDoc] = useState<string | null>(null);
+  const [confirmLogout, setConfirmLogout] = useState(false);
   const [profile,    setProfile]    = useState<TeacherProfile | null>(null);
   const [showCamera, setShowCamera] = useState(false);
   const [uploading,  setUploading]  = useState(false);
@@ -237,7 +241,7 @@ export default function ProfileScreen() {
   async function openCamera() {
     if (!camPermission?.granted) {
       const res = await requestCamPermission();
-      if (!res.granted) { Alert.alert('Permission required', 'Camera permission is needed to take a photo.'); return; }
+      if (!res.granted) { notify('Camera permission is needed to take a photo.', 'bad'); return; }
     }
     setShowCamera(true);
   }
@@ -257,7 +261,7 @@ export default function ProfileScreen() {
       const res = await api.patch('/api/teachers/me/photo', { imageBase64: dataUrl }, { timeout: 60000 });
       setProfile(p => p ? { ...p, photo_url: res.data.photo_url } : p);
     } catch {
-      Alert.alert('Error', 'Could not upload photo. Please try again.');
+      notify('Could not upload photo. Please try again.', 'bad');
     } finally { setUploading(false); }
   }
 
@@ -352,10 +356,10 @@ export default function ProfileScreen() {
         const documentBase64 = `data:${mime};base64,${base64}`;
         const res = await api.patch('/api/teachers/me/certificate', { documentBase64, documentFilename: asset.name }, { timeout: 60000 });
         setProfile(p => p ? { ...p, certificate_url: res.data.certificate_url, certificate_filename: res.data.certificate_filename } : p);
-        Alert.alert('Uploaded', 'Certificate uploaded successfully.');
+        notify('Certificate uploaded successfully.', 'info');
       }
     } catch {
-      Alert.alert('Error', 'Could not upload certificate.');
+      notify('Could not upload certificate.', 'bad');
     } finally { setCertUploading(false); }
   }
 
@@ -377,15 +381,15 @@ export default function ProfileScreen() {
         const documentBase64 = `data:${mime};base64,${base64}`;
         const res = await api.patch('/api/teachers/me/promotion-letter', { documentBase64, documentFilename: asset.name }, { timeout: 60000 });
         setProfile(p => p ? { ...p, promotion_letter_url: res.data.promotion_letter_url, promotion_letter_filename: res.data.promotion_letter_filename } : p);
-        Alert.alert('Uploaded', 'Promotion letter uploaded successfully.');
+        notify('Promotion letter uploaded successfully.', 'info');
       }
     } catch {
-      Alert.alert('Error', 'Could not upload promotion letter.');
+      notify('Could not upload promotion letter.', 'bad');
     } finally { setPromoUploading(false); }
   }
 
   async function pickOtherDocument() {
-    if (!otherDocLabel.trim()) { Alert.alert('Label required', 'Give this document a label first.'); return; }
+    if (!otherDocLabel.trim()) { notify('Give this document a label first.', 'bad'); return; }
     try {
       const result = await DocumentPicker.getDocumentAsync({
         type: ['application/pdf', 'application/msword',
@@ -406,24 +410,19 @@ export default function ProfileScreen() {
         setOtherDocLabel('');
       }
     } catch (err: any) {
-      Alert.alert('Error', err?.response?.data?.error ?? 'Could not upload document.');
+      notify(err?.response?.data?.error ?? 'Could not upload document.', 'bad');
     } finally { setOtherDocUploading(false); }
   }
 
-  function deleteOtherDoc(docId: string) {
-    Alert.alert('Delete document', 'Are you sure you want to delete this document?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete', style: 'destructive', onPress: async () => {
-          try {
-            await api.delete(`/api/teachers/me/documents/${docId}`);
-            setOtherDocs(prev => prev.filter((d) => d.id !== docId));
-          } catch {
-            Alert.alert('Error', 'Could not delete this document.');
-          }
-        },
-      },
-    ]);
+  async function deleteOtherDoc(docId: string) {
+    setConfirmDoc(null);
+    try {
+      await api.delete(`/api/teachers/me/documents/${docId}`);
+      setOtherDocs(prev => prev.filter((d) => d.id !== docId));
+      notify('Document deleted.', 'ok');
+    } catch {
+      notify('Could not delete this document.', 'bad');
+    }
   }
 
   async function pickOfficialDocument() {
@@ -441,7 +440,7 @@ export default function ProfileScreen() {
         setOfficialDocumentBase64(`data:${mime};base64,${base64}`);
       }
     } catch {
-      Alert.alert('Error', 'Could not attach the supporting document.');
+      notify('Could not attach the supporting document.', 'bad');
     }
   }
 
@@ -464,8 +463,8 @@ export default function ProfileScreen() {
         let age = today.getFullYear() - dob.getFullYear();
         const monthDiff = today.getMonth() - dob.getMonth();
         if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) age--;
-        if (dob.getTime() > today.getTime()) { Alert.alert('Invalid date', 'Date of birth cannot be in the future.'); return; }
-        if (age < 18) { Alert.alert('Invalid date', 'Date of birth implies an age under 18 years.'); return; }
+        if (dob.getTime() > today.getTime()) { notify('Date of birth cannot be in the future.', 'bad'); return; }
+        if (age < 18) { notify('Date of birth implies an age under 18 years.', 'bad'); return; }
       }
     }
 
@@ -479,34 +478,29 @@ export default function ProfileScreen() {
       setPendingRequest(res.data);
       setProfileRequests(prev => [res.data, ...prev]);
       setShowOfficialModal(false);
-      Alert.alert('Request Submitted', 'Your official profile change has been sent for administrative review.');
+      notify('Your official profile change has been sent for administrative review.', 'ok');
     } catch (err: any) {
-      Alert.alert('Error', err?.response?.data?.error ?? 'Could not submit profile change request.');
+      notify(err?.response?.data?.error ?? 'Could not submit profile change request.', 'bad');
     } finally {
       setOfficialSaving(false);
     }
   }
 
   async function handleChangePassword() {
-    if (!currentPassword || !newPassword || !confirmPassword) { Alert.alert('Fill in all fields'); return; }
-    if (newPassword !== confirmPassword) { Alert.alert('Passwords do not match'); return; }
-    if (newPassword.length < 4) { Alert.alert('Password must be at least 4 characters'); return; }
+    if (!currentPassword || !newPassword || !confirmPassword) { notify('Fill in all fields', 'info'); return; }
+    if (newPassword !== confirmPassword) { notify('Passwords do not match', 'bad'); return; }
+    if (newPassword.length < 4) { notify('Password must be at least 4 characters', 'info'); return; }
     setChanging(true);
     try {
       await api.post('/api/auth/change-password', { currentPassword, newPassword });
-      Alert.alert('Password Changed', 'Your password has been updated successfully.');
+      notify('Your password has been updated successfully.', 'ok');
       setCurrentPassword(''); setNewPassword(''); setConfirmPassword('');
     } catch (err: any) {
-      Alert.alert('Error', err?.response?.data?.error ?? 'Could not change password.');
+      notify(err?.response?.data?.error ?? 'Could not change password.', 'bad');
     } finally { setChanging(false); }
   }
 
-  async function handleLogout() {
-    Alert.alert('Log Out', 'Are you sure?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Log Out', style: 'destructive', onPress: async () => { await logout(); router.replace('/login'); } },
-    ]);
-  }
+  async function handleLogout() { await logout(); router.replace('/login'); }
 
   const initial = user?.name?.charAt(0).toUpperCase() ?? '?';
   const markOfficialFieldTouched = (field: string) => setTouchedFields(prev => ({ ...prev, [field]: true }));
@@ -685,17 +679,20 @@ export default function ProfileScreen() {
               <Text style={styles.docLabel}>Other Documents</Text>
               {otherDocs.length === 0 && <Text style={[styles.docNone, { marginTop: 4 }]}>No other documents uploaded.</Text>}
               {otherDocs.map((doc) => (
-                <View key={doc.id} style={styles.otherDocRow}>
+                <React.Fragment key={doc.id}>
+                <View style={styles.otherDocRow}>
                   <View style={styles.flex1}>
                     <Text style={styles.otherDocRowLabel} numberOfLines={1}>{doc.label}</Text>
                     <TouchableOpacity onPress={() => Linking.openURL(doc.file_url)}>
-                      <Text style={[styles.docFile, { color: Colors.primaryText }]} numberOfLines={1}>📄 {doc.filename ?? 'View document'}</Text>
+                      <Text style={[styles.docFile, { color: Colors.primaryText }]} numberOfLines={1}>{doc.filename ?? 'View document'}</Text>
                     </TouchableOpacity>
                   </View>
-                  <TouchableOpacity onPress={() => deleteOtherDoc(doc.id)}>
+                  <TouchableOpacity onPress={() => setConfirmDoc(doc.id)} accessibilityRole="button" accessibilityLabel={`Delete ${doc.label}`} hitSlop={10}>
                     <Text style={styles.deleteDocText}>Delete</Text>
                   </TouchableOpacity>
                 </View>
+                {confirmDoc === doc.id && <InlineConfirm question={`Delete ${doc.label}?`} confirmLabel="Delete" onConfirm={() => deleteOtherDoc(doc.id)} onCancel={() => setConfirmDoc(null)} />}
+                </React.Fragment>
               ))}
               <View style={styles.otherDocAddRow}>
                 <TextInput
@@ -776,7 +773,9 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        <Button label="Log Out" variant="danger" onPress={handleLogout} style={styles.logout} />
+        {confirmLogout
+          ? <View style={styles.logout}><InlineConfirm question="Sign out of CAS Teacher?" confirmLabel="Sign out" onConfirm={handleLogout} onCancel={() => setConfirmLogout(false)} /></View>
+          : <Button label="Sign out" variant="danger" onPress={() => setConfirmLogout(true)} style={styles.logout} />}
 
         <View style={styles.credit}>
           <View style={styles.creditDivider} />

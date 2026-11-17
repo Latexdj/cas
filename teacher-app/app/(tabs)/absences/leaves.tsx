@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from 'react';
 import {
-  Alert, Modal, RefreshControl, ScrollView, StyleSheet,
+  Modal, RefreshControl, ScrollView, StyleSheet,
   Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
@@ -12,6 +12,8 @@ import { useTheme } from '@/context/ThemeContext';
 import { Button } from '@/components/ui/Button';
 import { TeacherExcuse } from '@/types/api';
 import { createThemedStyles, tc } from '@/lib/themedStyles';
+import { notify } from '@/lib/notify';
+import { InlineConfirm } from '@/components/ui/kit';
 
 const LEAVE_TYPES = ['Sick Leave', 'Official Duty', 'Permission', 'Other'] as const;
 type LeaveType = typeof LEAVE_TYPES[number];
@@ -62,6 +64,7 @@ export default function LeavesScreen() {
   const onRefresh = () => { setRefreshing(true); load(); };
 
   const [respondingId, setRespondingId] = useState<string | null>(null);
+  const [confirmDecline, setConfirmDecline] = useState<string | null>(null);
 
   async function respondToCondition(id: string, action: 'accept' | 'decline') {
     const doRespond = async () => {
@@ -70,20 +73,14 @@ export default function LeavesScreen() {
         await api.patch(`/api/teacher-excuses/${id}/${action}-condition`);
         await load();
       } catch (err: any) {
-        Alert.alert('Error', err?.response?.data?.error ?? 'Failed to respond. Please try again.');
+        notify(err?.response?.data?.error ?? 'Failed to respond. Please try again.', 'bad');
       } finally {
         setRespondingId(null);
       }
     };
-    if (action === 'decline') {
-      Alert.alert(
-        'Decline condition?',
-        'Your leave request will be rejected outright and this cannot be undone.',
-        [{ text: 'Cancel', style: 'cancel' }, { text: 'Decline', style: 'destructive', onPress: doRespond }]
-      );
-    } else {
-      doRespond();
-    }
+    if (action === 'decline' && confirmDecline !== id) { setConfirmDecline(id); return; }
+    setConfirmDecline(null);
+    doRespond();
   }
 
   async function pickDocument() {
@@ -98,18 +95,18 @@ export default function LeavesScreen() {
         setDocName(result.assets[0].name);
       }
     } catch {
-      Alert.alert('Error', 'Could not open document picker.');
+      notify('Could not open document picker.', 'bad');
     }
   }
 
   async function submit() {
-    if (!reason.trim()) { Alert.alert('Reason required'); return; }
+    if (!reason.trim()) { notify('Reason required', 'bad'); return; }
     if (!/^\d{4}-\d{2}-\d{2}$/.test(dateFrom) || !/^\d{4}-\d{2}-\d{2}$/.test(dateTo)) {
-      Alert.alert('Invalid date', 'Use YYYY-MM-DD format.'); return;
+      notify('Use YYYY-MM-DD format.', 'bad'); return;
     }
-    if (dateTo < dateFrom) { Alert.alert('End date must be on or after start date'); return; }
+    if (dateTo < dateFrom) { notify('End date must be on or after start date', 'info'); return; }
     if (docRequired && !docUri) {
-      Alert.alert('Document required', 'Please attach a supporting document (PDF or Word) for this leave type.');
+      notify('Please attach a supporting document (PDF or Word) for this leave type.', 'bad');
       return;
     }
     setSubmitting(true);
@@ -132,7 +129,7 @@ export default function LeavesScreen() {
       setDocUri(null); setDocName(null);
       load();
     } catch (err: any) {
-      Alert.alert('Error', err?.response?.data?.error ?? 'Could not submit request.');
+      notify(err?.response?.data?.error ?? 'Could not submit request.', 'bad');
     } finally { setSubmitting(false); }
   }
 
@@ -204,6 +201,12 @@ export default function LeavesScreen() {
                     <Text style={[styles.meta, { marginTop: 6 }]}>
                       Accept to finalize your approval, or decline to reject the leave outright.
                     </Text>
+                    {confirmDecline === lv.id ? (
+                      <View style={{ marginTop: 8 }}>
+                        <InlineConfirm question="Decline the condition? Your leave request is then refused, and this cannot be undone." confirmLabel="Decline"
+                          busy={respondingId === lv.id} onConfirm={() => respondToCondition(lv.id, 'decline')} onCancel={() => setConfirmDecline(null)} />
+                      </View>
+                    ) : (
                     <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
                       <TouchableOpacity
                         onPress={() => respondToCondition(lv.id, 'accept')}
@@ -224,6 +227,7 @@ export default function LeavesScreen() {
                         </Text>
                       </TouchableOpacity>
                     </View>
+                    )}
                   </View>
                 ) : null}
               </View>

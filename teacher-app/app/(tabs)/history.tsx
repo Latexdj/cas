@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator, Alert, FlatList, Modal, RefreshControl,
+  ActivityIndicator, FlatList, Modal, RefreshControl,
   ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
@@ -14,6 +14,7 @@ import { DropdownSelect } from '@/components/DropdownSelect';
 import { useTheme } from '@/context/ThemeContext';
 import { AttendanceRecord, AcademicYear } from '@/types/api';
 import { createThemedStyles, tc } from '@/lib/themedStyles';
+import { notify } from '@/lib/notify';
 
 /* ─── Types ─── */
 interface StudentSession {
@@ -255,10 +256,10 @@ export default function HistoryScreen() {
     try {
       const { synced, failed } = await offlineQueue.syncAll((path, data) => api.post(path, data));
       await loadAll(true);
-      if (synced > 0 && failed === 0) Alert.alert('Sync Complete', `${synced} submission${synced !== 1 ? 's' : ''} uploaded.`);
-      else if (synced > 0) Alert.alert('Partial Sync', `${synced} uploaded, ${failed} still pending.`);
-      else Alert.alert('Sync Failed', 'Could not connect. Check your internet connection.');
-    } catch { Alert.alert('Sync Failed', 'An unexpected error occurred.'); }
+      if (synced > 0 && failed === 0) notify(`${synced} submission${synced !== 1 ? 's' : ''} uploaded.`, 'ok');
+      else if (synced > 0) notify(`${synced} uploaded, ${failed} still pending.`, 'info');
+      else notify('Could not connect. Check your internet connection.', 'bad');
+    } catch { notify('An unexpected error occurred.', 'bad'); }
     finally { setSyncing(false); }
   }
 

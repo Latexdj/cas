@@ -1,6 +1,6 @@
 import React, { useCallback, useRef, useState } from 'react';
 import {
-  Alert, Image, Modal, FlatList, Platform, ScrollView,
+  Image, Modal, FlatList, Platform, ScrollView,
   StyleSheet, Text, TouchableOpacity, View,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -21,6 +21,8 @@ import { Input } from '@/components/ui/Input';
 import { useTheme } from '@/context/ThemeContext';
 import { TimetableSlot, Location as LocationType, AttendanceRecord, Student } from '@/types/api';
 import { createThemedStyles, tc } from '@/lib/themedStyles';
+import { notify } from '@/lib/notify';
+import { Body, Button as KitButton, Card, Row } from '@/components/ui/kit';
 
 type Step = 'teacher' | 'students';
 type StudentStatus = 'Present' | 'Absent';
@@ -39,6 +41,8 @@ export default function SubmitScreen() {
   // ── Step 1: teacher attendance ────────────────────────────────
   const [step,         setStep]         = useState<Step>('teacher');
   const [selectedSlot, setSelectedSlot] = useState<TimetableSlot | null>(null);
+  // Student register left unfinished (e.g. a phone call): offer to continue.
+  const [resume, setResume] = useState<{ subject: string; classNames: string; attendanceId: string; endTime: string } | null>(null);
   const [topic,        setTopic]        = useState('');
   const [locationName, setLocationName] = useState('');
   const [gps,          setGps]          = useState('');
@@ -94,14 +98,7 @@ export default function SubmitScreen() {
           await AsyncStorage.removeItem('pending_student_att');
           return;
         }
-        Alert.alert(
-          'Incomplete Attendance',
-          `Your teacher attendance for ${pending.subject} was saved but student attendance was not completed — possibly because of a phone call.\n\nContinue marking students now?`,
-          [
-            { text: 'Continue', onPress: () => loadStudentsForClass(pending.classNames, pending.attendanceId, pending.endTime, pending.subject) },
-            { text: 'Later', style: 'cancel' },
-          ]
-        );
+        setResume(pending);
       } catch { /* non-critical */ }
     }
     init();
@@ -173,7 +170,7 @@ export default function SubmitScreen() {
   async function openQrScanner() {
     if (!camPermission?.granted) {
       const res = await requestCamPermission();
-      if (!res.granted) { Alert.alert('Camera permission denied'); return; }
+      if (!res.granted) { notify('Camera permission denied', 'bad'); return; }
     }
     qrScannedRef.current = false;
     setQrError('');
@@ -250,7 +247,7 @@ export default function SubmitScreen() {
     }
     if (!camPermission?.granted) {
       const res = await requestCamPermission();
-      if (!res.granted) { Alert.alert('Camera permission denied'); return; }
+      if (!res.granted) { notify('Camera permission denied', 'bad'); return; }
     }
     setShowCamera(true);
   }
@@ -274,20 +271,20 @@ export default function SubmitScreen() {
       setPhotoSizeKb(Math.round((compressed.base64!.length * 0.75) / 1024));
       setShowCamera(false);
     } catch {
-      Alert.alert('Error', 'Could not capture photo.');
+      notify('Could not capture photo.', 'bad');
     }
   }
 
   // ── Step 1 submit ────────────────────────────────────────────
   async function handleSubmitTeacher(asPending = false) {
-    if (!selectedSlot) { Alert.alert('No slot selected', 'Please select a timetable slot first.'); return; }
-    if (!topic.trim()) { Alert.alert('Topic required', 'Please enter the lesson topic.'); return; }
-    if (!locationName) { Alert.alert('Location required', 'Please select your classroom location.'); return; }
-    if (gpsAcquiring)  { Alert.alert('GPS acquiring', 'GPS is still being determined. Please wait.'); return; }
-    if (!gps && !asPending) { Alert.alert('GPS required', gpsError || 'GPS coordinates are required. Tap Refresh.'); return; }
-    if (!photoBase64)  { Alert.alert('Photo required', 'Please take a classroom photo before submitting.'); return; }
-    if (!IS_WEB && !qrVerified) { Alert.alert('QR Required', 'Please scan the classroom QR code to verify your presence.'); return; }
-    if (asPending && !pendingReason.trim()) { Alert.alert('Reason required', 'Please explain why you believe your location is correct.'); return; }
+    if (!selectedSlot) { notify('Please select a timetable slot first.', 'info'); return; }
+    if (!topic.trim()) { notify('Please enter the lesson topic.', 'bad'); return; }
+    if (!locationName) { notify('Please select your classroom location.', 'bad'); return; }
+    if (gpsAcquiring)  { notify('GPS is still being determined. Please wait.', 'info'); return; }
+    if (!gps && !asPending) { notify(gpsError || 'GPS coordinates are required. Tap Refresh.', 'bad'); return; }
+    if (!photoBase64)  { notify('Please take a classroom photo before submitting.', 'bad'); return; }
+    if (!IS_WEB && !qrVerified) { notify('Please scan the classroom QR code to verify your presence.', 'bad'); return; }
+    if (asPending && !pendingReason.trim()) { notify('Please explain why you believe your location is correct.', 'bad'); return; }
 
     setSubmitting(true);
     if (!asPending) setLocationFailure(false);
@@ -308,7 +305,7 @@ export default function SubmitScreen() {
 
       if (!netState.isConnected) {
         await offlineQueue.enqueue(payload);
-        Alert.alert('Saved Offline', 'No internet. Your submission has been saved and will sync when you reconnect.');
+        notify('No internet. Your submission has been saved and will sync when you reconnect.', 'bad');
         resetTeacherForm();
         return;
       }
@@ -332,7 +329,7 @@ export default function SubmitScreen() {
       await loadStudentsForClass(selectedSlot.class_names, newAttendanceId, selectedSlot.end_time, selectedSlot.subject);
     } catch (err: any) {
       const data = err?.response?.data;
-      Alert.alert('Error', data?.error ?? 'Submission failed.');
+      notify(data?.error ?? 'Submission failed.', 'bad');
       if (data?.locationFailure) setLocationFailure(true);
     } finally {
       setSubmitting(false);
@@ -361,16 +358,11 @@ export default function SubmitScreen() {
       if (!list.length) {
         const nextIndex = index + 1;
         if (nextIndex < queue.length) {
-          Alert.alert(
-            'No students',
-            `No active students registered for ${className}. Moving to ${queue[nextIndex]}.`,
-            [{ text: 'Continue', onPress: async () => {
-              setClassQueueIndex(nextIndex);
-              await loadClassAtIndex(queue, nextIndex, attId, subject);
-            }}]
-          );
+          notify(`No active students in ${className}. Moving to ${queue[nextIndex]}.`, 'info');
+          setClassQueueIndex(nextIndex);
+          await loadClassAtIndex(queue, nextIndex, attId, subject);
         } else {
-          Alert.alert('Done', 'All classes processed. No active students found for the remaining class(es).');
+          notify('All classes processed. No active students found for the remaining class(es).', 'ok');
           resetAll();
           await loadData();
         }
@@ -382,7 +374,7 @@ export default function SubmitScreen() {
       setStatuses(initialStatuses);
       setStep('students');
     } catch {
-      Alert.alert('Error', 'Could not load students. Teacher attendance was saved.');
+      notify('Could not load students. Teacher attendance was saved.', 'bad');
       AsyncStorage.removeItem('pending_student_att').catch(() => {});
       resetTeacherForm();
       await loadData();
@@ -424,20 +416,15 @@ export default function SubmitScreen() {
         setClassQueueIndex(nextIndex);
         setStudents([]);
         setStatuses({});
-        Alert.alert(
-          `✅ ${currentClass} Done`,
-          `${present} present · ${absent} absent.\n\nNext: ${classQueue[nextIndex]}`,
-          [{ text: `Mark ${classQueue[nextIndex]}`, onPress: async () => {
-            await loadClassAtIndex(classQueue, nextIndex, attendanceId, selectedSlot.subject);
-          }}]
-        );
+        notify(`${currentClass} done: ${present} present, ${absent} absent. Now mark ${classQueue[nextIndex]}.`, 'ok');
+        await loadClassAtIndex(classQueue, nextIndex, attendanceId, selectedSlot.subject);
       } else {
-        Alert.alert('✅ Complete', `All classes done!\n${present} present · ${absent} absent (${currentClass})`);
+        notify(`All classes done! ${present} present, ${absent} absent (${currentClass})`, 'ok');
         resetAll();
         await loadData();
       }
     } catch (err: any) {
-      Alert.alert('Error', err?.response?.data?.error ?? 'Student attendance submission failed.');
+      notify(err?.response?.data?.error ?? 'Student attendance submission failed.', 'bad');
     } finally {
       setSubmittingStud(false);
     }
@@ -691,6 +678,16 @@ export default function SubmitScreen() {
         </View>
       </View>
 
+      {resume && (
+        <Card accent={Colors.warning} style={{ marginBottom: 12 }}>
+          <Text style={{ color: Colors.text, fontSize: 15, fontWeight: '700' }}>Student register not finished</Text>
+          <Body small>Your attendance for {resume.subject} was saved, but the student register was not completed. Continue marking students now?</Body>
+          <Row>
+            <KitButton label="Continue" grow onPress={() => { const r = resume; setResume(null); loadStudentsForClass(r.classNames, r.attendanceId, r.endTime, r.subject); }} />
+            <KitButton label="Later" kind="secondary" grow onPress={() => setResume(null)} />
+          </Row>
+        </Card>
+      )}
       {/* Slot picker */}
       <Text style={styles.sectionTitle}>Select Lesson *</Text>
       {allDone && (
