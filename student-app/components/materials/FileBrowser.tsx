@@ -62,26 +62,29 @@ function fmtSize(bytes?: number): string {
 }
 
 // ── LM locations ──────────────────────────────────────────────────────────────
-// Materials can be in several places: the app's own folder (downloads from the
-// school server, or copied there by USB) and the shared LM folder (copied by
-// USB). Every location with content is shown, merged into one tree.
+// Two places are shown together, merged into one tree:
+//   1. the app's own folder, where downloads from the school server go;
+//   2. ONE shared folder copied in by USB: LM if it has anything in it,
+//      otherwise the older "Learning materials" folder. Never both.
+const SHARED_CANDIDATES = [
+  SHARED_LM_BASE,                               // /storage/emulated/0/LM (preferred)
+  '/storage/emulated/0/Learning materials',     // older name, used only when there is no LM
+  '/storage/emulated/0/Learning Materials',
+];
+
+// readDirectoryAsync is used (not getInfoAsync) because FUSE blocks stat()
+// traversal through Android/data/ even for the app's own package dir.
+async function hasContent(base: string): Promise<boolean> {
+  try { return (await FileSystem.readDirectoryAsync(`file://${base}`)).some(n => !n.startsWith('.')); }
+  catch { return false; }
+}
+
 async function findLmBases(): Promise<string[]> {
   if (Platform.OS !== 'android') return [SHARED_LM_BASE];
   const found: string[] = [];
-  // readDirectoryAsync is used (not getInfoAsync) because FUSE blocks stat()
-  // traversal through Android/data/ even for the app's own package dir.
-  const candidates = [
-    APP_LM_BASE,                                  // Android/data/com.cas.student/files/LM
-    SHARED_LM_BASE,                               // /storage/emulated/0/LM
-    '/storage/emulated/0/Learning materials',     // alternative name some transfers use
-    '/storage/emulated/0/Learning Materials',
-  ];
-
-  for (const base of candidates) {
-    try {
-      const names = await FileSystem.readDirectoryAsync(`file://${base}`);
-      if (names.some(n => !n.startsWith('.'))) found.push(base);
-    } catch { /* not there, or no access */ }
+  if (await hasContent(APP_LM_BASE)) found.push(APP_LM_BASE);
+  for (const base of SHARED_CANDIDATES) {
+    if (await hasContent(base)) { found.push(base); break; }
   }
   return found;
 }
