@@ -20,7 +20,7 @@ const SCREEN_TITLES: [string, string][] = [
   ['resources', 'Resources'], ['conduct', 'My Queries'], ['student-attendance', 'Student Attendance'],
   ['id-scan', 'Scan ID Card'], ['invigilation', 'Invigilation'], ['lms/index', 'My Courses'], ['lms/[courseId]', 'Course'], ['form-class', 'Form Class'],
   ['hod/index', 'My Department'], ['hod/inventory', 'Department Inventory'], ['hod/observations', 'Department Observations'], ['clearance', 'Clearance'], ['library', 'Library'],
-  ['roll-call', 'Roll Call'], ['resumption', 'Resumption Register'], ['house-students', 'My House'],
+  ['roll-call', 'Roll Call'], ['resumption', 'Resumption Register'], ['house-students', 'My House'], ['budgets', 'Budgets'],
 ];
 
 function InitialLayout() {
