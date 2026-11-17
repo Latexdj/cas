@@ -378,6 +378,155 @@ function loadApk(buf, { force = false } = {}) {
   return info;
 }
 
+// ── Learning materials (the LM folder) ───────────────────────────────────────
+// Kept in data/lm with the same folders as the USB LM folder. Tablets read
+// /lm/manifest and download changed files from /lm/file (resumable).
+
+const LM_DIR = path.join(DATA, 'lm');
+fs.mkdirSync(LM_DIR, { recursive: true });
+
+/** Cleans a relative path ("Form 1/Maths/a.pdf"); null when it would leave LM. */
+function lmRel(raw) {
+  const parts = String(raw || '').replace(/\\/g, '/').split('/').map(s => s.trim()).filter(Boolean);
+  for (const p of parts) {
+    if (p === '.' || p === '..' || /[<>:"|?*\x00-\x1f]/.test(p) || p.length > 200) return null;
+  }
+  return parts.join('/');
+}
+const lmAbs = (rel) => path.join(LM_DIR, ...rel.split('/').filter(Boolean));
+const isTempName = (n) => n.startsWith('.') || n.endsWith('.uploading');
+
+let lmCache = null;           // { version, files, total, at }
+function lmScan() {
+  if (lmCache && Date.now() - lmCache.at < 60 * 1000) return lmCache;
+  const files = [];
+  const walk = (dir, rel) => {
+    let names = [];
+    try { names = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    for (const d of names) {
+      if (isTempName(d.name)) continue;
+      const r = rel ? `${rel}/${d.name}` : d.name;
+      if (d.isDirectory()) walk(path.join(dir, d.name), r);
+      else if (d.isFile()) {
+        try { const st = fs.statSync(path.join(dir, d.name)); files.push({ path: r, size: st.size, mtime: Math.floor(st.mtimeMs) }); } catch { /* vanished */ }
+      }
+    }
+  };
+  walk(LM_DIR, '');
+  files.sort((a, b) => a.path.localeCompare(b.path));
+  const version = crypto.createHash('sha1').update(files.map(f => `${f.path}|${f.size}|${f.mtime}`).join('\n')).digest('hex').slice(0, 16);
+  lmCache = { version, files, total: files.reduce((n, f) => n + f.size, 0), at: Date.now() };
+  return lmCache;
+}
+const lmChanged = () => { lmCache = null; };
+
+/** Streams one LM file, honouring a Range header so downloads can resume. */
+function sendLmFile(req, res, rel) {
+  const abs = lmAbs(rel);
+  let st;
+  try { st = fs.statSync(abs); } catch { return send(res, 404, { error: 'Not found' }); }
+  if (!st.isFile()) return send(res, 404, { error: 'Not found' });
+  const range = String(req.headers.range || '').match(/^bytes=(\d*)-(\d*)$/);
+  const base = { 'Content-Type': 'application/octet-stream', 'Accept-Ranges': 'bytes', 'Access-Control-Allow-Origin': '*' };
+  if (range && (range[1] || range[2])) {
+    let start = range[1] ? Number(range[1]) : Math.max(0, st.size - Number(range[2]));
+    let end = range[1] && range[2] ? Number(range[2]) : st.size - 1;
+    if (start >= st.size || start > end) { res.writeHead(416, { ...base, 'Content-Range': `bytes */${st.size}` }); return res.end(); }
+    end = Math.min(end, st.size - 1);
+    res.writeHead(206, { ...base, 'Content-Range': `bytes ${start}-${end}/${st.size}`, 'Content-Length': end - start + 1 });
+    return fs.createReadStream(abs, { start, end }).pipe(res);
+  }
+  res.writeHead(200, { ...base, 'Content-Length': st.size });
+  fs.createReadStream(abs).pipe(res);
+}
+
+/** Admin upload: the request body goes straight to disk (multi-GB safe). */
+function receiveLmFile(req, res, rel) {
+  if (!rel || rel.endsWith('/')) return send(res, 400, { error: 'Missing file name.' });
+  const abs = lmAbs(rel);
+  fs.mkdirSync(path.dirname(abs), { recursive: true });
+  const tmp = `${abs}.${process.pid}.uploading`;
+  const out = fs.createWriteStream(tmp);
+  let failed = false;
+  const fail = (msg) => { if (failed) return; failed = true; out.destroy(); fs.rm(tmp, { force: true }, () => {}); send(res, 500, { error: msg }); };
+  req.on('error', () => fail('The upload was interrupted.'));
+  out.on('error', (e) => fail(/ENOSPC/.test(e.code) ? 'The server PC is out of disk space.' : 'Could not save the file.'));
+  out.on('finish', () => {
+    if (failed) return;
+    try { fs.rmSync(abs, { force: true }); fs.renameSync(tmp, abs); }
+    catch { return fail('Could not save the file.'); }
+    lmChanged();
+    send(res, 200, { ok: true, path: rel, size: fs.statSync(abs).size });
+  });
+  req.pipe(out);
+}
+
+function lmList(rel) {
+  const abs = lmAbs(rel);
+  const folders = [], files = [];
+  for (const d of fs.readdirSync(abs, { withFileTypes: true })) {
+    if (isTempName(d.name)) continue;
+    const r = rel ? `${rel}/${d.name}` : d.name;
+    if (d.isDirectory()) {
+      const inside = lmScan().files.filter(f => f.path.startsWith(`${r}/`));
+      folders.push({ name: d.name, path: r, files: inside.length, size: inside.reduce((n, f) => n + f.size, 0) });
+    } else if (d.isFile()) {
+      const st = fs.statSync(path.join(abs, d.name));
+      files.push({ name: d.name, path: r, size: st.size, mtime: st.mtimeMs });
+    }
+  }
+  const byName = (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+  return { path: rel, folders: folders.sort(byName), files: files.sort(byName) };
+}
+
+// Copying a folder from this PC runs in the background; the page polls status.
+const lmCopy = { running: false, from: null, copied: 0, total: 0, bytes: 0, current: null, error: null, finished_at: null };
+async function copyIntoLm(from, toRel) {
+  const src = path.resolve(String(from || '').trim().replace(/^"|"$/g, ''));
+  let st;
+  try { st = fs.statSync(src); } catch { throw new Error('That folder was not found on this PC.'); }
+  if (!st.isDirectory()) throw new Error('That is a file, not a folder.');
+  if (path.resolve(src).startsWith(path.resolve(LM_DIR))) throw new Error('That folder is already inside the learning materials.');
+  if (lmCopy.running) throw new Error('A copy is already running.');
+  const list = [];
+  const walk = (dir, rel) => {
+    for (const d of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (d.name.startsWith('.') || /^(desktop\.ini|thumbs\.db)$/i.test(d.name)) continue;
+      const r = rel ? `${rel}/${d.name}` : d.name;
+      if (d.isDirectory()) walk(path.join(dir, d.name), r);
+      else if (d.isFile() && lmRel(r)) list.push({ abs: path.join(dir, d.name), rel: r });
+    }
+  };
+  walk(src, '');
+  Object.assign(lmCopy, { running: true, from: src, copied: 0, total: list.length, bytes: 0, current: null, error: null, finished_at: null });
+  (async () => {
+    try {
+      for (const f of list) {
+        const dest = lmAbs(toRel ? `${toRel}/${f.rel}` : f.rel);
+        lmCopy.current = f.rel;
+        fs.mkdirSync(path.dirname(dest), { recursive: true });
+        const s = fs.statSync(f.abs);
+        let same = false;
+        try { const d = fs.statSync(dest); same = d.size === s.size && Math.abs(d.mtimeMs - s.mtimeMs) < 2000; } catch { /* new file */ }
+        if (!same) {
+          await fs.promises.copyFile(f.abs, `${dest}.${process.pid}.uploading`);
+          fs.rmSync(dest, { force: true });
+          fs.renameSync(`${dest}.${process.pid}.uploading`, dest);
+          fs.utimesSync(dest, s.atime, s.mtime);
+        }
+        lmCopy.copied += 1; lmCopy.bytes += s.size;
+      }
+      log(`learning materials copied from ${src}: ${list.length} files`);
+    } catch (e) {
+      lmCopy.error = /ENOSPC/.test(e.code) ? 'The server PC ran out of disk space.' : `The copy stopped: ${e.message}`;
+      log('lm copy failed', e.message);
+    } finally {
+      lmCopy.running = false; lmCopy.current = null; lmCopy.finished_at = new Date().toISOString(); lmChanged();
+    }
+  })();
+  return { total: list.length };
+}
+
 // ── Tablets seen ──────────────────────────────────────────────────────────────
 
 const DEVICES_FILE = path.join(DATA, 'devices.json');
@@ -439,6 +588,7 @@ function info() {
     service: 'cas-school-server', version: VERSION, school_name: config().school_name || null,
     pack_version: m?.version ?? null, pack_published_at: m?.published_at ?? null,
     app: a ? { versionCode: a.versionCode, versionName: a.versionName, size: a.size, sha256: a.sha256 } : null,
+    lm: (() => { const m = lmScan(); return { version: m.version, files: m.files.length, size: m.total }; })(),
   };
 }
 
@@ -484,6 +634,16 @@ async function handle(req, res) {
     return send(res, 200, fs.readFileSync(f), { 'Content-Type': MIME[extOf(img[1])] || 'application/octet-stream', 'Cache-Control': 'max-age=86400' });
   }
 
+  if (req.method === 'GET' && p === '/lm/manifest') {
+    const m = lmScan();
+    return send(res, 200, { version: m.version, total: m.total, files: m.files });
+  }
+  if (req.method === 'GET' && p === '/lm/file') {
+    const rel = lmRel(url.searchParams.get('path'));
+    if (!rel) return send(res, 400, { error: 'Bad path' });
+    return sendLmFile(req, res, rel);
+  }
+
   if (req.method === 'GET' && p === '/app/latest.apk') {
     const a = appInfo();
     const f = a && path.join(DATA, 'app', a.file);
@@ -511,10 +671,44 @@ async function handle(req, res) {
         ...info(), port: PORT, lan: lanAddresses(), config: config(),
         pack: m ? { version: m.version, published_at: m.published_at, source: m.source, loaded_at: m.loaded_at, subjects: m.subjects } : null,
         app_info: appInfo(), sync: { ...state, running: syncing },
+        lm_copy: lmCopy,
         devices: Object.entries(devices).map(([id, d]) => ({ id, ...d })).sort((a, b) => String(b.last_seen).localeCompare(String(a.last_seen))),
       });
     }
+    // Uploads stream straight to disk, so they skip the body reader below.
+    if (req.method === 'PUT' && p === '/admin/lm/file') {
+      const rel = lmRel(url.searchParams.get('path'));
+      if (!rel) return send(res, 400, { error: 'That file name is not allowed.' });
+      return receiveLmFile(req, res, rel);
+    }
     try {
+      if (req.method === 'GET' && p === '/admin/lm/list') {
+        const rel = lmRel(url.searchParams.get('path'));
+        if (rel === null) return send(res, 400, { error: 'Bad path' });
+        if (!fs.existsSync(lmAbs(rel))) return send(res, 404, { error: 'That folder no longer exists.' });
+        return send(res, 200, lmList(rel));
+      }
+      if (req.method === 'POST' && p === '/admin/lm/folder') {
+        const body = JSON.parse((await readBody(req, 64 * 1024)).toString('utf8') || '{}');
+        const rel = lmRel(body.path);
+        if (!rel) return send(res, 400, { error: 'Folder names cannot contain < > : " | ? * or be empty.' });
+        fs.mkdirSync(lmAbs(rel), { recursive: true });
+        lmChanged();
+        return send(res, 200, { ok: true, path: rel });
+      }
+      if (req.method === 'DELETE' && p === '/admin/lm') {
+        const rel = lmRel(url.searchParams.get('path'));
+        if (!rel) return send(res, 400, { error: 'Bad path' });
+        fs.rmSync(lmAbs(rel), { recursive: true, force: true });
+        lmChanged();
+        return send(res, 200, { ok: true });
+      }
+      if (req.method === 'POST' && p === '/admin/lm/copy') {
+        const body = JSON.parse((await readBody(req, 64 * 1024)).toString('utf8') || '{}');
+        const to = body.to ? lmRel(body.to) : '';
+        if (to === null) return send(res, 400, { error: 'Bad destination folder' });
+        return send(res, 200, await copyIntoLm(body.from, to));
+      }
       if (req.method === 'POST' && p === '/admin/sync') return send(res, 200, await syncFromCloud());
       if (req.method === 'POST' && p === '/admin/pack') {
         const body = await readBody(req, 500 * 1024 * 1024);

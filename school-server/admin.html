@@ -33,6 +33,9 @@
   .big { font-size: 28px; font-weight: 800; }
   .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
   button, .filebtn { min-height: 42px; padding: 0 16px; border-radius: 10px; font: 600 14px system-ui, sans-serif; cursor: pointer; border: 1px solid var(--line); background: transparent; color: var(--ink); display: inline-flex; align-items: center; }
+  button.danger { color: var(--bad); border-color: var(--bad-soft); }
+  button.link { border: none; padding: 0; min-height: 0; color: var(--brand); text-decoration: underline; text-underline-offset: 3px; }
+  nav#lmcrumbs button { min-height: 32px; padding: 0 10px; }
   button.primary, .filebtn.primary { background: var(--brand); border-color: var(--brand); color: var(--brand-ink); }
   button:disabled { opacity: .5; cursor: default; }
   .msg { font-size: 14px; padding: 8px 12px; border-radius: 10px; }
@@ -86,6 +89,37 @@
       <div id="appmsg" role="status"></div>
     </section>
   </div>
+
+  <section class="card" aria-labelledby="h-lm">
+    <div class="row" style="justify-content:space-between">
+      <div>
+        <h2 id="h-lm">Learning materials</h2>
+        <p class="muted" id="lmsummary"></p>
+      </div>
+      <div class="row">
+        <button id="lmnewbtn">New folder</button>
+        <label class="filebtn">Upload files<input type="file" id="lmfiles" multiple hidden></label>
+        <label class="filebtn">Upload a folder<input type="file" id="lmdir" webkitdirectory multiple hidden></label>
+        <button id="lmcopybtn">Copy from this PC</button>
+      </div>
+    </div>
+    <div id="lmnew" class="row" hidden>
+      <input type="text" id="lmnewname" placeholder="Folder name, for example Form 1">
+      <button class="primary" id="lmnewok">Create</button><button id="lmnewno">Cancel</button>
+    </div>
+    <div id="lmcopy" class="row" hidden>
+      <input type="text" id="lmcopyfrom" placeholder="D:\LM" style="min-width:320px">
+      <button class="primary" id="lmcopyok">Copy into this folder</button><button id="lmcopyno">Cancel</button>
+      <span class="muted">Copies every file and folder inside it. Files already here and unchanged are skipped.</span>
+    </div>
+    <div id="lmmsg" role="status"></div>
+    <nav id="lmcrumbs" class="row" aria-label="Folder"></nav>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Name</th><th>Size</th><th></th></tr></thead>
+      <tbody id="lmrows"></tbody>
+    </table></div>
+    <p class="muted">Every tablet on the school Wi-Fi downloads these into its Learning Materials when the app opens.</p>
+  </section>
 
   <section class="card" aria-labelledby="h-dev">
     <div class="row" style="justify-content:space-between">
@@ -149,6 +183,9 @@ async function load() {
   $('pack').innerHTML += `<p class="muted">Last online check: ${when(s.sync.last_sync)}${sync ? `. ${esc(sync.message)}` : ''}</p>`;
   $('sync').disabled = !!s.sync.running;
 
+  if (s.lm) $('lmsummary').textContent = s.lm.files
+    ? `${s.lm.files} file${s.lm.files === 1 ? '' : 's'}, ${(s.lm.size / 1073741824 >= 1 ? (s.lm.size / 1073741824).toFixed(2) + ' GB' : (s.lm.size / 1048576).toFixed(1) + ' MB')} in total.`
+    : 'No files yet.';
   const a = s.app_info;
   $('app').innerHTML = a
     ? `<div class="big">Version ${esc(a.versionName)} <span class="muted" style="font-size:15px">(build ${a.versionCode})</span></div>
@@ -198,6 +235,114 @@ $('savename').onclick = async () => {
   await fetch('/admin/config', { method: 'POST', body: JSON.stringify({ school_name: $('schoolname').value }) });
   $('namemsg').textContent = 'Saved.'; setTimeout(() => { $('namemsg').textContent = ''; }, 2000); load();
 };
+
+// ── Learning materials ──
+let lmPath = '';
+let lmBusy = false;
+const size = (n) => n >= 1073741824 ? `${(n / 1073741824).toFixed(2)} GB` : n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : n >= 1024 ? `${Math.round(n / 1024)} KB` : `${n} B`;
+const enc = (p) => encodeURIComponent(p);
+
+async function lmLoad() {
+  const r = await fetch(`/admin/lm/list?path=${enc(lmPath)}`);
+  const d = await r.json();
+  if (!r.ok) { lmPath = ''; return lmLoad(); }
+  const parts = lmPath ? lmPath.split('/') : [];
+  $('lmcrumbs').innerHTML = [`<button data-go="">LM</button>`]
+    .concat(parts.map((p, i) => `<span class="muted">/</span><button data-go="${esc(parts.slice(0, i + 1).join('/'))}">${esc(p)}</button>`)).join('');
+  const rows = [];
+  for (const f of d.folders) rows.push(`<tr><td><button class="link" data-go="${esc(f.path)}">${esc(f.name)}</button></td><td>${f.files} file${f.files === 1 ? '' : 's'}, ${size(f.size)}</td><td style="text-align:right">${delBtn(f.path, 'folder')}</td></tr>`);
+  for (const f of d.files) rows.push(`<tr><td>${esc(f.name)}</td><td>${size(f.size)}</td><td style="text-align:right">${delBtn(f.path, 'file')}</td></tr>`);
+  $('lmrows').innerHTML = rows.join('') || `<tr><td colspan="3" class="muted">${lmPath ? 'This folder is empty. Upload files into it.' : 'No learning materials yet. Upload files or a folder, or copy an existing LM folder from this PC.'}</td></tr>`;
+}
+function delBtn(p, kind) {
+  return `<span data-del="${esc(p)}" data-kind="${kind}"><button class="danger">Delete</button></span>`;
+}
+document.addEventListener('click', async (e) => {
+  const go = e.target.closest('[data-go]');
+  if (go) { lmPath = go.getAttribute('data-go'); lmLoad(); return; }
+  const del = e.target.closest('[data-del]');
+  if (del && !del.dataset.confirm) {
+    del.dataset.confirm = '1';
+    const kind = del.getAttribute('data-kind');
+    del.innerHTML = `<span class="muted">Delete this ${kind}${kind === 'folder' ? ' and everything in it' : ''}?</span> <button class="danger" data-yes>Delete</button> <button data-no>Cancel</button>`;
+    return;
+  }
+  if (e.target.matches('[data-no]')) { lmLoad(); return; }
+  if (e.target.matches('[data-yes]')) {
+    const p = e.target.closest('[data-del]').getAttribute('data-del');
+    await fetch(`/admin/lm?path=${enc(p)}`, { method: 'DELETE' });
+    lmLoad(); load();
+  }
+});
+
+$('lmnewbtn').onclick = () => { $('lmnew').hidden = false; $('lmnewname').focus(); };
+$('lmnewno').onclick = () => { $('lmnew').hidden = true; };
+$('lmnewok').onclick = async () => {
+  const name = $('lmnewname').value.trim();
+  if (!name) return;
+  const r = await fetch('/admin/lm/folder', { method: 'POST', body: JSON.stringify({ path: lmPath ? `${lmPath}/${name}` : name }) });
+  const d = await r.json();
+  if (!r.ok) return msg($('lmmsg'), d.error, 'bad');
+  $('lmnew').hidden = true; $('lmnewname').value = ''; msg($('lmmsg'), '', ''); lmLoad();
+};
+
+function putFile(file, rel, onProgress) {
+  return new Promise((resolve, reject) => {
+    const x = new XMLHttpRequest();
+    x.open('PUT', `/admin/lm/file?path=${enc(rel)}`);
+    x.upload.onprogress = (ev) => { if (ev.lengthComputable) onProgress(ev.loaded / ev.total); };
+    x.onload = () => (x.status === 200 ? resolve() : reject(new Error((JSON.parse(x.responseText || '{}').error) || `Upload failed (${x.status})`)));
+    x.onerror = () => reject(new Error('The upload was interrupted.'));
+    x.send(file);
+  });
+}
+async function uploadAll(list) {
+  if (lmBusy || !list.length) return;
+  lmBusy = true;
+  const total = list.reduce((n, f) => n + f.file.size, 0);
+  let done = 0, failed = 0;
+  for (let i = 0; i < list.length; i++) {
+    const { file, rel } = list[i];
+    try {
+      await putFile(file, rel, (p) => msg($('lmmsg'), `Uploading ${i + 1} of ${list.length}: ${file.name} (${Math.round(p * 100)}%). ${size(total - done - p * file.size)} left.`, 'info'));
+    } catch (err) { failed++; msg($('lmmsg'), `${file.name}: ${err.message}`, 'bad'); await new Promise(r => setTimeout(r, 1500)); }
+    done += file.size;
+  }
+  lmBusy = false;
+  msg($('lmmsg'), failed ? `Uploaded ${list.length - failed} of ${list.length} files; ${failed} failed.` : `Uploaded ${list.length} file${list.length === 1 ? '' : 's'} (${size(total)}).`, failed ? 'bad' : 'ok');
+  lmLoad(); load();
+}
+$('lmfiles').onchange = (e) => {
+  const files = [...e.target.files];
+  uploadAll(files.map(f => ({ file: f, rel: lmPath ? `${lmPath}/${f.name}` : f.name }))); e.target.value = '';
+};
+$('lmdir').onchange = (e) => {
+  const files = [...e.target.files].filter(f => !/(^|\/)\./.test(f.webkitRelativePath) && !/(desktop\.ini|thumbs\.db)$/i.test(f.name));
+  uploadAll(files.map(f => ({ file: f, rel: lmPath ? `${lmPath}/${f.webkitRelativePath}` : f.webkitRelativePath }))); e.target.value = '';
+};
+
+$('lmcopybtn').onclick = () => { $('lmcopy').hidden = false; $('lmcopyfrom').focus(); };
+$('lmcopyno').onclick = () => { $('lmcopy').hidden = true; };
+$('lmcopyok').onclick = async () => {
+  const r = await fetch('/admin/lm/copy', { method: 'POST', body: JSON.stringify({ from: $('lmcopyfrom').value, to: lmPath }) });
+  const d = await r.json();
+  if (!r.ok) return msg($('lmmsg'), d.error, 'bad');
+  $('lmcopy').hidden = true;
+  msg($('lmmsg'), `Copying ${d.total} files…`, 'info');
+  pollCopy();
+};
+async function pollCopy() {
+  const s = await (await fetch('/admin/status')).json();
+  const c = s.lm_copy;
+  if (c.running) {
+    msg($('lmmsg'), `Copying ${c.copied} of ${c.total} files (${size(c.bytes)} so far): ${c.current || ''}`, 'info');
+    setTimeout(pollCopy, 1500);
+  } else {
+    msg($('lmmsg'), c.error || `Copied ${c.copied} files from ${c.from}.`, c.error ? 'bad' : 'ok');
+    lmLoad(); load();
+  }
+}
+lmLoad();
 load(); setInterval(load, 10000);
 </script>
 </body>

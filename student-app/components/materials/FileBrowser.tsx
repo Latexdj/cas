@@ -9,6 +9,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useTheme } from '@/context/ThemeContext';
 import { createThemedStyles, tc } from '@/lib/themedStyles';
+import { ensureAppLm, fmtBytes, pauseLmSync, resumeLmSync, startLmSync, useLmSync } from '@/lib/lmSync';
+import { findSchoolServer } from '@/lib/schoolServer';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 // App-specific external dir: always readable without any permission (Android 11+)
@@ -198,6 +200,18 @@ export default function FileBrowser({ showBackAsClose }: Props) {
   const initialise = useCallback(async () => {
     setLoading(true); setError(null); setDocsHidden(false);
     const base = await findLmBase();
+    // With a school server on the Wi-Fi, materials are downloaded into the
+    // app's own LM folder. Look for the server in the background (it can
+    // take a few seconds) and switch to that folder if one is found.
+    if (base !== APP_LM_BASE && Platform.OS === 'android') {
+      findSchoolServer().then(async sv => {
+        if (!sv) return;
+        await ensureAppLm();
+        setError(null); setDocsHidden(false);
+        setLmBase(APP_LM_BASE); setStack([]);
+        await loadDir(lmUri(APP_LM_BASE));
+      }).catch(() => {});
+    }
     if (!base) { setError('permission'); setLoading(false); return; }
     const hidden = await documentsHidden(base);
     if (hidden === 'all') { setError('permission'); setLoading(false); return; }
@@ -208,6 +222,16 @@ export default function FileBrowser({ showBackAsClose }: Props) {
   }, [loadDir]);
 
   useEffect(() => { initialise(); }, [initialise]);
+
+  // Download new materials from the school server while this screen is open,
+  // and show files as they land.
+  const sync = useLmSync();
+  useEffect(() => { startLmSync(); }, []);
+  useEffect(() => {
+    if (!sync.landed || !lmBase) return;
+    const t = setTimeout(() => loadDir(currentUri), 1500);
+    return () => clearTimeout(t);
+  }, [sync.landed]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Coming back from Settings after allowing access: check again automatically.
   useEffect(() => {
@@ -347,8 +371,47 @@ export default function FileBrowser({ showBackAsClose }: Props) {
   // ── Breadcrumb ──────────────────────────────────────────────────────────────
   const crumbs = ['LM', ...stack];
 
+  const syncBar = (() => {
+    let title = '', sub = '';
+    if (sync.phase === 'syncing') {
+      title = `Downloading ${Math.min(sync.done + 1, sync.total)} of ${sync.total} file${sync.total === 1 ? '' : 's'} from the school server`;
+      sub = `${fmtBytes(Math.max(0, sync.bytesTotal - sync.bytesDone))} left${sync.message ? `. ${sync.message}` : ''}`;
+    } else if (sync.phase === 'paused') {
+      title = 'Download paused'; sub = `${sync.total - sync.done} file${sync.total - sync.done === 1 ? '' : 's'} still to download`;
+    } else if (sync.phase === 'done') {
+      title = 'Up to date with the school server'; sub = sync.message || `${sync.serverFiles} file${sync.serverFiles === 1 ? '' : 's'} from the server`;
+    } else if (sync.phase === 'error') {
+      title = 'Materials not updated'; sub = sync.message;
+    } else return null;   // no school server, or still looking: nothing to show
+    const frac = sync.bytesTotal ? Math.min(1, sync.bytesDone / sync.bytesTotal) : 0;
+    return (
+      <View style={[s.syncBar, { backgroundColor: C.surface, borderBottomColor: C.border }]} accessibilityLiveRegion="polite">
+        <View style={{ flex: 1, gap: 4 }}>
+          <Text style={[s.syncTitle, { color: sync.phase === 'error' ? C.danger : C.text }]} numberOfLines={1}>{title}</Text>
+          {!!sub && <Text style={[s.syncSub, { color: C.textSoft }]} numberOfLines={2}>{sub}</Text>}
+          {(sync.phase === 'syncing' || sync.phase === 'paused') && (
+            <View style={[s.syncTrack, { backgroundColor: C.border }]}>
+              <View style={[s.syncFill, { width: `${Math.round(frac * 100)}%`, backgroundColor: C.primaryText }]} />
+            </View>
+          )}
+        </View>
+        {sync.phase === 'syncing' && (
+          <TouchableOpacity onPress={pauseLmSync} accessibilityRole="button" style={[s.syncBtn, { borderColor: C.border }]}>
+            <Text style={[s.syncBtnText, { color: C.text }]}>Pause</Text>
+          </TouchableOpacity>
+        )}
+        {(sync.phase === 'paused' || sync.phase === 'error') && (
+          <TouchableOpacity onPress={resumeLmSync} accessibilityRole="button" style={[s.syncBtn, { borderColor: C.border }]}>
+            <Text style={[s.syncBtnText, { color: C.text }]}>{sync.phase === 'paused' ? 'Resume' : 'Try again'}</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    );
+  })();
+
   return (
     <View style={[s.flex, { backgroundColor: C.bg }]}>
+      {syncBar}
 
       {/* Breadcrumb + back */}
       {stack.length > 0 && (
@@ -386,7 +449,9 @@ export default function FileBrowser({ showBackAsClose }: Props) {
       {items.length === 0 ? (
         <View style={s.center}>
           <Ionicons name="folder-open-outline" size={44} color={C.muted as string} />
-          <Text style={[s.stateText, { color: C.muted }]}>This folder is empty.</Text>
+          <Text style={[s.stateText, { color: C.muted }]}>
+            {sync.phase === 'syncing' && stack.length === 0 ? 'Materials are downloading from the school server.' : 'This folder is empty.'}
+          </Text>
         </View>
       ) : (
         <FlatList
@@ -431,6 +496,13 @@ export default function FileBrowser({ showBackAsClose }: Props) {
 }
 
 const s = createThemedStyles({
+  syncBar:     { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1 },
+  syncTitle:   { fontSize: 14, fontWeight: '700' },
+  syncSub:     { fontSize: 13, lineHeight: 18 },
+  syncTrack:   { height: 5, borderRadius: 3, overflow: 'hidden', marginTop: 4 },
+  syncFill:    { height: 5, borderRadius: 3 },
+  syncBtn:     { minHeight: 40, paddingHorizontal: 14, borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  syncBtnText: { fontSize: 14, fontWeight: '600' },
   flex:        { flex: 1 },
   center:      { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
   stateTitle:  { fontSize: 18, fontWeight: '800', textAlign: 'center', marginTop: 8 },
