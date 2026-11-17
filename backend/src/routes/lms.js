@@ -547,7 +547,9 @@ router.put('/quizzes/:id', teacherOrAdmin, async (req, res, next) => {
         await pool.query(
           `INSERT INTO lms_quiz_questions (quiz_id, school_id, question_text, question_type, options, explanation, marks, sort_order)
            VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7,$8)`,
-          [req.params.id, req.schoolId, q.question_text, q.question_type || 'mcq',
+          [req.params.id, req.schoolId, q.question_text,
+           // The column allows 'mcq' | 'short'; the builders send 'short_answer'.
+           q.question_type && q.question_type !== 'mcq' ? 'short' : 'mcq',
            optionsJson, q.explanation || null, parseFloat(q.marks) || 1, i]);
       }
     }

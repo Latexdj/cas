@@ -14,6 +14,13 @@ import { headerOptions } from '@/lib/nav';
 import { Platform } from 'react-native';
 import { ReminderTapHandler } from '@/components/ReminderTapHandler';
 
+// Header titles for the screens opened from More (same names as the web menu).
+const SCREEN_TITLES: [string, string][] = [
+  ['reminders', 'Lesson reminders'], ['memos', 'Memos'], ['letters', 'My Letters'], ['clinic', 'Clinic'],
+  ['resources', 'Resources'], ['conduct', 'My Queries'], ['student-attendance', 'Student Attendance'],
+  ['id-scan', 'Scan ID Card'], ['invigilation', 'Invigilation'], ['lms/index', 'My Courses'], ['lms/[courseId]', 'Course'],
+];
+
 function InitialLayout() {
   const { user, isLoading } = useAuth();
   const C = useTheme();
@@ -54,6 +61,7 @@ function InitialLayout() {
         <Stack.Screen name="login"  options={{ headerShown: false }} />
         <Stack.Screen name="index"  options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        {SCREEN_TITLES.map(([name, title]) => <Stack.Screen key={name} name={name} options={{ title }} />)}
       </Stack>
 
       {/* Tapping a lesson reminder opens Submit attendance for that lesson. */}

@@ -807,7 +807,9 @@ function QuizBuilder({ quizId, primary, onDone }: { quizId: string; primary: str
 
   useEffect(() => {
     teacherApi.get<QuizQuestion[]>(`/api/lms/quizzes/${quizId}/questions`).then(({ data }) => {
-      setQuestions(data?.length ? data : [blankQuestion()]);
+      setQuestions(data?.length
+        ? data.map(q => ({ ...q, question_type: q.question_type === 'mcq' ? 'mcq' : 'short_answer' }))
+        : [blankQuestion()]);
     }).catch(() => {
       setQuestions([blankQuestion()]);
     }).finally(() => setLoading(false));

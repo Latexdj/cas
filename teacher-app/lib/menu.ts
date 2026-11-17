@@ -55,7 +55,7 @@ export const MENU: { label: string; items: MenuItem[] }[] = [
     label: 'Administrative',
     items: [
       { route: '/absences/leaves', label: 'Leave', sub: 'Request leave and track it', icon: 'airplane-outline' },
-      { route: '/conduct', label: 'Conduct', sub: 'Report student conduct', icon: 'shield-outline', module: 'discipline' },
+      { route: '/conduct', label: 'Conduct', sub: 'Queries from management and your responses', icon: 'shield-outline', module: 'discipline' },
       { route: '/memos', label: 'Memos', sub: 'Memos from the school', icon: 'mail-outline', module: 'discipline' },
       { route: '/letters', label: 'My Letters', sub: 'Letters and queries addressed to you', icon: 'document-text-outline', module: 'discipline' },
       { route: '/clinic', label: 'Clinic', sub: 'Refer a student to the clinic', icon: 'medkit-outline', module: 'clinic' },
