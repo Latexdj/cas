@@ -3,7 +3,7 @@
     "name": "CAS Teacher",
     "slug": "cas-teacher",
     "scheme": "cas-teacher",
-    "version": "1.3.0",
+    "version": "1.3.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -36,7 +36,7 @@
         "android.permission.POST_NOTIFICATIONS",
         "android.permission.REQUEST_INSTALL_PACKAGES"
       ],
-      "versionCode": 4
+      "versionCode": 5
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -66,6 +66,14 @@
             "./assets/sounds/lesson_bell.wav",
             "./assets/sounds/lesson_chime.wav"
           ]
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
         }
       ]
     ],
