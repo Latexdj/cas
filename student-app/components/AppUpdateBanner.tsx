@@ -1,22 +1,35 @@
 // "A newer CAS Student app is on the school network." Shown when the CAS
 // School Server on the Wi-Fi holds a newer APK than the one installed.
-import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Text, TouchableOpacity, View } from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, AppState, Text, TouchableOpacity, View, type ViewStyle } from 'react-native';
+import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
 import { checkAppUpdate, installUpdate, snoozeUpdate, type AvailableUpdate } from '@/lib/appUpdate';
 
-export function AppUpdateBanner() {
+// Checks when the screen opens, whenever the app comes back to the front, and
+// every 10 minutes, so an update loaded on the server while the app was open shows.
+let lastCheck = 0;
+let lastFound: AvailableUpdate | null = null;   // shared, so a newly opened screen shows it at once
+export function AppUpdateBanner({ style }: { style?: ViewStyle } = {}) {
   const C = useTheme();
   const [update, setUpdate] = useState<AvailableUpdate | null>(null);
   const [progress, setProgress] = useState<number | null>(null);
   const [error, setError] = useState('');
 
+  const check = useCallback(() => {
+    // At most every 2 minutes: away from school a check can mean searching the network.
+    if (progress != null) return;
+    if (Date.now() - lastCheck < 2 * 60 * 1000) { setUpdate(lastFound); return; }
+    lastCheck = Date.now();
+    checkAppUpdate().then(u => { lastFound = u; setUpdate(u); }).catch(() => {});
+  }, [progress]);
+  useFocusEffect(useCallback(() => { check(); }, [check]));
   useEffect(() => {
-    let live = true;
-    checkAppUpdate().then(u => { if (live) setUpdate(u); }).catch(() => {});
-    return () => { live = false; };
-  }, []);
+    const sub = AppState.addEventListener('change', st => { if (st === 'active') check(); });
+    const t = setInterval(check, 10 * 60 * 1000);
+    return () => { sub.remove(); clearInterval(t); };
+  }, [check]);
 
   if (!update) return null;
 
@@ -30,6 +43,7 @@ export function AppUpdateBanner() {
 
   const mb = (update.size / 1024 / 1024).toFixed(0);
   return (
+    <View style={style}>
     <View accessibilityRole="alert" style={{ backgroundColor: C.surface, borderColor: C.primaryText, borderWidth: 1.5, borderRadius: 16, padding: 14, gap: 10, width: '100%' }}>
       <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
         <Ionicons name="arrow-down-circle" size={26} color={C.primaryText} />
@@ -55,7 +69,7 @@ export function AppUpdateBanner() {
             style={{ flex: 1, minHeight: 46, borderRadius: 12, backgroundColor: C.primary, alignItems: 'center', justifyContent: 'center' }}>
             {progress != null ? <ActivityIndicator color="#FFFFFF" /> : <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '700' }}>Install</Text>}
           </TouchableOpacity>
-          <TouchableOpacity accessibilityRole="button" onPress={() => { snoozeUpdate(update.versionCode); setUpdate(null); }}
+          <TouchableOpacity accessibilityRole="button" onPress={() => { snoozeUpdate(update.versionCode); lastFound = null; setUpdate(null); }}
             style={{ minHeight: 46, paddingHorizontal: 16, borderRadius: 12, borderWidth: 1, borderColor: C.border, alignItems: 'center', justifyContent: 'center' }}>
             <Text style={{ color: C.text, fontSize: 15, fontWeight: '600' }}>Not now</Text>
           </TouchableOpacity>
@@ -63,6 +77,7 @@ export function AppUpdateBanner() {
       )}
       {!!error && <Text style={{ color: C.danger, fontSize: 13 }}>{error}</Text>}
       <Text style={{ color: C.muted, fontSize: 12 }}>If Android asks, allow installs from CAS Student. Your work and downloads are kept.</Text>
+    </View>
     </View>
   );
 }

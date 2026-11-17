@@ -7,6 +7,7 @@ import { createThemedStyles } from '@/lib/themedStyles';
 import { CtError, getSession, listTests, signIn, signOut, type CtSession, type CtTest } from '@/lib/classTests';
 import { findSchoolServer, type SchoolServer } from '@/lib/schoolServer';
 import { RouteError } from '@/components/RouteError';
+import { AppUpdateBanner } from '@/components/AppUpdateBanner';
 
 export { RouteError as ErrorBoundary };
 
@@ -56,6 +57,7 @@ export default function ClassTestsHome() {
   if (!session) {
     return (
       <ScrollView style={{ backgroundColor: C.bg }} contentContainerStyle={s.page} keyboardShouldPersistTaps="handled">
+        <AppUpdateBanner />
         <View style={[s.card, { backgroundColor: C.surface, borderColor: C.border }]}>
           <Text style={[s.title, { color: C.text }]}>Sign in for Offline Assessment</Text>
           <Text style={[s.sub, { color: C.textSoft }]}>Use your CAS student ID and password. This works on the school Wi-Fi without internet.</Text>
@@ -120,6 +122,7 @@ export default function ClassTestsHome() {
   return (
     <ScrollView style={{ backgroundColor: C.bg }} contentContainerStyle={s.page}
       refreshControl={<RefreshControl refreshing={false} onRefresh={load} tintColor={C.primaryText} />}>
+      <AppUpdateBanner />
       <View style={[s.who, { backgroundColor: C.surface, borderColor: C.border }]}>
         <Ionicons name="person-circle-outline" size={30} color={C.primaryText} />
         <View style={{ flex: 1 }}>
