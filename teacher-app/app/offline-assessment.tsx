@@ -6,6 +6,12 @@ import { Linking, Platform, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { useTheme } from '@/context/ThemeContext';
 import { findSchoolServer, tryAddress, type SchoolServer } from '@/lib/schoolServer';
+import { api } from '@/lib/api';
+
+// From CAS (needs internet): the school server's addresses from its last sync,
+// and a 5-minute sign-in pass so the teacher page opens signed in.
+interface CasServer { urls: string[]; ticket: string }
+const hostOf = (u: string) => u.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
 import { Body, Button, Card, Field, Loading, Notice, Row, Screen, Title } from '@/components/ui/kit';
 
 export default function OfflineAssessmentScreen() {
@@ -16,10 +22,24 @@ export default function OfflineAssessmentScreen() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ text: string; tone: 'ok' | 'bad' } | null>(null);
 
+  const [cas, setCas] = useState<CasServer[]>([]);
+  const loadCas = useCallback(async () => {
+    try {
+      const r = await api.get<{ servers: CasServer[] }>('/api/school-server/teacher-open', { timeout: 8000 });
+      setCas(r.data.servers); return r.data.servers;
+    } catch { return [] as CasServer[]; }
+  }, []);
+
   const search = useCallback(async (fresh = false) => {
     setServer(undefined); setMsg(null);
-    try { setServer(await findSchoolServer({ fresh })); } catch { setServer(null); }
-  }, []);
+    const hints = loadCas();
+    try {
+      let s = await findSchoolServer({ fresh });
+      // Not found nearby: try the addresses CAS last heard from the server.
+      if (!s) for (const u of (await hints).flatMap(x => x.urls)) { s = await tryAddress(hostOf(u)).catch(() => null); if (s) break; }
+      setServer(s);
+    } catch { setServer(null); }
+  }, [loadCas]);
   useEffect(() => { search(); }, [search]);
 
   async function useAddress() {
@@ -29,11 +49,15 @@ export default function OfflineAssessmentScreen() {
     if (s) { setServer(s); setTyping(false); }
     else setMsg({ text: 'No school server answered at that address. Check it, and that you are on the school Wi-Fi.', tone: 'bad' });
   }
-  function open() {
+  async function open() {
     if (!server) return;
+    // A fresh sign-in pass (they last 5 minutes); without internet, the teacher signs in on the page.
+    const list = await loadCas();
+    const mine = list.find(x => x.urls.some(u => hostOf(u) === server.address)) ?? (list.length === 1 ? list[0] : null);
+    const url = `${server.base}/teacher${mine ? `#ticket=${mine.ticket}` : ''}`;
     // Inside the app on Android, so the page stays on the school Wi-Fi even with mobile data on.
-    if (Platform.OS === 'android') router.push({ pathname: '/offline-assessment-page', params: { url: `${server.base}/teacher` } });
-    else Linking.openURL(`${server.base}/teacher`).catch(() => setMsg({ text: 'Could not open the page. Try again.', tone: 'bad' }));
+    if (Platform.OS === 'android') router.push({ pathname: '/offline-assessment-page', params: { url } });
+    else Linking.openURL(url).catch(() => setMsg({ text: 'Could not open the page. Try again.', tone: 'bad' }));
   }
 
   return (
@@ -47,7 +71,7 @@ export default function OfflineAssessmentScreen() {
         <Card accent={C.success}>
           <Title sub={`${server.info.school_name ? `${server.info.school_name}, ` : ''}at ${server.address}`}>School server found</Title>
           <Button label="Open Offline Assessment" icon="open-outline" onPress={open} />
-          <Body small soft>Sign in with your CAS teacher code and password. You can keep mobile data on.</Body>
+          <Body small soft>{cas.length ? 'It opens signed in.' : 'Sign in with your CAS teacher code and password.'} You can keep mobile data on.</Body>
         </Card>
       ) : (
         <Card accent={C.warning}>

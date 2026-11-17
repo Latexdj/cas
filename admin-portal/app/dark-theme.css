@@ -1945,14 +1945,14 @@
 .dark [style*="border-top: 1px solid rgb(196, 181, 253)"],
 .dark [style*="border-left: 1px solid rgb(196, 181, 253)"],
 .dark [style*="border-right: 1px solid rgb(196, 181, 253)"],
-.dark [style*="#c4b5fd" i][style*="border" i] { border-color: var(--line) !important; }
+.dark [style*="#C4B5FD" i][style*="border" i] { border-color: var(--line) !important; }
 .dark [style*="border: 1px solid rgb(196, 181, 253)"],
 .dark [style*="border-color: rgb(196, 181, 253)"],
 .dark [style*="border-bottom: 1px solid rgb(196, 181, 253)"],
 .dark [style*="border-top: 1px solid rgb(196, 181, 253)"],
 .dark [style*="border-left: 1px solid rgb(196, 181, 253)"],
 .dark [style*="border-right: 1px solid rgb(196, 181, 253)"],
-.dark [style*="#C4B5FD" i][style*="border" i] { border-color: var(--line) !important; }
+.dark [style*="#c4b5fd" i][style*="border" i] { border-color: var(--line) !important; }
 .dark [style*="border: 1px solid rgb(198, 232, 216)"],
 .dark [style*="border-color: rgb(198, 232, 216)"],
 .dark [style*="border-bottom: 1px solid rgb(198, 232, 216)"],
@@ -2742,14 +2742,15 @@
 .dark .text-\[\#6B5D4D\] { color: var(--ink-2) !important; }
 .dark .text-\[\#6E6253\] { color: var(--ink-muted) !important; }
 .dark .text-\[\#78350F\] { color: var(--warn-ink) !important; }
-.dark .text-\[\#7A2222\] { color: var(--bad-ink) !important; }
 .dark .text-\[\#7a2222\] { color: var(--bad-ink) !important; }
+.dark .text-\[\#7A2222\] { color: var(--bad-ink) !important; }
 .dark .text-\[\#7F1D1D\] { color: var(--bad-ink) !important; }
 .dark .text-\[\#8A6420\] { color: var(--warn-ink) !important; }
 .dark .text-\[\#8C7E6E\] { color: var(--ink-muted) !important; }
 .dark .text-\[\#92400E\] { color: var(--warn-ink) !important; }
 .dark .text-\[\#94A3B8\] { color: var(--ink-muted) !important; }
 .dark .hover\:text-\[\#9B2020\]:hover { color: var(--bad-ink) !important; }
+.dark .text-\[\#9B2C2C\] { color: var(--bad-ink) !important; }
 .dark .text-\[\#B45309\] { color: var(--warn-ink) !important; }
 .dark .text-\[\#B83232\] { color: var(--bad-ink) !important; }
 .dark .hover\:text-\[\#B83232\]:hover { color: var(--bad-ink) !important; }
@@ -2768,6 +2769,7 @@
 .dark .border-\[\#FDE68A\] { border-color: var(--line) !important; }
 .dark .border-\[\#FECACA\] { border-color: var(--line) !important; }
 .dark .hover\:border-\[\#FECACA\]:hover { border-color: var(--line) !important; }
+.dark .divide-\[\#E2D9CC\] > :not(:last-child) { border-color: var(--line) !important; }
 .dark .divide-\[\#F0EBE1\] > :not(:last-child) { border-color: var(--line) !important; }
 .dark .divide-\[\#F4EFE6\] > :not(:last-child) { border-color: var(--line) !important; }
 

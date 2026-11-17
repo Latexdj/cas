@@ -653,9 +653,20 @@ function info() {
 
 const MIME = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif' };
 
+// Which of this PC's addresses tablets and teachers reach it on. CAS uses the
+// busiest one when a teacher opens Offline Assessment from the online portal.
+const addressHits = {};
+function lanReport() {
+  const skip = /virtual|vethernet|vmware|vbox|hyper-v|loopback|bluetooth|tailscale|zerotier|docker|wsl/i;
+  return lanAddresses()
+    .filter(a => !a.address.startsWith('169.254.') && !skip.test(a.name))
+    .map(a => ({ address: a.address, hits: addressHits[a.address] || 0 }));
+}
+
 async function handle(req, res) {
   const url = new URL(req.url, 'http://x');
   const p = url.pathname;
+  if (!isLocal(req)) { const la = String(req.socket.localAddress || '').replace(/^::ffff:/, ''); if (la) addressHits[la] = (addressHits[la] || 0) + 1; }
 
   // Offline LMS (tablets and the teacher page).
   if (p.startsWith('/lms/') && lms) { if (await lms.handle(req, res, url)) return; }
@@ -819,7 +830,7 @@ const packImagePath = (name) => {
   const d = packDir(); const f = d && path.join(d, 'images', name);
   return f && fs.existsSync(f) ? f : null;
 };
-lms = require('./lms.js')({ DATA, log, send, readBody, config, pascoForTeachers, packImagePath });
+lms = require('./lms.js')({ DATA, log, send, readBody, config, pascoForTeachers, packImagePath, lanReport, port: PORT });
 lms.start();
 const server = http.createServer((req, res) => {
   handle(req, res).catch(e => { log('request failed', req.url, e.message); try { send(res, 500, { error: 'Server error' }); } catch { /* already sent */ } });

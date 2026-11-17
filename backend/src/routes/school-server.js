@@ -297,11 +297,50 @@ router.post('/lms/results', serverAuth, async (req, res, next) => {
   } catch (err) { next(err); } finally { client.release(); }
 });
 
+// Private network addresses only (10.x, 172.16-31.x, 192.168.x).
+const isPrivateIp = (a) => /^(10\.\d{1,3}|172\.(1[6-9]|2\d|3[01])|192\.168)\.\d{1,3}\.\d{1,3}$/.test(String(a || ''));
+
 router.post('/summary', serverAuth, async (req, res, next) => {
   try {
-    await pool.query(`UPDATE school_servers SET last_sync_summary=$1 WHERE id=$2`,
-      [String(req.body?.summary || '').slice(0, 300), req.serverId]);
+    // The server's addresses on the school network, busiest first (the one tablets and teachers use).
+    const lan = (Array.isArray(req.body?.lan) ? req.body.lan : [])
+      .filter(x => x && isPrivateIp(x.address)).slice(0, 6)
+      .map(x => ({ address: x.address, hits: Math.max(0, parseInt(x.hits) || 0) }))
+      .sort((a, b) => b.hits - a.hits);
+    const port = parseInt(req.body?.port) || null;
+    await pool.query(
+      `UPDATE school_servers SET last_sync_summary=$1,
+              lan=COALESCE($3::jsonb, lan), lan_port=COALESCE($4, lan_port) WHERE id=$2`,
+      [String(req.body?.summary || '').slice(0, 300), req.serverId, lan.length ? JSON.stringify(lan) : null,
+       port && port > 0 && port < 65536 ? port : null]);
     res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
+// ── Teacher portal: open Offline Assessment on the school server ─────────────
+// Returns each of the school's servers with its school-network addresses and a
+// sign-in pass valid for 5 minutes. The pass is signed with the server's own
+// key (the hash of its token, which the server can work out), so the server
+// can check it with no internet. The browser carries it in the address's #hash,
+// which never leaves the browser except to the school server's page itself.
+router.get('/teacher-open', authenticate, async (req, res, next) => {
+  try {
+    if (req.user.role !== 'teacher') return res.status(403).json({ error: 'For teachers only.' });
+    const { rows } = await pool.query(
+      `SELECT id, name, token_hash, last_seen_at, lan, lan_port FROM school_servers
+        WHERE school_id=$1 AND revoked_at IS NULL ORDER BY last_seen_at DESC NULLS LAST`, [req.schoolId]);
+    const exp = Math.floor(Date.now() / 1000) + 5 * 60;
+    const servers = rows.map(s => {
+      const payload = Buffer.from(JSON.stringify({ t: req.user.id, x: exp, n: crypto.randomBytes(9).toString('hex') })).toString('base64url');
+      const sig = crypto.createHmac('sha256', s.token_hash).update(payload).digest('base64url');
+      const port = s.lan_port || 8787;
+      return {
+        id: s.id, name: s.name, last_seen_at: s.last_seen_at,
+        urls: (s.lan || []).map(x => `http://${x.address}:${port}/teacher`),
+        ticket: `${payload}.${sig}`,
+      };
+    });
+    res.json({ servers });
   } catch (err) { next(err); }
 });
 

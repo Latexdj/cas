@@ -175,6 +175,8 @@ module.exports = function createLms(ctx) {
       });
       setMeta('modes', JSON.stringify(roster.modes || []));
       setMeta('roster_at', nowIso()); setMeta('term', JSON.stringify(roster.term));
+      // How far this PC's clock is from CAS's, so sign-in passes from CAS are timed right even if the clock is wrong.
+      if (roster.at && !Number.isNaN(Date.parse(roster.at))) setMeta('cas_clock_offset', String(Date.parse(roster.at) - Date.now()));
       if (roster.school?.name) setMeta('cas_school', JSON.stringify({ ...(link().school || {}), name: roster.school.name, code: roster.school.code }));
 
       // Quizzes published in CAS.
@@ -301,7 +303,7 @@ module.exports = function createLms(ctx) {
         + (pushedQuizzes ? ` Sent ${pushedQuizzes} test${pushedQuizzes === 1 ? '' : 's'} made here.` : '')
         + (sent ? ` Sent ${sent} result${sent === 1 ? '' : 's'}.` : '')
         + (recorded ? ` Recorded ${recorded} test${recorded === 1 ? '' : 's'} in Assessments.` : '');
-      await casFetch('/summary', { method: 'POST', body: { summary: result.message } }).catch(() => {});
+      await casFetch('/summary', { method: 'POST', body: { summary: result.message, lan: ctx.lanReport ? ctx.lanReport() : [], port: ctx.port } }).catch(() => {});
     } catch (e) {
       result.message = e.code === 'REVOKED' ? 'CAS has disconnected this server. Connect it again with a new pairing code.'
         : e.name === 'AbortError' || /fetch failed|ENOTFOUND|ECONN|EAI_AGAIN/i.test(String(e.message) + String(e.cause?.code))
@@ -322,6 +324,29 @@ module.exports = function createLms(ctx) {
     const s = one('SELECT * FROM sessions WHERE token=?', m[1]);
     if (!s || s.expires_at < Date.now()) return null;
     return s;
+  }
+
+  const usedTickets = new Map(); // nonce -> expiry (seconds)
+  function ticketLogin(ticket) {
+    const l = link();
+    const [payload, sig] = ticket.split('.');
+    if (!l || !payload || !sig) return { status: 400, error: 'Sign in with your teacher code and password.' };
+    const key = crypto.createHash('sha256').update(l.token).digest('hex');
+    const want = crypto.createHmac('sha256', key).update(payload).digest('base64url');
+    const a = Buffer.from(sig), b = Buffer.from(want);
+    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return { status: 401, error: 'That link is not for this school server. Sign in with your teacher code and password.' };
+    let t; try { t = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')); } catch { return { status: 400, error: 'Sign in with your teacher code and password.' }; }
+    const now = Math.floor((Date.now() + (Number(meta('cas_clock_offset')) || 0)) / 1000);
+    for (const [n, x] of usedTickets) if (x < now - 600) usedTickets.delete(n);
+    // A few minutes either way, in case this PC's clock is off.
+    if (!t.x || t.x < now - 300 || usedTickets.has(t.n)) return { status: 401, error: 'That link has expired. Open Offline Assessment from CAS again, or sign in here.' };
+    const user = one('SELECT id, name FROM teachers WHERE id=?', String(t.t || ''));
+    if (!user) return { status: 401, error: 'Your teacher account is not on this server yet. Ask the admin to sync it with CAS, or sign in here.' };
+    usedTickets.set(t.n, t.x);
+    run('DELETE FROM sessions WHERE expires_at < ?', Date.now());
+    const token = crypto.randomBytes(24).toString('hex');
+    run('INSERT INTO sessions(token,role,user_id,expires_at) VALUES(?,?,?,?)', token, 'teacher', user.id, Date.now() + SESSION_HOURS * 3600 * 1000);
+    return { status: 200, body: { token, role: 'teacher', name: user.name, expires_in_hours: SESSION_HOURS } };
   }
 
   async function login(body) {
@@ -445,6 +470,13 @@ module.exports = function createLms(ctx) {
       if (!fs.existsSync(f)) { send(res, 404, { error: 'Not found' }); return true; }
       res.writeHead(200, { 'Content-Type': IMG_MIME[img[1].split('.').pop()], 'Cache-Control': 'max-age=604800', 'Access-Control-Allow-Origin': '*' });
       fs.createReadStream(f).pipe(res);
+      return true;
+    }
+    // A sign-in pass from the CAS teacher portal (Offline Assessment). CAS signs
+    // it with the hash of this server's token; it lasts 5 minutes and works once.
+    if (req.method === 'POST' && p === '/lms/teacher/ticket') {
+      const r = ticketLogin(String((await json(req)).ticket || ''));
+      send(res, r.status, r.status === 200 ? r.body : { error: r.error });
       return true;
     }
     if (req.method === 'POST' && p === '/lms/login') {

@@ -33,7 +33,7 @@ const SECTIONS: Section[] = [
   { label: 'Overview', hrefs: ['/teacher'] },
   { label: 'Attendance', hrefs: ['/teacher/submit', '/teacher/history', '/teacher/absences', '/teacher/meetings', '/teacher/invigilation', '/teacher/timetable'] },
   { label: 'Students', hrefs: ['/teacher/student-attendance'] },
-  { label: 'Academics', hrefs: ['/teacher/assessments', '/teacher/results', '/teacher/lms', '/teacher/resources'] },
+  { label: 'Academics', hrefs: ['/teacher/assessments', '/teacher/results', '/teacher/lms', '/teacher/offline-assessment', '/teacher/resources'] },
   { label: 'Administrative', hrefs: ['/teacher/absences/leaves', '/teacher/conduct', '/teacher/memos', '/teacher/letters', '/teacher/clinic', '/teacher/id-scan', '/teacher/observations'] },
   { label: 'Responsibilities', hrefs: ['/teacher/form-class', '/teacher/hod', '/teacher/hod/inventory', '/teacher/hod/observations', '/teacher/budgets', '/teacher/house-students', '/teacher/resumption', '/teacher/roll-call', '/teacher/library', '/teacher/clearance'] },
   { label: 'Account', hrefs: ['/teacher/notifications', '/teacher/profile'] },
@@ -86,6 +86,16 @@ const NAV_ITEMS: NavItem[] = [
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
         <path d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0118 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
+      </svg>
+    ),
+  },
+  {
+    href: '/teacher/offline-assessment',
+    label: 'Offline Assessment',
+    module: 'lms',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+        <path d="M5 12.55a11 11 0 0114 0" /><path d="M1.42 9a16 16 0 0121.16 0" /><path d="M8.53 16.11a6 6 0 016.95 0" /><line x1="12" y1="20" x2="12.01" y2="20" />
       </svg>
     ),
   },

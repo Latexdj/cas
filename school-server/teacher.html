@@ -427,7 +427,21 @@ $('rcsv').onclick = async () => {
   a.href = URL.createObjectURL(blob); a.download = `${$('rtitle').textContent} results.csv`; document.body.appendChild(a); a.click(); a.remove();
 };
 
-start();
+// Opened from CAS (Offline Assessment in the teacher portal or app): the address
+// ends in #ticket=..., a one-time sign-in pass. Use it, then drop it from the address.
+(async () => {
+  const m = location.hash.match(/ticket=([A-Za-z0-9_.-]+)/);
+  if (m) {
+    history.replaceState(null, '', location.pathname);
+    try {
+      const r = await fetch('/lms/teacher/ticket', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ticket: m[1] }) });
+      const d = await r.json().catch(() => ({}));
+      if (r.ok) { token = d.token; try { localStorage.setItem('cas_teacher_token', token); } catch {} }
+      else if (!token) { start(); msg($('lmsg'), d.error || 'Sign in with your teacher code and password.', 'info'); return; }
+    } catch { /* fall back to the saved sign-in or the form */ }
+  }
+  start();
+})();
 </script>
 </body>
 </html>
