@@ -1,4 +1,5 @@
 import React, { useCallback, useState } from 'react';
+import { AppUpdateBanner } from '@/components/AppUpdateBanner';
 import { Pressable, Text, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -116,6 +117,7 @@ export default function TodayScreen() {
           </Pressable>
         </View>
 
+        <AppUpdateBanner />
         <Notice text={error} tone="bad" />
 
         {askReminders && (

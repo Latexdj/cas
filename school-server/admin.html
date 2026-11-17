@@ -58,7 +58,7 @@
 <main>
   <div>
     <h1>CAS School Server</h1>
-    <p class="muted" id="school">Serves past questions and the student app to tablets on this school's Wi-Fi.</p>
+    <p class="muted" id="school">Serves past questions and the CAS apps to tablets and phones on this school's Wi-Fi.</p>
   </div>
 
   <section class="card" aria-labelledby="h-connect">
@@ -80,12 +80,12 @@
     </section>
 
     <section class="card" aria-labelledby="h-app">
-      <h2 id="h-app">Student app</h2>
+      <h2 id="h-app">Apps</h2>
       <div id="app"></div>
       <div class="row">
         <label class="filebtn primary">Load app from file<input type="file" id="appfile" accept=".apk" hidden></label>
       </div>
-      <p class="muted">Load a newer CAS Student .apk. Tablets on the Wi-Fi then offer to install it.</p>
+      <p class="muted">Load a newer CAS Student or CAS Teacher .apk; the server tells them apart. Tablets and teachers' phones on the Wi-Fi then offer to install it. When this PC has internet, new versions published in CAS arrive by themselves.</p>
       <div id="appmsg" role="status"></div>
     </section>
   </div>
@@ -181,7 +181,7 @@ async function load() {
   const r = await fetch('/admin/status');
   status = await r.json();
   const s = status;
-  if (s.school_name) $('school').textContent = `${s.school_name}: serves past questions and the student app to tablets on the school's Wi-Fi.`;
+  if (s.school_name) $('school').textContent = `${s.school_name}: serves past questions and the CAS apps to tablets and phones on the school's Wi-Fi.`;
   if (document.activeElement !== $('schoolname')) $('schoolname').value = s.config.school_name || '';
   $('addrs').innerHTML = s.lan.length
     ? s.lan.map(a => `<div><div class="addr">${esc(a.address)}:${s.port}</div><div class="muted">${esc(a.name)}</div></div>`).join('<span style="width:24px"></span>')
@@ -203,10 +203,11 @@ async function load() {
     ? `${s.lm.files} file${s.lm.files === 1 ? '' : 's'}, ${(s.lm.size / 1073741824 >= 1 ? (s.lm.size / 1073741824).toFixed(2) + ' GB' : (s.lm.size / 1048576).toFixed(1) + ' MB')} in total.`
     : 'No files yet.';
   const a = s.app_info;
-  $('app').innerHTML = a
-    ? `<div class="big">Version ${esc(a.versionName)} <span class="muted" style="font-size:15px">(build ${a.versionCode})</span></div>
-       <p class="muted">${mb(a.size)}, loaded ${when(a.loaded_at)}.</p>`
-    : '<p>No app loaded yet. Load the CAS Student .apk so tablets can update.</p>';
+  const appLine = (x, name, none) => x
+    ? `<p><strong>${name}</strong>: version ${esc(x.versionName)} <span class="muted">(build ${x.versionCode}), ${mb(x.size)}, ${x.source === 'online' ? 'from CAS' : 'loaded'} ${when(x.loaded_at)}</span></p>`
+    : `<p><strong>${name}</strong>: <span class="muted">${none}</span></p>`;
+  $('app').innerHTML = appLine(a, 'CAS Student (tablets)', 'not loaded yet. Load the CAS Student .apk so tablets can update.')
+    + appLine(s.teacher_app_info, "CAS Teacher (teachers' phones)", 'not loaded yet.');
 
   const devs = s.devices;
   $('devcount').textContent = `${devs.length} tablet${devs.length === 1 ? '' : 's'}`;
@@ -229,7 +230,7 @@ async function upload(kind, file, force) {
   if (r.ok) {
     msg(el, kind === 'pack'
       ? `Loaded ${d.questions} questions in ${d.subjects} subjects (pack version ${d.version}).`
-      : `Loaded version ${d.versionName} (build ${d.versionCode}). Tablets will offer the update.`, 'ok');
+      : `Loaded ${d.kind === 'teacher' ? 'CAS Teacher' : 'CAS Student'} version ${d.versionName} (build ${d.versionCode}). ${d.kind === 'teacher' ? "Teachers' phones" : 'Tablets'} on the Wi-Fi will offer the update.`, 'ok');
   } else if (d.code === 'OLDER') {
     el.innerHTML = `<div class="msg info">${esc(d.error)} <button id="${kind}-force">Load it anyway</button></div>`;
     $(`${kind}-force`).onclick = () => upload(kind, file, true);

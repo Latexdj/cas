@@ -6,11 +6,21 @@ import { useAuth } from '@/context/AuthContext';
 import { loadAccess, resetAccess, useAccess } from '@/lib/access';
 import { MENU, visible } from '@/lib/menu';
 import { Body, Card, Divider, InlineConfirm, ListRow, Screen, SectionLabel } from '@/components/ui/kit';
+import { AppUpdateBanner } from '@/components/AppUpdateBanner';
+import { appBuild, appVersion, checkAppUpdate, type AvailableUpdate } from '@/lib/appUpdate';
+import { Platform } from 'react-native';
 
 export default function MoreScreen() {
   const access = useAccess();
   const { logout } = useAuth();
   const [confirmOut, setConfirmOut] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const [found, setFound] = useState<AvailableUpdate | null | undefined>(undefined);
+  async function checkUpdates() {
+    setChecking(true);
+    try { setFound(await checkAppUpdate({ force: true })); } catch { setFound(null); }
+    finally { setChecking(false); }
+  }
 
   // Responsibilities first, then everything else, as on the web.
   const sections = MENU.map(s => ({ ...s, items: s.items.filter(i => visible(i, access)) })).filter(s => s.items.length);
@@ -36,6 +46,14 @@ export default function MoreScreen() {
         <Body soft small>System follows your phone's light or dark setting.</Body>
         <AppearancePicker />
       </Card>
+
+      <SectionLabel>App</SectionLabel>
+      <Card style={{ paddingVertical: 4, gap: 0 }}>
+        <ListRow icon="refresh-outline" title={checking ? 'Checking…' : 'Check for updates'}
+          sub={`CAS Teacher ${appVersion()} (build ${appBuild()})${found === null ? '. You have the latest version.' : ''}`}
+          onPress={() => { if (!checking && Platform.OS === 'android') checkUpdates(); }} />
+      </Card>
+      {found ? <AppUpdateBanner update={found} onDone={() => setFound(undefined)} /> : null}
 
       <Card style={{ paddingVertical: 4, gap: 0 }}>
         {confirmOut ? (

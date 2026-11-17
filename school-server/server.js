@@ -23,7 +23,6 @@ const ROOT = __dirname;
 const DATA = path.join(ROOT, 'data');
 const SYNC_EVERY_MS = 30 * 60 * 1000;
 
-fs.mkdirSync(path.join(DATA, 'app'), { recursive: true });
 
 // ── Small helpers ─────────────────────────────────────────────────────────────
 
@@ -312,6 +311,8 @@ async function syncFromCloud() {
       state.last_sync_result = { ok: true, message: `Updated ${changed.length} subject${changed.length === 1 ? '' : 's'} (${q} questions in total)${missing ? `; ${missing} images could not be downloaded and will be retried` : ''}.` };
       log(`synced from cloud: version ${remote.version}, ${changed.length} subjects changed`);
     }
+    const apps = await syncApps(cloud);
+    if (apps.length) state.last_sync_result = { ...state.last_sync_result, message: `${state.last_sync_result.message} New app: ${apps.join(', ')}.` };
     state.last_sync = new Date().toISOString();
     saveState();
     return state.last_sync_result;
@@ -334,48 +335,77 @@ function imagePaths(pack) {
   return out;
 }
 
-// ── Student app (APK) ─────────────────────────────────────────────────────────
+// ── Apps (APK): CAS Student for the tablets, CAS Teacher for teachers' phones ─
 
-const APP_INFO = path.join(DATA, 'app', 'latest.json');
+const APPS = {
+  student: { pkg: 'com.cas.student', dir: 'app', name: 'CAS Student' },
+  teacher: { pkg: 'com.cas.teacher', dir: 'app-teacher', name: 'CAS Teacher' },
+};
+for (const k of Object.keys(APPS)) fs.mkdirSync(path.join(DATA, APPS[k].dir), { recursive: true });
+const appDir = (kind) => path.join(DATA, APPS[kind].dir);
 // The loaded app, or null when its file is missing.
-const appInfo = () => {
-  const a = readJson(APP_INFO);
-  return a && a.file && fs.existsSync(path.join(DATA, 'app', a.file)) ? a : null;
+const appInfo = (kind = 'student') => {
+  const a = readJson(path.join(appDir(kind), 'latest.json'));
+  return a && a.file && fs.existsSync(path.join(appDir(kind), a.file)) ? a : null;
 };
 
-function removeOldApks() {
-  const keep = appInfo()?.file;
+function removeOldApks(kind) {
+  const keep = appInfo(kind)?.file;
   if (!keep) return;
-  for (const n of fs.readdirSync(path.join(DATA, 'app'))) {
-    if (n.endsWith('.apk') && n !== keep) fs.rm(path.join(DATA, 'app', n), { force: true }, () => {});
+  for (const n of fs.readdirSync(appDir(kind))) {
+    if (n.endsWith('.apk') && n !== keep) fs.rm(path.join(appDir(kind), n), { force: true }, () => {});
   }
 }
 
-function loadApk(buf, { force = false } = {}) {
+/** Loads a CAS Student or CAS Teacher APK; which one is read from the file. */
+function loadApk(buf, { force = false, source = 'file' } = {}) {
   let v;
   try { v = apkVersion(buf); } catch (e) { throw new Error(/zip/i.test(e.message) ? 'This file is not an Android app (.apk).' : e.message); }
-  if (v.package && v.package !== 'com.cas.student') throw new Error(`This is not the CAS Student app (${v.package}).`);
+  const kind = Object.keys(APPS).find(k => APPS[k].pkg === v.package);
+  if (!kind) throw new Error(`This is not the CAS Student or CAS Teacher app (${v.package || 'unknown app'}).`);
   if (!Number.isInteger(v.versionCode)) throw new Error('Could not read the app version.');
-  const cur = appInfo();
+  const cur = appInfo(kind);
   if (cur && v.versionCode <= cur.versionCode && !force) {
     const e = new Error(v.versionCode === cur.versionCode
-      ? `The server already has this app version (${cur.versionName}, build ${cur.versionCode}).`
-      : `This app (build ${v.versionCode}) is older than the one on the server (build ${cur.versionCode}).`);
+      ? `The server already has this ${APPS[kind].name} version (${cur.versionName}, build ${cur.versionCode}).`
+      : `This ${APPS[kind].name} app (build ${v.versionCode}) is older than the one on the server (build ${cur.versionCode}).`);
     e.code = 'OLDER'; throw e;
   }
-  const file = `cas-student-${v.versionCode}-${Date.now()}.apk`;
-  fs.writeFileSync(path.join(DATA, 'app', file), buf);
+  const file = `cas-${kind}-${v.versionCode}-${Date.now()}.apk`;
+  fs.writeFileSync(path.join(appDir(kind), file), buf);
   const info = {
-    versionCode: v.versionCode, versionName: v.versionName || '', size: buf.length, file,
+    kind, versionCode: v.versionCode, versionName: v.versionName || '', size: buf.length, file, source,
     sha256: crypto.createHash('sha256').update(buf).digest('hex'), loaded_at: new Date().toISOString(),
   };
-  writeJson(APP_INFO, info);
-  // Older APKs go a little later, in case a tablet is still downloading one.
+  writeJson(path.join(appDir(kind), 'latest.json'), info);
+  // Older APKs go a little later, in case a device is still downloading one.
   // Keep whichever APK is current when the timer fires: another may have
   // been loaded since this one.
-  setTimeout(removeOldApks, 30 * 60 * 1000);
-  log(`app loaded: ${info.versionName} (build ${info.versionCode})`);
+  setTimeout(() => removeOldApks(kind), 30 * 60 * 1000);
+  log(`${APPS[kind].name} app loaded: ${info.versionName} (build ${info.versionCode}) from ${source}`);
   return info;
+}
+
+/** Copies newer app releases from CAS when there is internet. Never goes back. */
+async function syncApps(cloud) {
+  const out = [];
+  for (const kind of Object.keys(APPS)) {
+    try {
+      const r = await fetchWithTimeout(`${cloud}/api/app-releases/${kind}/latest`, 30000);
+      if (!r.ok) continue;
+      const rel = await r.json();
+      if (!rel || !Number.isInteger(rel.versionCode)) continue;
+      const cur = appInfo(kind);
+      if (cur && rel.versionCode <= cur.versionCode) continue;
+      const d = await fetchWithTimeout(`${cloud}${rel.url}`, 20 * 60 * 1000);
+      if (!d.ok) throw new Error(`HTTP ${d.status}`);
+      const buf = Buffer.from(await d.arrayBuffer());
+      if (buf.length !== rel.size || crypto.createHash('sha256').update(buf).digest('hex') !== rel.sha256) throw new Error('the download was incomplete');
+      loadApk(buf, { source: 'online' });
+      out.push(`${APPS[kind].name} ${rel.versionName || rel.versionCode}`);
+    } catch (e) { log(`${APPS[kind].name} app update from CAS failed:`, e.message); }
+  }
+  return out;
 }
 
 // ── Learning materials (the LM folder) ───────────────────────────────────────
@@ -537,6 +567,8 @@ setInterval(() => { if (devicesDirty) { devicesDirty = false; try { writeJson(DE
 function checkIn(req) {
   const id = String(req.headers['x-cas-device'] || '').slice(0, 64);
   if (!/^[A-Za-z0-9-]{6,64}$/.test(id)) return;
+  // The device list is for student tablets; teachers' phones only fetch updates.
+  if (String(req.headers['x-cas-app'] || '').toLowerCase() === 'teacher') return;
   devices[id] = {
     ip: clientIp(req),
     app_build: Number(req.headers['x-cas-app-build']) || null,
@@ -607,11 +639,11 @@ function readBody(req, limit) {
 
 function info() {
   const m = packManifest();
-  const a = appInfo();
+  const short = (a) => (a ? { versionCode: a.versionCode, versionName: a.versionName, size: a.size, sha256: a.sha256 } : null);
   return {
     service: 'cas-school-server', version: VERSION, school_name: config().school_name || null,
     pack_version: m?.version ?? null, pack_published_at: m?.published_at ?? null,
-    app: a ? { versionCode: a.versionCode, versionName: a.versionName, size: a.size, sha256: a.sha256 } : null,
+    app: short(appInfo('student')), teacher_app: short(appInfo('teacher')),
     lm: (() => { const m = lmScan(); return { version: m.version, files: m.files.length, size: m.total }; })(),
   };
 }
@@ -674,14 +706,15 @@ async function handle(req, res) {
     return sendLmFile(req, res, rel);
   }
 
-  if (req.method === 'GET' && p === '/app/latest.apk') {
-    const a = appInfo();
-    const f = a && path.join(DATA, 'app', a.file);
+  const apkRoute = p === '/app/latest.apk' ? 'student' : p === '/app/teacher/latest.apk' ? 'teacher' : null;
+  if (req.method === 'GET' && apkRoute) {
+    const a = appInfo(apkRoute);
+    const f = a && path.join(appDir(apkRoute), a.file);
     if (!f || !fs.existsSync(f)) return send(res, 404, { error: 'No app on the server yet.' });
     res.writeHead(200, {
       'Content-Type': 'application/vnd.android.package-archive',
       'Content-Length': fs.statSync(f).size,
-      'Content-Disposition': `attachment; filename="CAS-Student-${a.versionName || a.versionCode}.apk"`,
+      'Content-Disposition': `attachment; filename="${APPS[apkRoute].name.replace(' ', '-')}-${a.versionName || a.versionCode}.apk"`,
       'Access-Control-Allow-Origin': '*',
     });
     return fs.createReadStream(f).pipe(res);
@@ -700,7 +733,7 @@ async function handle(req, res) {
       return send(res, 200, {
         ...info(), port: PORT, lan: lanAddresses(), config: config(),
         pack: m ? { version: m.version, published_at: m.published_at, source: m.source, loaded_at: m.loaded_at, subjects: m.subjects } : null,
-        app_info: appInfo(), sync: { ...state, running: syncing },
+        app_info: appInfo('student'), teacher_app_info: appInfo('teacher'), sync: { ...state, running: syncing },
         lm_copy: lmCopy,
         cas: lms ? lms.status() : null,
         devices: Object.entries(devices).map(([id, d]) => ({ id, ...d })).sort((a, b) => String(b.last_seen).localeCompare(String(a.last_seen))),

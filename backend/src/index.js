@@ -82,6 +82,7 @@ const lessonObservationRoutes = require('./routes/lesson-observation');
 const teacherResourcesRoutes  = require('./routes/teacher-resources');
 const pascoBankRoutes         = require('./routes/pasco-bank');
 const schoolServerRoutes      = require('./routes/school-server');
+const appReleasesRoutes       = require('./routes/app-releases');
 const departmentBudgetsRoutes = require('./routes/department-budgets');
 const helpChatRoutes          = require('./routes/help-chat');
 const policyDocumentsRoutes   = require('./routes/policy-documents');
@@ -211,6 +212,7 @@ app.use('/api/lesson-observation',    lessonObservationRoutes);
 app.use('/api/teacher-resources',     teacherResourcesRoutes);
 app.use('/api/pasco-bank',            pascoBankRoutes);
 app.use('/api/school-server',         schoolServerRoutes);
+app.use('/api/app-releases',          appReleasesRoutes);
 app.use('/api/department-budgets',    departmentBudgetsRoutes);
 app.use('/api/policy-documents',      policyDocumentsRoutes);
 app.use('/api/resumption',            resumptionRoutes);
@@ -2891,6 +2893,27 @@ async function runMigrations() {
         )`);
       await pool.query(`INSERT INTO pasco_pack_state (id) VALUES (true) ON CONFLICT DO NOTHING`);
     } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] past questions:', e.message); }
+
+    // App releases: the latest CAS Teacher / Student APK, stored in parts.
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS app_releases (
+          id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          app            TEXT NOT NULL CHECK (app IN ('teacher', 'student')),
+          status         TEXT NOT NULL DEFAULT 'uploading' CHECK (status IN ('uploading', 'live', 'replaced', 'failed', 'removed')),
+          version_code   INTEGER,
+          version_name   TEXT,
+          size           BIGINT NOT NULL,
+          sha256         TEXT NOT NULL,
+          parts          INTEGER NOT NULL,
+          storage_prefix TEXT NOT NULL,
+          notes          TEXT,
+          uploaded_by    UUID,
+          created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+          published_at   TIMESTAMPTZ
+        )`);
+      await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS uq_app_releases_live ON app_releases(app) WHERE status = 'live'`);
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] app releases:', e.message); }
 
     // CAS School Server link: pairing codes, connected servers, and the ids
     // that make offline tests and attempts safe to send more than once.
