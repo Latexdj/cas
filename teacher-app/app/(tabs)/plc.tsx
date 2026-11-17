@@ -504,7 +504,7 @@ const styles = createThemedStyles({
   container:             { flex: 1, backgroundColor: '#F4EFE6' },
   content:               { padding: 16, paddingBottom: 48 },
   sectionTitle:          { fontSize: 13, fontWeight: '700', color: '#8C7E6E', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10, marginTop: 16 },
-  optionalTag:           { fontSize: 11, fontWeight: '500', color: '#B0A898', textTransform: 'none' },
+  optionalTag:           { fontSize: 12, fontWeight: '500', color: '#B0A898', textTransform: 'none' },
   // Session card
   sessionCard:           { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FAFAF8', borderRadius: 16, borderWidth: 2, padding: 16, marginBottom: 4 },
   sessionCardLeft:       { flex: 1 },
@@ -530,7 +530,7 @@ const styles = createThemedStyles({
   // Photo
   photoPreviewWrap:      { marginBottom: 20 },
   photoPreview:          { width: '100%', height: 200, borderRadius: 12 },
-  photoSize:             { fontSize: 11, color: '#8C7E6E', textAlign: 'right', marginTop: 4 },
+  photoSize:             { fontSize: 12, color: '#8C7E6E', textAlign: 'right', marginTop: 4 },
   retakeBtn:             { marginTop: 8, alignItems: 'center' },
   retakeBtnText:         { fontWeight: '600', fontSize: 14 },
   cameraPlaceholder:     { backgroundColor: '#FAFAF8', borderWidth: 2, borderColor: '#E2D9CC', borderStyle: 'dashed', borderRadius: 12, height: 160, justifyContent: 'center', alignItems: 'center', marginBottom: 20 },

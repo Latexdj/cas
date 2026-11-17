@@ -97,5 +97,5 @@ const styles = createThemedStyles({
   badgeAbsentText: { color: '#B83232' },
   badgeExcused:    { backgroundColor: '#DCFCE7' },
   badgeExcusedText:{ color: '#2D7A4F' },
-  badgeText:       { fontSize: 11, fontWeight: '700' },
+  badgeText:       { fontSize: 12, fontWeight: '700' },
 });

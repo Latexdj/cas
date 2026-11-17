@@ -240,7 +240,7 @@ const styles = createThemedStyles({
   sheet:       { backgroundColor: '#FAFAF8', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: 44 },
   sheetTitle:  { fontSize: 18, fontWeight: '700', color: '#1C1208', marginBottom: 4 },
   sheetSub:    { fontSize: 13, color: '#8C7E6E', marginBottom: 18 },
-  fieldLabel:  { fontSize: 11, fontWeight: '700', color: '#8C7E6E', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 14, marginBottom: 6 },
+  fieldLabel:  { fontSize: 12, fontWeight: '700', color: '#8C7E6E', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 14, marginBottom: 6 },
   bodyText:    { fontSize: 14, color: '#2C2218', lineHeight: 20 },
   textArea:    { backgroundColor: '#F4EFE6', borderRadius: 10, padding: 14, fontSize: 15, color: '#1C1208', minHeight: 80, textAlignVertical: 'top', marginBottom: 12, borderWidth: 1, borderColor: '#E2D9CC' },
   photoRow:    { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },

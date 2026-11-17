@@ -132,7 +132,7 @@ const styles = createThemedStyles({
   dot:         { width: 8, height: 8, borderRadius: 4, backgroundColor: '#B83232', flexShrink: 0 },
   title:       { fontSize: 14, fontWeight: '700', color: '#2C2218', flex: 1 },
   message:     { fontSize: 13, color: '#5C4F42', lineHeight: 18, marginBottom: 6 },
-  time:        { fontSize: 11, color: '#8C7E6E' },
+  time:        { fontSize: 12, color: '#8C7E6E' },
   dismissBtn:  { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: '#F4EFE6' },
-  dismissText: { fontSize: 11, fontWeight: '700', color: '#8C7E6E' },
+  dismissText: { fontSize: 12, fontWeight: '700', color: '#8C7E6E' },
 });

@@ -1,137 +1,52 @@
-import React from 'react';
-import { ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
+import React, { useState } from 'react';
+import { View } from 'react-native';
 import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { useTheme, useIsDark } from '@/context/ThemeContext';
 import { AppearancePicker } from '@/components/AppearancePicker';
-import { createThemedStyles } from '@/lib/themedStyles';
-
-interface MenuItem {
-  title: string;
-  subtitle: string;
-  icon: keyof typeof Ionicons.glyphMap;
-  route: string;
-}
-
-const MENU_SECTIONS: { label: string; items: MenuItem[] }[] = [
-  {
-    label: 'Assessments',
-    items: [
-      {
-        title:    'My Assessments',
-        subtitle: 'Record CA scores and end-of-semester exam marks',
-        icon:     'school-outline',
-        route:    '/(tabs)/assessments',
-      },
-      {
-        title:    'Results',
-        subtitle: 'View class report cards and student rankings',
-        icon:     'bar-chart-outline',
-        route:    '/(tabs)/results',
-      },
-    ],
-  },
-  {
-    label: 'Records',
-    items: [
-      {
-        title:    'History',
-        subtitle: 'Attendance records, sessions & meeting logs',
-        icon:     'time-outline',
-        route:    '/(tabs)/history',
-      },
-      {
-        title:    'Leave Requests',
-        subtitle: 'Submit and track leave applications',
-        icon:     'document-text-outline',
-        route:    '/absences/leaves',
-      },
-      {
-        title:    'My Observations',
-        subtitle: 'Feedback from lesson observations',
-        icon:     'eye-outline',
-        route:    '/observations',
-      },
-    ],
-  },
-  {
-    label: 'Account',
-    items: [
-      {
-        title:    'Profile',
-        subtitle: 'Your account details and settings',
-        icon:     'person-circle-outline',
-        route:    '/(tabs)/profile',
-      },
-      {
-        title:    'Notifications',
-        subtitle: 'System messages and alerts',
-        icon:     'notifications-outline',
-        route:    '/(tabs)/notifications',
-      },
-    ],
-  },
-];
+import { useAuth } from '@/context/AuthContext';
+import { loadAccess, resetAccess, useAccess } from '@/lib/access';
+import { MENU, visible } from '@/lib/menu';
+import { Body, Card, Divider, InlineConfirm, ListRow, Screen, SectionLabel } from '@/components/ui/kit';
 
 export default function MoreScreen() {
-  const Colors     = useTheme();
-  const isDark     = useIsDark();
+  const access = useAccess();
+  const { logout } = useAuth();
+  const [confirmOut, setConfirmOut] = useState(false);
+
+  // Responsibilities first, then everything else, as on the web.
+  const sections = MENU.map(s => ({ ...s, items: s.items.filter(i => visible(i, access)) })).filter(s => s.items.length);
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: Colors.bg }} contentContainerStyle={styles.content}>
-
-      {/* Dark mode toggle */}
-      <View style={styles.section}>
-        <Text style={[styles.sectionLabel, { color: Colors.muted }]}>Appearance</Text>
-        <View style={[styles.card, { backgroundColor: Colors.surface, borderColor: Colors.border }]}>
-          <View style={{ padding: 14, gap: 10 }}>
-            <Text style={[styles.itemSub, { color: Colors.muted }]}>
-              Device follows your phone's light or dark setting.
-            </Text>
-            <AppearancePicker />
-          </View>
-        </View>
-      </View>
-
-      {MENU_SECTIONS.map(section => (
-        <View key={section.label} style={styles.section}>
-          <Text style={[styles.sectionLabel, { color: Colors.muted }]}>{section.label}</Text>
-          <View style={[styles.card, { backgroundColor: Colors.surface, borderColor: Colors.border }]}>
+    <Screen onRefresh={() => loadAccess(true)}>
+      {sections.map(section => (
+        <View key={section.label} style={{ gap: 8 }}>
+          <SectionLabel>{section.label}</SectionLabel>
+          <Card style={{ paddingVertical: 4, gap: 0 }}>
             {section.items.map((item, i) => (
-              <TouchableOpacity
-                key={item.route}
-                style={[
-                  styles.item,
-                  i < section.items.length - 1 && { borderBottomWidth: 1, borderBottomColor: isDark ? Colors.border : '#F1EDE8' },
-                ]}
-                onPress={() => router.push(item.route as any)}
-                activeOpacity={0.7}
-              >
-                <View style={[styles.iconWrap, { backgroundColor: Colors.accentLight }]}>
-                  <Ionicons name={item.icon} size={22} color={Colors.primaryText} />
-                </View>
-                <View style={styles.itemBody}>
-                  <Text style={[styles.itemTitle, { color: Colors.text }]}>{item.title}</Text>
-                  <Text style={[styles.itemSub, { color: Colors.muted }]}>{item.subtitle}</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color={Colors.muted} />
-              </TouchableOpacity>
+              <View key={item.route}>
+                {i > 0 && <Divider />}
+                <ListRow icon={item.icon} title={item.label} sub={item.sub} onPress={() => router.push(item.route as never)} />
+              </View>
             ))}
-          </View>
+          </Card>
         </View>
       ))}
-    </ScrollView>
+
+      <SectionLabel>Appearance</SectionLabel>
+      <Card>
+        <Body soft small>System follows your phone's light or dark setting.</Body>
+        <AppearancePicker />
+      </Card>
+
+      <Card style={{ paddingVertical: 4, gap: 0 }}>
+        {confirmOut ? (
+          <View style={{ paddingVertical: 8 }}>
+            <InlineConfirm question="Sign out of CAS on this phone?" confirmLabel="Sign out"
+              onConfirm={() => { resetAccess(); logout(); }} onCancel={() => setConfirmOut(false)} />
+          </View>
+        ) : (
+          <ListRow icon="log-out-outline" title="Sign out" danger onPress={() => setConfirmOut(true)} />
+        )}
+      </Card>
+    </Screen>
   );
 }
-
-const styles = createThemedStyles({
-  content:      { padding: 16, paddingBottom: 48 },
-  section:      { marginBottom: 24 },
-  sectionLabel: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 8, paddingHorizontal: 4 },
-  card:         { borderRadius: 16, borderWidth: 1, overflow: 'hidden' },
-  item:         { flexDirection: 'row', alignItems: 'center', padding: 14, gap: 12 },
-  iconWrap:     { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
-  itemBody:     { flex: 1 },
-  itemTitle:    { fontSize: 15, fontWeight: '700', marginBottom: 2 },
-  itemSub:      { fontSize: 12 },
-});

@@ -9,9 +9,14 @@ import { storage } from '@/lib/storage';
 import { offlineQueue } from '@/lib/offlineQueue';
 import { api } from '@/lib/api';
 import { createThemedStyles } from '@/lib/themedStyles';
+import { useTheme } from '@/context/ThemeContext';
+import { headerOptions } from '@/lib/nav';
+import { Platform } from 'react-native';
+import { ReminderTapHandler } from '@/components/ReminderTapHandler';
 
 function InitialLayout() {
   const { user, isLoading } = useAuth();
+  const C = useTheme();
   const router   = useRouter();
   const segments = useSegments();
   const [schoolCode, setSchoolCode] = useState<string | null | undefined>(undefined);
@@ -35,18 +40,24 @@ function InitialLayout() {
       router.replace('/setup');
     } else if (schoolCode && !user && !inLogin && !inSetup) {
       router.replace('/login');
-    } else if (user && !inTabs) {
+    } else if (user && (inLogin || inSetup || !segments[0])) {
+      // Signed in: leave the sign-in screens. Module screens outside the
+      // tabs (LMS, HOD, Library...) stay where they are.
       router.replace('/(tabs)');
     }
   }, [user, isLoading, segments, schoolCode]);
 
   return (
     <>
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="setup"  />
-        <Stack.Screen name="login"  />
-        <Stack.Screen name="(tabs)" />
+      <Stack screenOptions={{ ...headerOptions(C), headerShown: true }}>
+        <Stack.Screen name="setup"  options={{ headerShown: false }} />
+        <Stack.Screen name="login"  options={{ headerShown: false }} />
+        <Stack.Screen name="index"  options={{ headerShown: false }} />
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       </Stack>
+
+      {/* Tapping a lesson reminder opens Submit attendance for that lesson. */}
+      {user && Platform.OS !== 'web' && <ReminderTapHandler />}
 
       {(isLoading || schoolCode === undefined) && (
         <View style={styles.loadingOverlay}>

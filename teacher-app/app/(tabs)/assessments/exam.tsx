@@ -154,7 +154,7 @@ const styles = createThemedStyles({
   row:        { flexDirection: 'row', alignItems: 'center', borderRadius: 12, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 8, gap: 10 },
   rowLeft:    { flex: 1, minWidth: 0 },
   rowName:    { fontSize: 13, fontWeight: '700' },
-  rowCode:    { fontSize: 11, marginTop: 1 },
+  rowCode:    { fontSize: 12, marginTop: 1 },
   scoreInput: { width: 80, borderWidth: 1, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 7, fontSize: 14, fontWeight: '700', textAlign: 'center' },
   footer:     { position: 'absolute', bottom: 0, left: 0, right: 0, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderTopWidth: 1, gap: 12 },
   footerMeta: { flex: 1, fontSize: 13 },

@@ -153,8 +153,8 @@ const styles = createThemedStyles({
   posText:    { color: '#fff', fontSize: 12, fontWeight: '800' },
   rowInfo:    { flex: 1, minWidth: 0 },
   rowName:    { fontSize: 13, fontWeight: '700' },
-  rowCode:    { fontSize: 11, marginTop: 1 },
+  rowCode:    { fontSize: 12, marginTop: 1 },
   rowRight:   { alignItems: 'flex-end' },
   rowAvg:     { fontSize: 15, fontWeight: '800' },
-  rowGrade:   { fontSize: 11, marginTop: 1 },
+  rowGrade:   { fontSize: 12, marginTop: 1 },
 });

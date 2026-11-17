@@ -138,6 +138,13 @@ function darkStyle(style: Record<string, unknown>) {
 export function createThemedStyles<T extends StyleSheet.NamedStyles<T> | StyleSheet.NamedStyles<any>>(
   def: T & StyleSheet.NamedStyles<any>,
 ): T {
+  // Accessibility floor: no text smaller than 12pt anywhere in the app.
+  const floored: Record<string, unknown> = {};
+  for (const [name, style] of Object.entries(def)) {
+    const st = style as Record<string, unknown>;
+    floored[name] = typeof st.fontSize === 'number' && st.fontSize < 12 ? { ...st, fontSize: 12 } : st;
+  }
+  def = floored as T & StyleSheet.NamedStyles<any>;
   const light = StyleSheet.create(def);
   const darkDef: Record<string, unknown> = {};
   for (const [name, style] of Object.entries(def)) darkDef[name] = darkStyle(style as Record<string, unknown>);

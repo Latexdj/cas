@@ -118,7 +118,7 @@ const styles = createThemedStyles({
   skeleton:    { backgroundColor: '#E5DDD5', borderRadius: 16, height: 120, marginBottom: 16 },
   card:        { backgroundColor: '#FAFAF8', borderRadius: 16, borderWidth: 1, borderColor: '#E2D9CC', padding: 20, marginBottom: 16 },
   cardTop:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
-  cardTitle:   { fontSize: 11, fontWeight: '700', color: '#8C7E6E', textTransform: 'uppercase', letterSpacing: 0.6 },
+  cardTitle:   { fontSize: 12, fontWeight: '700', color: '#8C7E6E', textTransform: 'uppercase', letterSpacing: 0.6 },
   cardIcon:    { fontSize: 20 },
   countRow:    { flexDirection: 'row', alignItems: 'flex-end', gap: 10, marginBottom: 16 },
   count:       { fontSize: 48, fontWeight: '800', lineHeight: 52 },

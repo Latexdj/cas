@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
 import { useTheme } from '@/context/ThemeContext';
@@ -348,7 +348,7 @@ const styles = createThemedStyles({
   sheet:       { backgroundColor: '#FAFAF8', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: 44 },
   sheetTitle:  { fontSize: 18, fontWeight: '700', color: '#1C1208', marginBottom: 4 },
   sheetSub:    { fontSize: 14, color: '#8C7E6E', marginBottom: 18 },
-  fieldLabel:  { fontSize: 11, fontWeight: '700', color: '#8C7E6E', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },
+  fieldLabel:  { fontSize: 12, fontWeight: '700', color: '#8C7E6E', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },
   chipRow:     { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 18 },
   chip:        { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: '#E2D9CC', backgroundColor: '#FDFAF5' },
   chipText:    { fontSize: 13, fontWeight: '600', color: '#4A3F32' },
@@ -356,7 +356,7 @@ const styles = createThemedStyles({
   dateInput:   { backgroundColor: '#F4EFE6', borderRadius: 10, padding: 12, fontSize: 15, color: '#1C1208', borderWidth: 1, borderColor: '#E2D9CC' },
   textArea:    { backgroundColor: '#F4EFE6', borderRadius: 10, padding: 14, fontSize: 15, color: '#1C1208', minHeight: 100, textAlignVertical: 'top', marginBottom: 18, borderWidth: 1, borderColor: '#E2D9CC' },
   row2:        { flexDirection: 'row', gap: 10 },
-  fieldHint:   { fontSize: 11, color: '#8C7E6E', marginBottom: 8, marginTop: -4 },
+  fieldHint:   { fontSize: 12, color: '#8C7E6E', marginBottom: 8, marginTop: -4 },
   docBtn:      { borderWidth: 1, borderColor: '#E2D9CC', borderStyle: 'dashed', borderRadius: 10, paddingVertical: 12, paddingHorizontal: 14, alignItems: 'center', marginBottom: 18 },
   docBtnText:  { fontSize: 13, fontWeight: '600', color: '#8C7E6E' },
 });

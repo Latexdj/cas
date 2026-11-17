@@ -103,7 +103,7 @@ const pendingStyles = createThemedStyles({
   card:      { backgroundColor: '#FFF7ED', borderWidth: 1, borderColor: '#FDBA74', borderRadius: 12, padding: 14, marginBottom: 10 },
   header:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
   badge:     { backgroundColor: '#EA580C', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
-  badgeText: { color: '#fff', fontSize: 10, fontWeight: '700', letterSpacing: 0.5 },
+  badgeText: { color: '#fff', fontSize: 12, fontWeight: '700', letterSpacing: 0.5 },
   time:      { fontSize: 12, color: '#9A3412' },
   subject:   { fontSize: 15, fontWeight: '700', color: '#1C1208', marginBottom: 2 },
   meta:      { fontSize: 13, color: '#7C5C3E', marginTop: 2 },
@@ -141,7 +141,7 @@ function DateRangeRow({ from, to, onChangeFrom, onChangeTo }: {
 const drStyles = createThemedStyles({
   row:   { flexDirection: 'row', gap: 12, backgroundColor: '#FAFAF8', borderBottomWidth: 1, borderBottomColor: '#E2D9CC', paddingHorizontal: 16, paddingVertical: 10 },
   half:  { flex: 1 },
-  label: { fontSize: 11, fontWeight: '700', color: '#8C7E6E', marginBottom: 4 },
+  label: { fontSize: 12, fontWeight: '700', color: '#8C7E6E', marginBottom: 4 },
   input: { backgroundColor: '#F4EFE6', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 13, color: '#1C1208', borderWidth: 1, borderColor: '#E2D9CC' },
 });
 
@@ -791,7 +791,7 @@ const styles = createThemedStyles({
   statRow:            { flexDirection: 'row', gap: 8 },
   statBox:            { flex: 1, borderRadius: 8, paddingVertical: 8, alignItems: 'center' },
   statNum:            { fontSize: 18, fontWeight: '800' },
-  statLabel:          { fontSize: 10, fontWeight: '700', marginTop: 1 },
+  statLabel:          { fontSize: 12, fontWeight: '700', marginTop: 1 },
   /* Session detail modal */
   modalOverlay:       { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
   modalSheet:         { backgroundColor: '#FAFAF8', borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '85%' },
@@ -804,7 +804,7 @@ const styles = createThemedStyles({
   closeBtnText:       { fontSize: 14, color: '#8C7E6E', fontWeight: '700' },
   modalBody:          { padding: 16 },
   modalRow:           { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F4EFE6' },
-  studentCode:        { fontSize: 11, fontWeight: '700', color: '#8C7E6E' },
+  studentCode:        { fontSize: 12, fontWeight: '700', color: '#8C7E6E' },
   studentName:        { fontSize: 14, fontWeight: '600', color: '#2C2218' },
   statusPill:         { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
   statusPillText:     { fontSize: 12, fontWeight: '700' },
@@ -814,7 +814,7 @@ const styles = createThemedStyles({
   meetingTitle:       { fontSize: 14, fontWeight: '700', color: '#2C2218', marginBottom: 2 },
   meetingDate:        { fontSize: 12, color: '#8C7E6E' },
   meetingTypeBadge:   { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, alignSelf: 'flex-start', marginLeft: 8 },
-  meetingTypeText:    { fontSize: 11, fontWeight: '700' },
+  meetingTypeText:    { fontSize: 12, fontWeight: '700' },
   meetingMeta:        { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center' },
   meetingMetaText:    { fontSize: 12, color: '#8C7E6E' },
   meetingVerified:    { fontSize: 12, color: '#145C44', fontWeight: '600' },
@@ -832,7 +832,7 @@ const styles = createThemedStyles({
   studentInfo:        { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
   studentRight:       { alignItems: 'flex-end' },
   pctText:            { fontSize: 16, fontWeight: '800' },
-  studentMeta:        { fontSize: 10, color: '#8C7E6E' },
+  studentMeta:        { fontSize: 12, color: '#8C7E6E' },
   barTrack:           { height: 6, backgroundColor: '#F0EDE8', borderRadius: 3, overflow: 'hidden', marginBottom: 4 },
   barFill:            { height: 6, borderRadius: 3 },
   sessionsMeta:       { fontSize: 12, color: '#8C7E6E' },

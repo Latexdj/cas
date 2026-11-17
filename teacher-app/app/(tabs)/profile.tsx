@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as DocumentPicker from 'expo-document-picker';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { router } from 'expo-router';
 import { useFocusEffect } from 'expo-router';
@@ -1004,7 +1004,7 @@ const styles = createThemedStyles({
   roleText:        { fontSize: 13, color: 'rgba(255,255,255,0.9)', fontWeight: '600' },
   section:         { paddingHorizontal: 16, marginBottom: 20 },
   sectionHeader:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  sectionLabel:    { fontSize: 11, fontWeight: '700', color: '#8C7E6E', letterSpacing: 0.6, textTransform: 'uppercase' },
+  sectionLabel:    { fontSize: 12, fontWeight: '700', color: '#8C7E6E', letterSpacing: 0.6, textTransform: 'uppercase' },
   editBtn:         { borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 4 },
   editBtnText:     { fontSize: 12, fontWeight: '700' },
   infoCard:        { backgroundColor: '#FAFAF8', borderRadius: 16, borderWidth: 1, borderColor: '#E2D9CC', overflow: 'hidden' },
@@ -1029,7 +1029,7 @@ const styles = createThemedStyles({
   requestRowHeader:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   requestNote:        { fontSize: 12, color: '#1C1208', marginTop: 6 },
   statusPill:          { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 20, borderWidth: 1 },
-  statusPillText:      { fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.4 },
+  statusPillText:      { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.4 },
   statusPillPending:   { backgroundColor: '#FFF7D6', borderColor: '#D5B14A' },
   statusPillTextPending:  { color: '#7A5C00' },
   statusPillApproved:  { backgroundColor: '#E8F4EE', borderColor: '#145C44' },
@@ -1039,9 +1039,9 @@ const styles = createThemedStyles({
   logout:          { marginHorizontal: 16, marginTop: 8 },
   credit:          { alignItems: 'center', paddingHorizontal: 16, paddingTop: 20, paddingBottom: 32 },
   creditDivider:   { width: 48, height: 1, backgroundColor: '#E2D9CC', marginBottom: 16 },
-  creditLabel:     { fontSize: 10, color: '#A09282', fontWeight: '600', letterSpacing: 1, textTransform: 'uppercase' },
+  creditLabel:     { fontSize: 12, color: '#A09282', fontWeight: '600', letterSpacing: 1, textTransform: 'uppercase' },
   creditBrand:     { fontSize: 14, fontWeight: '800', color: '#1C1208', marginTop: 4, letterSpacing: -0.3 },
-  creditPhone:     { fontSize: 11, color: '#A09282', marginTop: 3, fontWeight: '500' },
+  creditPhone:     { fontSize: 12, color: '#A09282', marginTop: 3, fontWeight: '500' },
   // Camera
   cameraContainer: { flex: 1, backgroundColor: '#000' },
   camera:          { flex: 1 },
@@ -1057,10 +1057,10 @@ const styles = createThemedStyles({
   sheet:           { backgroundColor: '#FAFAF8', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: 44 },
   sheetTitle:      { fontSize: 18, fontWeight: '700', color: '#1C1208', marginBottom: 4 },
   sheetSub:        { fontSize: 13, color: '#8C7E6E', marginBottom: 18 },
-  fieldLabel:      { fontSize: 11, fontWeight: '700', color: '#8C7E6E', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6, marginTop: 2 },
+  fieldLabel:      { fontSize: 12, fontWeight: '700', color: '#8C7E6E', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6, marginTop: 2 },
   fieldInput:      { backgroundColor: '#F4EFE6', borderRadius: 10, padding: 12, fontSize: 15, color: '#1C1208', borderWidth: 1, borderColor: '#E2D9CC', marginBottom: 14 },
-  fieldHint:       { fontSize: 11, color: '#8C7E6E', marginTop: -10, marginBottom: 12 },
-  fieldErrorText:  { fontSize: 11, color: '#B83232', marginTop: -10, marginBottom: 12 },
+  fieldHint:       { fontSize: 12, color: '#8C7E6E', marginTop: -10, marginBottom: 12 },
+  fieldErrorText:  { fontSize: 12, color: '#B83232', marginTop: -10, marginBottom: 12 },
   placeholderText: { color: '#B5A898' },
   selectText:      { fontSize: 15, color: '#1C1208' },
   optionSheet:     { backgroundColor: '#FAFAF8', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 28 },

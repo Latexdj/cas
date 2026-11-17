@@ -96,7 +96,7 @@ const styles = createThemedStyles({
   cardRow:         { flexDirection: 'row', alignItems: 'flex-start' },
   flex1:           { flex: 1 },
   title:           { fontSize: 14, fontWeight: '700', color: '#2C2218' },
-  type:            { fontSize: 11, fontWeight: '600', color: '#8C7E6E', marginTop: 1 },
+  type:            { fontSize: 12, fontWeight: '600', color: '#8C7E6E', marginTop: 1 },
   meta:            { fontSize: 12, color: '#8C7E6E', marginTop: 4 },
   reason:          { fontSize: 12, color: '#4A3F32', fontStyle: 'italic', marginTop: 4 },
   badge:           { borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, marginLeft: 10 },
@@ -104,5 +104,5 @@ const styles = createThemedStyles({
   badgeAbsentText: { color: '#B83232' },
   badgeExcused:    { backgroundColor: '#DCFCE7' },
   badgeExcusedText:{ color: '#2D7A4F' },
-  badgeText:       { fontSize: 11, fontWeight: '700' },
+  badgeText:       { fontSize: 12, fontWeight: '700' },
 });

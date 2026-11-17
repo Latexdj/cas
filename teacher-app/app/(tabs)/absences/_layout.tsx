@@ -1,22 +1,18 @@
 import { Stack } from 'expo-router';
-import { Colors } from '@/constants/colors';
+import { useTheme } from '@/context/ThemeContext';
+import { headerOptions } from '@/lib/nav';
 
 export default function AbsencesLayout() {
+  const C = useTheme();
   return (
-    <Stack
-      screenOptions={{
-        headerStyle:      { backgroundColor: Colors.primary },
-        headerTintColor:  '#fff',
-        headerTitleStyle: { fontWeight: '700' },
-      }}
-    >
-      <Stack.Screen name="index"          options={{ title: 'Absences' }} />
-      <Stack.Screen name="list"           options={{ title: 'Class Absences' }} />
-      <Stack.Screen name="meetings"       options={{ title: 'Meeting Absences' }} />
-      <Stack.Screen name="plc-absences"   options={{ title: 'PLC Absences' }} />
-      <Stack.Screen name="remedials"      options={{ title: 'Remedial Lessons' }} />
-      <Stack.Screen name="leaves"         options={{ title: 'Leave Requests' }} />
-      <Stack.Screen name="remedial"       options={{ title: 'Schedule Remedial' }} />
+    <Stack screenOptions={headerOptions(C)}>
+      <Stack.Screen name="index"        options={{ title: 'Absences' }} />
+      <Stack.Screen name="list"         options={{ title: 'Class absences' }} />
+      <Stack.Screen name="meetings"     options={{ title: 'Meeting absences' }} />
+      <Stack.Screen name="plc-absences" options={{ title: 'PLC absences' }} />
+      <Stack.Screen name="remedials"    options={{ title: 'Remedial lessons' }} />
+      <Stack.Screen name="leaves"       options={{ title: 'Leave' }} />
+      <Stack.Screen name="remedial"     options={{ title: 'Schedule remedial' }} />
     </Stack>
   );
 }
