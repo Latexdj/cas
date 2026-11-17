@@ -8,6 +8,7 @@ import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Network from 'expo-network';
 import * as Application from 'expo-application';
+import { onWifi } from '@/modules/wifi-bind';
 
 export const SERVER_PORT = 8787;
 const K_SAVED = 'cas_t_school_server';
@@ -109,7 +110,8 @@ let lastResult: { at: number; server: SchoolServer | null } | null = null;
 export function findSchoolServer(opts: { fresh?: boolean; packVersion?: number | null } = {}): Promise<SchoolServer | null> {
   if (!opts.fresh && lastResult && Date.now() - lastResult.at < 60_000) return Promise.resolve(lastResult.server);
   if (pending) return pending;
-  pending = (async () => {
+  // The school Wi-Fi may have no internet: route the search through it.
+  pending = onWifi(async () => {
     const pv = opts.packVersion ?? null;
     let server: SchoolServer | null = null;
     const manual = await getManualAddress();
@@ -122,7 +124,7 @@ export function findSchoolServer(opts: { fresh?: boolean; packVersion?: number |
     if (server) await AsyncStorage.setItem(K_SAVED, server.address).catch(() => {});
     lastResult = { at: Date.now(), server };
     return server;
-  })().finally(() => { pending = null; });
+  }).finally(() => { pending = null; });
   return pending;
 }
 
@@ -130,7 +132,7 @@ export function findSchoolServer(opts: { fresh?: boolean; packVersion?: number |
 export async function tryAddress(raw: string): Promise<SchoolServer | null> {
   const address = normaliseAddress(raw);
   if (!address) return null;
-  const server = await probe(address, 4000, null);
+  const server = await onWifi(() => probe(address, 4000, null));
   if (server) {
     await setManualAddress(address);
     await AsyncStorage.setItem(K_SAVED, address).catch(() => {});

@@ -3,6 +3,7 @@
 // Server's teacher page; this screen finds the server and opens it.
 import React, { useCallback, useEffect, useState } from 'react';
 import { Linking, Platform, Text, View } from 'react-native';
+import { router } from 'expo-router';
 import { useTheme } from '@/context/ThemeContext';
 import { findSchoolServer, tryAddress, type SchoolServer } from '@/lib/schoolServer';
 import { Body, Button, Card, Field, Loading, Notice, Row, Screen, Title } from '@/components/ui/kit';
@@ -30,7 +31,9 @@ export default function OfflineAssessmentScreen() {
   }
   function open() {
     if (!server) return;
-    Linking.openURL(`${server.base}/teacher`).catch(() => setMsg({ text: 'Could not open the page. Try again.', tone: 'bad' }));
+    // Inside the app on Android, so the page stays on the school Wi-Fi even with mobile data on.
+    if (Platform.OS === 'android') router.push({ pathname: '/offline-assessment-page', params: { url: `${server.base}/teacher` } });
+    else Linking.openURL(`${server.base}/teacher`).catch(() => setMsg({ text: 'Could not open the page. Try again.', tone: 'bad' }));
   }
 
   return (
@@ -44,7 +47,7 @@ export default function OfflineAssessmentScreen() {
         <Card accent={C.success}>
           <Title sub={`${server.info.school_name ? `${server.info.school_name}, ` : ''}at ${server.address}`}>School server found</Title>
           <Button label="Open Offline Assessment" icon="open-outline" onPress={open} />
-          <Body small soft>It opens in your browser. Sign in with your CAS teacher code and password.</Body>
+          <Body small soft>Sign in with your CAS teacher code and password. You can keep mobile data on.</Body>
         </Card>
       ) : (
         <Card accent={C.warning}>

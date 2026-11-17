@@ -9,6 +9,7 @@ import * as IntentLauncher from 'expo-intent-launcher';
 import * as Application from 'expo-application';
 import { api } from './api';
 import { findSchoolServer } from './schoolServer';
+import { holdWifi } from '@/modules/wifi-bind';
 
 const K_SNOOZE = 'cas_t_update_snooze';
 const K_LAST = 'cas_t_update_checked';
@@ -50,7 +51,10 @@ export async function checkAppUpdate({ force = false } = {}): Promise<AvailableU
       return u && u.versionCode > appBuild() && !(await snoozed(u.versionCode)) ? u : null;
     }
   }
-  const [school, online] = await Promise.all([fromSchool().catch(() => null), fromOnline()]);
+  // One after the other: the school check routes the app through the Wi-Fi,
+  // which may have no internet, so the online check waits until it is done.
+  const school = await fromSchool().catch(() => null);
+  const online = await fromOnline();
   await AsyncStorage.setItem(K_LAST, String(Date.now())).catch(() => {});
   const best = [school, online].filter((u): u is AvailableUpdate => !!u && u.versionCode > appBuild())
     .sort((a, b) => b.versionCode - a.versionCode || (a.source === 'school' ? -1 : 1))[0] ?? null;
@@ -72,6 +76,8 @@ export async function snoozeUpdate(versionCode: number) {
 /** Downloads the APK (progress 0 to 1) and opens Android's installer. */
 export async function installUpdate(u: AvailableUpdate, onProgress: (p: number) => void) {
   const dest = `${FileSystem.cacheDirectory}cas-teacher-${u.versionCode}.apk`;
+  const release = u.source === 'school' ? holdWifi() : () => {};
+  try {
   const have = await FileSystem.getInfoAsync(dest);
   if (!have.exists || have.size !== u.size) {
     await FileSystem.deleteAsync(dest, { idempotent: true });
@@ -89,6 +95,7 @@ export async function installUpdate(u: AvailableUpdate, onProgress: (p: number) 
       throw new Error('The download was incomplete. Try again.');
     }
   }
+  } finally { release(); }
   onProgress(1);
   const uri = await FileSystem.getContentUriAsync(dest);
   await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
