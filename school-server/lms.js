@@ -11,6 +11,7 @@
 const crypto = require('crypto');
 const os = require('os');
 const path = require('path');
+const fs = require('fs');
 const { DatabaseSync } = require('node:sqlite');
 const bcrypt = require('./vendor/bcryptjs.js');
 
@@ -54,7 +55,8 @@ module.exports = function createLms(ctx) {
 
   // Added for merged classes and recording in the Assessments module.
   for (const sql of ['ALTER TABLE quizzes ADD COLUMN mode_id TEXT', 'ALTER TABLE quizzes ADD COLUMN record_as TEXT',
-    'ALTER TABLE quizzes ADD COLUMN record_dirty INTEGER DEFAULT 0', 'ALTER TABLE quizzes ADD COLUMN record_note TEXT']) {
+    'ALTER TABLE quizzes ADD COLUMN record_dirty INTEGER DEFAULT 0', 'ALTER TABLE quizzes ADD COLUMN record_note TEXT',
+    'ALTER TABLE questions ADD COLUMN images TEXT', 'ALTER TABLE questions ADD COLUMN option_images TEXT']) {
     try { db.exec(sql); } catch { /* already there */ }
   }
   db.exec(`
@@ -70,6 +72,34 @@ module.exports = function createLms(ctx) {
   const run = (sql, ...a) => q(sql).run(...a);
   const tx = (fn) => { db.exec('BEGIN'); try { const r = fn(); db.exec('COMMIT'); return r; } catch (e) { db.exec('ROLLBACK'); throw e; } };
   const meta = (k) => one('SELECT value FROM meta WHERE key=?', k)?.value ?? null;
+
+  // ── Pictures in test questions and options ──────────────────────────────────
+  // Stored in data/test-images and served at /lms/img/<name>. In question text,
+  // [image 1], [image 2] mark where each picture goes (as in Past Questions).
+  const IMG_DIR = path.join(DATA, 'test-images');
+  fs.mkdirSync(IMG_DIR, { recursive: true });
+  const IMG_TYPES = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif' };
+  const IMG_MIME = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif' };
+  const imgName = (u) => { const m = String(u || '').match(/^\/lms\/img\/([a-f0-9-]+\.(?:jpg|png|webp|gif))$/); return m ? m[1] : null; };
+  // A picture for a question: one already uploaded here, or a Past Questions
+  // picture, which is copied in so the test keeps it when the pack changes.
+  function keepImage(u) {
+    if (!u) return null;
+    const own = imgName(u);
+    if (own) return fs.existsSync(path.join(IMG_DIR, own)) ? `/lms/img/${own}` : null;
+    const pk = String(u).match(/^\/pack\/images\/([A-Za-z0-9._-]+)$/);
+    if (pk && ctx.packImagePath) {
+      const from = ctx.packImagePath(pk[1]);
+      if (!from) return null;
+      const ext = (pk[1].split('.').pop() || 'jpg').toLowerCase();
+      if (!IMG_MIME[ext]) return null;
+      const name = `${uuid()}.${ext === 'jpeg' ? 'jpg' : ext}`;
+      fs.copyFileSync(from, path.join(IMG_DIR, name));
+      return `/lms/img/${name}`;
+    }
+    return null;
+  }
+  const parseList = (v) => { try { const a = JSON.parse(v || '[]'); return Array.isArray(a) ? a : []; } catch { return []; } };
   const setMeta = (k, v) => run('INSERT INTO meta(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value', k, v == null ? null : String(v));
   const nowIso = () => new Date().toISOString();
   const key = (s) => String(s || '').trim().toUpperCase();
@@ -330,7 +360,7 @@ module.exports = function createLms(ctx) {
   const classList = (s) => String(s || '').split(',').map(x => x.trim()).filter(Boolean);
   const sameClass = (testClasses, cls) => classList(testClasses).some(c => key(c) === key(cls));
   const quizQuestions = (quizId) => all('SELECT * FROM questions WHERE quiz_id=? ORDER BY sort', quizId)
-    .map(x => ({ ...x, options: JSON.parse(x.options || '[]') }));
+    .map(x => ({ ...x, options: JSON.parse(x.options || '[]'), images: parseList(x.images), option_images: parseList(x.option_images) }));
   const totalMarks = (qs) => qs.reduce((n, x) => n + (Number(x.marks) || 0), 0);
 
   /** Marks an attempt from its saved answers and closes it. */
@@ -377,7 +407,8 @@ module.exports = function createLms(ctx) {
     return {
       attempt: { id: a.id, status: a.status, started_at: a.started_at, deadline_at: a.deadline_at, server_now: nowIso() },
       quiz: { id: quiz.id, title: quiz.title, subject: quiz.subject, instructions: quiz.instructions, time_limit_mins: quiz.time_limit_mins, total_marks: totalMarks(qs) },
-      questions: qs.map(x => ({ id: x.id, type: x.type, text: x.text, options: x.type === 'mcq' ? x.options : [], marks: x.marks })),
+      questions: qs.map(x => ({ id: x.id, type: x.type, text: x.text, options: x.type === 'mcq' ? x.options : [], marks: x.marks,
+        images: x.images, option_images: x.type === 'mcq' ? x.option_images : [] })),
       answers: ans,
     };
   }
@@ -388,7 +419,7 @@ module.exports = function createLms(ctx) {
       const ans = new Map(all('SELECT * FROM answers WHERE attempt_id=?', a.id).map(x => [x.question_id, x]));
       out.review = quizQuestions(quiz.id).map(x => {
         const an = ans.get(x.id);
-        return { id: x.id, type: x.type, text: x.text, options: x.options, correct: x.type === 'mcq' ? x.correct : null,
+        return { id: x.id, type: x.type, text: x.text, options: x.options, images: x.images, option_images: x.option_images, correct: x.type === 'mcq' ? x.correct : null,
           explanation: x.explanation, marks: x.marks, your_answer: an ? (x.type === 'mcq' ? an.selected : an.text_answer) : null,
           marks_awarded: an?.marks ?? (x.type === 'mcq' ? 0 : null) };
       });
@@ -406,6 +437,14 @@ module.exports = function createLms(ctx) {
 
     if (req.method === 'OPTIONS') {
       send(res, 204, '', { 'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE' });
+      return true;
+    }
+    const img = p.match(/^\/lms\/img\/([a-f0-9-]+\.(?:jpg|png|webp|gif))$/);
+    if (req.method === 'GET' && img) {
+      const f = path.join(IMG_DIR, img[1]);
+      if (!fs.existsSync(f)) { send(res, 404, { error: 'Not found' }); return true; }
+      res.writeHead(200, { 'Content-Type': IMG_MIME[img[1].split('.').pop()], 'Cache-Control': 'max-age=604800', 'Access-Control-Allow-Origin': '*' });
+      fs.createReadStream(f).pipe(res);
       return true;
     }
     if (req.method === 'POST' && p === '/lms/login') {
@@ -525,6 +564,17 @@ module.exports = function createLms(ctx) {
     const modes = () => JSON.parse(meta('modes') || '[]');
     const mine = (id) => { const z = one('SELECT * FROM quizzes WHERE id=?', id); return z && z.teacher_id === me.id ? z : null; };
 
+    if (req.method === 'POST' && p === '/lms/teacher/images') {
+      const ext = IMG_TYPES[String(req.headers['content-type'] || '').split(';')[0].trim().toLowerCase()];
+      if (!ext) { send(res, 400, { error: 'Use a JPG, PNG, WEBP or GIF picture.' }); return true; }
+      let buf;
+      try { buf = await readBody(req, 6 * 1024 * 1024); } catch { send(res, 413, { error: 'That picture is too large (6 MB at most).' }); return true; }
+      if (!buf.length) { send(res, 400, { error: 'The picture was empty.' }); return true; }
+      const name = `${uuid()}.${ext}`;
+      fs.writeFileSync(path.join(IMG_DIR, name), buf);
+      send(res, 201, { url: `/lms/img/${name}` });
+      return true;
+    }
     if (req.method === 'GET' && p === '/lms/teacher/me') {
       send(res, 200, { name: me.name, subjects: mySubjects(), modes: modes(), online: JSON.parse(meta('last_sync') || 'null') });
       return true;
@@ -665,11 +715,13 @@ module.exports = function createLms(ctx) {
     const qs = Array.isArray(b.questions) ? b.questions : [];
     for (const [i, x] of qs.entries()) {
       const n = i + 1;
-      if (!String(x.text || '').trim()) return `Question ${n} has no text.`;
+      if (!String(x.text || '').trim() && !(Array.isArray(x.images) && x.images.some(Boolean))) return `Question ${n} has no text or picture.`;
+      if (Array.isArray(x.images) && x.images.filter(Boolean).length > 6) return `Question ${n} has more than 6 pictures.`;
       if (!(Number(x.marks) > 0)) return `Question ${n} needs marks above 0.`;
       if (x.type !== 'short') {
         const opts = (x.options || []).map(o => String(o || '').trim());
-        if (opts.length < 2 || opts.length > 5 || opts.some(o => !o)) return `Question ${n} needs 2 to 5 filled-in options.`;
+        const oimg = Array.isArray(x.option_images) ? x.option_images : [];
+        if (opts.length < 2 || opts.length > 5 || opts.some((o, k) => !o && !oimg[k])) return `Question ${n} needs 2 to 5 options, each with text or a picture.`;
         const ci = LETTERS.indexOf(String(x.correct || '').toLowerCase());
         if (ci < 0 || ci >= opts.length) return `Question ${n}: choose the correct option.`;
       }
@@ -677,12 +729,14 @@ module.exports = function createLms(ctx) {
     return null;
   }
   function saveQuestions(quizId, qs) {
-    const ins = q('INSERT INTO questions(id,quiz_id,sort,type,text,options,correct,explanation,marks) VALUES(?,?,?,?,?,?,?,?,?)');
+    const ins = q('INSERT INTO questions(id,quiz_id,sort,type,text,options,correct,explanation,marks,images,option_images) VALUES(?,?,?,?,?,?,?,?,?,?,?)');
     (qs || []).forEach((x, i) => {
       const short = x.type === 'short';
-      ins.run(uuid(), quizId, i, short ? 'short' : 'mcq', String(x.text).trim(),
+      const images = (Array.isArray(x.images) ? x.images : []).map(keepImage).filter(Boolean).slice(0, 6);
+      const optImages = short ? [] : (x.options || []).map((_, k) => keepImage((x.option_images || [])[k]));
+      ins.run(uuid(), quizId, i, short ? 'short' : 'mcq', String(x.text || '').trim(),
         JSON.stringify(short ? [] : x.options.map(o => String(o).trim())), short ? null : String(x.correct).toLowerCase(),
-        x.explanation || null, Number(x.marks) || 1);
+        x.explanation || null, Number(x.marks) || 1, JSON.stringify(images), JSON.stringify(optImages));
     });
   }
 

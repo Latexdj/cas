@@ -46,13 +46,20 @@
   .msg { font-size: 14px; padding: 8px 12px; border-radius: 10px; }
   .msg.ok { background: var(--brand-soft); color: var(--brand); } .msg.bad { background: var(--bad-soft); color: var(--bad); } .msg.info { background: var(--gold-soft); color: var(--gold); }
   .q { border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: grid; gap: 10px; background: var(--sunken); }
-  .opt { display: grid; grid-template-columns: 24px 18px 1fr; gap: 8px; align-items: center; }
+  .opt { display: grid; grid-template-columns: 24px 18px 1fr auto; gap: 8px; align-items: center; }
   table { width: 100%; border-collapse: collapse; font-size: 14px; }
   th { text-align: left; color: var(--muted); font-weight: 600; padding: 8px; } td { border-top: 1px solid var(--line); padding: 8px; vertical-align: top; }
   .tablewrap { overflow-x: auto; }
   .big { font-size: 26px; font-weight: 800; }
   .stat { background: var(--sunken); border-radius: 12px; padding: 12px; }
   [hidden] { display: none !important; }
+  .pics { display: flex; flex-wrap: wrap; gap: 10px; }
+  .pics figure { margin: 0; display: grid; gap: 4px; width: 220px; }
+  .pics img, .optimg img { max-width: 200px; max-height: 150px; border-radius: 8px; border: 1px solid var(--line); background: #fff; object-fit: contain; }
+  .pics figcaption { font-size: 13px; color: var(--muted); }
+  .optimg { display: flex; align-items: center; gap: 8px; margin: -2px 0 4px 50px; }
+  .opt > :nth-child(4):empty { display: none; }
+  code { background: var(--card); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; font-size: 13px; }
   .ticks { display: flex; flex-wrap: wrap; gap: 8px; }
   .ticks label { display: flex; align-items: center; gap: 6px; font-weight: 400; border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; background: var(--card); min-height: 40px; cursor: pointer; }
   .ticks label.all { font-weight: 700; }
@@ -92,7 +99,14 @@
       <label>Title<input id="ftitle" placeholder="Week 6 quiz"></label>
       <label>Subject<select id="fsubject"></select></label>
       <label>Record as<select id="frecord"></select></label>
-      <label>Time limit (minutes, empty for none)<input id="ftime" inputmode="numeric"></label>
+      <label>Time limit<select id="ftime">
+        <option value="">No time limit</option>
+        <option value="5">5 minutes</option><option value="10">10 minutes</option><option value="15">15 minutes</option>
+        <option value="20">20 minutes</option><option value="25">25 minutes</option><option value="30">30 minutes</option>
+        <option value="40">40 minutes</option><option value="45">45 minutes</option><option value="50">50 minutes</option>
+        <option value="60">1 hour</option><option value="75">1 hour 15 minutes</option><option value="90">1 hour 30 minutes</option>
+        <option value="120">2 hours</option><option value="150">2 hours 30 minutes</option><option value="180">3 hours</option>
+      </select></label>
     </div>
     <div><strong>Classes</strong> <span class="muted" id="fclasshint">Tick every class taking it, for merged classes too.</span>
       <div class="ticks" id="fclasses" style="margin-top:6px"></div></div>
@@ -110,6 +124,7 @@
       <div id="plist" class="pick"></div>
       <div class="row"><button class="primary" id="padd">Add selected</button><span class="muted" id="pnote"></span></div>
     </div>
+    <input type="file" id="imgfile" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
     <div id="qs" style="display:grid;gap:10px"></div>
     <div id="edmsg" role="alert"></div>
     <div class="row"><button class="primary" id="saveopen">Save and open for students</button><button id="savedraft">Save as draft</button></div>
@@ -217,20 +232,22 @@ function alertInline(text) { const d = document.createElement('div'); d.classNam
 // ── Editor ──
 $('newtest').onclick = () => openEditor(null);
 $('edback').onclick = () => listTests();
-function blankQ(type) { return type === 'short' ? { type: 'short', text: '', marks: 2, explanation: '' } : { type: 'mcq', text: '', options: ['', '', '', ''], correct: '', marks: 1, explanation: '' }; }
+function blankQ(type) { return type === 'short' ? { type: 'short', text: '', marks: 2, explanation: '', images: [] } : { type: 'mcq', text: '', options: ['', '', '', ''], option_images: [], correct: '', marks: 1, explanation: '', images: [] }; }
 async function openEditor(id) {
   editing = id; msg($('edmsg'), '', ''); $('pasco').hidden = true;
   if (id) {
     const t = await api(`/lms/teacher/tests/${id}`);
     draft = { title: t.title, class_names: t.class_names || [], subject: t.subject, record: t.record_as === 'ca' ? `ca:${t.mode_id}` : t.record_as === 'exam' ? 'exam' : 'none',
       time_limit_mins: t.time_limit_mins || '', instructions: t.instructions || '',
-      show_answers: !!t.show_answers, randomise: !!t.randomise, questions: t.questions.map(q => ({ type: q.type, text: q.text, options: q.options, correct: q.correct, marks: q.marks, explanation: q.explanation || '' })) };
+      show_answers: !!t.show_answers, randomise: !!t.randomise, questions: t.questions.map(q => ({ type: q.type, text: q.text, options: q.options, correct: q.correct, marks: q.marks, explanation: q.explanation || '',
+        images: q.images || [], option_images: q.option_images || [] })) };
   } else draft = { title: '', class_names: [], subject: me.subjects.length === 1 ? me.subjects[0].subject : '', record: me.modes.length ? `ca:${me.modes[0].id}` : 'none',
     time_limit_mins: '', instructions: '', show_answers: true, randomise: false, questions: [blankQ('mcq')] };
   $('edtitle').textContent = id ? 'Edit test' : 'New test';
   $('ftitle').value = draft.title; $('fsubject').value = draft.subject; $('frecord').value = draft.record;
   renderClasses(); recordHint();
-  $('ftime').value = draft.time_limit_mins; $('finstr').value = draft.instructions; $('fshow').checked = draft.show_answers; $('frand').checked = draft.randomise;
+  if (draft.time_limit_mins && ![...$('ftime').options].some(o => o.value === String(draft.time_limit_mins))) $('ftime').insertAdjacentHTML('beforeend', `<option value="${esc(draft.time_limit_mins)}">${esc(draft.time_limit_mins)} minutes</option>`);
+  $('ftime').value = String(draft.time_limit_mins || ''); $('finstr').value = draft.instructions; $('fshow').checked = draft.show_answers; $('frand').checked = draft.randomise;
   renderQs(); show('v-edit');
 }
 function renderClasses() {
@@ -267,8 +284,13 @@ function renderQs() {
         <div class="row"><label class="row" style="display:flex">Marks <input data-f="marks" value="${esc(q.marks)}" inputmode="decimal" style="width:80px"></label>
           <button class="link" data-up="${i}" ${i === 0 ? 'disabled' : ''}>Move up</button><button class="link danger" data-rm="${i}">Remove</button></div></div>
       <textarea data-f="text" placeholder="Question">${esc(q.text)}</textarea>
+      ${(q.images || []).length ? `<div class="pics">${q.images.map((u, n) => `<figure><img src="${esc(u)}" alt="Picture ${n + 1}"><figcaption>Picture ${n + 1}: type <code>[image ${n + 1}]</code> where it goes. <button class="link danger" data-rmimg="${i}:${n}">Remove</button></figcaption></figure>`).join('')}</div>` : ''}
+      <div class="row"><button class="link" data-addimg="${i}" ${(q.images || []).length >= 6 ? 'disabled' : ''}>Add picture</button>
+        <span class="muted">${(q.images || []).length ? 'Pictures not placed with [image N] show under the question.' : ''}</span></div>
       ${q.type === 'short' ? `<textarea data-f="explanation" placeholder="Marking guide for you (students don't see it)">${esc(q.explanation)}</textarea>` : `
-        ${q.options.map((o, k) => `<div class="opt"><input type="radio" name="c${i}" data-correct="${k}" ${q.correct === LET[k].toLowerCase() ? 'checked' : ''} aria-label="${LET[k]} is the answer"><strong>${LET[k]}</strong><input data-opt="${k}" value="${esc(o)}" placeholder="Option ${LET[k]}"></div>`).join('')}
+        ${q.options.map((o, k) => `<div class="opt"><input type="radio" name="c${i}" data-correct="${k}" ${q.correct === LET[k].toLowerCase() ? 'checked' : ''} aria-label="${LET[k]} is the answer"><strong>${LET[k]}</strong><input data-opt="${k}" value="${esc(o)}" placeholder="Option ${LET[k]}${(q.option_images || [])[k] ? ' (optional with a picture)' : ''}">
+          ${(q.option_images || [])[k] ? '' : `<button class="link" data-optimg="${i}:${k}" aria-label="Add a picture to option ${LET[k]}">Picture</button>`}</div>
+          ${(q.option_images || [])[k] ? `<div class="optimg"><img src="${esc(q.option_images[k])}" alt="Picture for option ${LET[k]}"><button class="link danger" data-rmoptimg="${i}:${k}">Remove picture</button></div>` : ''}`).join('')}
         <div class="row">${q.options.length < 5 ? `<button class="link" data-addopt="${i}">Add option</button>` : ''}${q.options.length > 2 ? `<button class="link" data-rmopt="${i}">Remove last option</button>` : ''}</div>
         <input data-f="explanation" value="${esc(q.explanation)}" placeholder="Explanation shown after submitting (optional)">`}
     </div>`).join('') || '<p class="muted">No questions yet.</p>';
@@ -286,10 +308,40 @@ $('qs').addEventListener('click', (e) => {
   if (b.dataset.rm) draft.questions.splice(+b.dataset.rm, 1);
   else if (b.dataset.up) { const i = +b.dataset.up; [draft.questions[i - 1], draft.questions[i]] = [draft.questions[i], draft.questions[i - 1]]; }
   else if (b.dataset.addopt) draft.questions[+b.dataset.addopt].options.push('');
-  else if (b.dataset.rmopt) { const q = draft.questions[+b.dataset.rmopt]; const gone = LET[q.options.length - 1].toLowerCase(); q.options.pop(); if (q.correct === gone) q.correct = ''; }
+  else if (b.dataset.addimg) { pickPicture({ i: +b.dataset.addimg }); return; }
+  else if (b.dataset.optimg) { const [qi, k] = b.dataset.optimg.split(':').map(Number); pickPicture({ i: qi, k }); return; }
+  else if (b.dataset.rmimg) { const [qi, n] = b.dataset.rmimg.split(':').map(Number); draft.questions[qi].images.splice(n, 1); }
+  else if (b.dataset.rmoptimg) { const [qi, k] = b.dataset.rmoptimg.split(':').map(Number); draft.questions[qi].option_images[k] = null; }
+  else if (b.dataset.rmopt) { const q = draft.questions[+b.dataset.rmopt]; const gone = LET[q.options.length - 1].toLowerCase(); q.options.pop(); if (q.option_images) q.option_images.length = Math.min(q.option_images.length, q.options.length); if (q.correct === gone) q.correct = ''; }
   else return;
   renderQs();
 });
+let picTarget = null;
+function pickPicture(target) { picTarget = target; $('imgfile').value = ''; $('imgfile').click(); }
+async function shrink(file) {
+  // Phone photos are large: keep at most 1600 px on the long side as JPEG. Small files and GIFs go as they are.
+  if (file.type === 'image/gif' || file.size < 400 * 1024) return file;
+  const img = await new Promise((ok, bad) => { const im = new Image(); im.onload = () => ok(im); im.onerror = bad; im.src = URL.createObjectURL(file); });
+  const scale = Math.min(1, 1600 / Math.max(img.width, img.height));
+  const c = document.createElement('canvas'); c.width = Math.round(img.width * scale); c.height = Math.round(img.height * scale);
+  const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0, c.width, c.height);
+  URL.revokeObjectURL(img.src);
+  return await new Promise(ok => c.toBlob(b => ok(b || file), 'image/jpeg', 0.85));
+}
+$('imgfile').onchange = async () => {
+  const file = $('imgfile').files[0]; const t = picTarget; if (!file || !t) return;
+  msg($('edmsg'), 'Adding the picture…', 'info');
+  try {
+    const blob = await shrink(file);
+    const r = await fetch('/lms/teacher/images', { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': blob.type || file.type }, body: blob });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || 'The picture could not be added.');
+    const q = draft.questions[t.i];
+    if (t.k == null) { q.images = q.images || []; q.images.push(d.url); }
+    else { q.option_images = q.option_images || []; q.option_images[t.k] = d.url; }
+    msg($('edmsg'), '', ''); renderQs();
+  } catch (err) { msg($('edmsg'), err.message, 'bad'); }
+};
 $('addmcq').onclick = () => { draft.questions.push(blankQ('mcq')); renderQs(); };
 $('addshort').onclick = () => { draft.questions.push(blankQ('short')); renderQs(); };
 
@@ -306,14 +358,14 @@ $('psubject').onchange = async () => {
   if (!$('psubject').value) return;
   const d = await api(`/lms/teacher/pasco?subject=${encodeURIComponent($('psubject').value)}`);
   pascoQs = d.questions;
-  $('plist').innerHTML = pascoQs.map((q, i) => `<label><input type="checkbox" data-pq="${i}"><span><span class="muted">${esc(q.paper)}${q.no ? `, question ${q.no}` : ''}${q.type === 'short' ? ', theory' : ''}${q.has_picture ? ', has a picture (not copied)' : ''}</span><br>${esc(q.text.slice(0, 220))}</span></label>`).join('');
+  $('plist').innerHTML = pascoQs.map((q, i) => `<label><input type="checkbox" data-pq="${i}"><span><span class="muted">${esc(q.paper)}${q.no ? `, question ${q.no}` : ''}${q.type === 'short' ? ', theory' : ''}${q.has_picture ? ', has a picture' : ''}</span><br>${esc(q.text.slice(0, 220))}</span></label>`).join('');
 };
 $('padd').onclick = () => {
   const picked = [...document.querySelectorAll('[data-pq]:checked')].map(c => pascoQs[c.dataset.pq]);
   for (const q of picked) {
     draft.questions.push(q.type === 'short'
-      ? { type: 'short', text: q.text, marks: 5, explanation: q.marking_scheme || '' }
-      : { type: 'mcq', text: q.text, options: q.options.slice(0, 5), correct: q.correct || '', marks: 1, explanation: q.explanation || '' });
+      ? { type: 'short', text: q.text, marks: 5, explanation: q.marking_scheme || '', images: (q.images || []).filter(Boolean) }
+      : { type: 'mcq', text: q.text, options: q.options.slice(0, 5), option_images: (q.option_images || []).slice(0, 5), correct: q.correct || '', marks: 1, explanation: q.explanation || '', images: (q.images || []).filter(Boolean) });
   }
   $('pnote').textContent = picked.length ? `Added ${picked.length}.` : 'Tick the questions to add.';
   document.querySelectorAll('[data-pq]:checked').forEach(c => { c.checked = false; });

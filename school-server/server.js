@@ -589,13 +589,16 @@ function pascoForTeachers(subject) {
   const pack = d && readJson(path.join(d, 'subjects', `${subject}.json`));
   if (!pack) return { subjects: [], questions: [] };
   const paperName = new Map((pack.papers || []).map(pp => [pp.id, [pp.exam, pp.year, pp.paper_label].filter(Boolean).join(' ')]));
-  const MARK = /\[image(?:\s+\d+)?\]/gi;
+  const packUrl = (x) => (typeof x === 'string' && x.startsWith('images/') ? `/pack/${x}` : null);
   return {
     subject: pack.subject,
     questions: (pack.questions || []).map(q => ({
       id: q.id, type: q.question_type === 'theory' ? 'short' : 'mcq', paper: paperName.get(q.paper_id) || '', no: q.question_no,
-      text: String(q.question_text || '').replace(MARK, '').replace(/\n{3,}/g, '\n\n').trim(), options: q.options || [],
+      // Pictures come along; the server copies them into the test when it is saved.
+      text: String(q.question_text || '').replace(/\n{3,}/g, '\n\n').trim(), options: q.options || [],
       correct: q.correct, explanation: q.explanation, marking_scheme: q.marking_scheme,
+      images: (Array.isArray(q.images) ? q.images : q.image_url ? [q.image_url] : []).map(packUrl),
+      option_images: (q.option_images || []).map(packUrl),
       has_picture: !!((q.images && q.images.filter(Boolean).length) || q.image_url || (q.option_images || []).some(Boolean)),
     })),
   };
@@ -810,7 +813,13 @@ async function handle(req, res) {
 }
 
 function start() {
-lms = require('./lms.js')({ DATA, log, send, readBody, config, pascoForTeachers });
+// A Past Questions picture file in the current pack, for copying into tests.
+const packImagePath = (name) => {
+  if (!safeName(name)) return null;
+  const d = packDir(); const f = d && path.join(d, 'images', name);
+  return f && fs.existsSync(f) ? f : null;
+};
+lms = require('./lms.js')({ DATA, log, send, readBody, config, pascoForTeachers, packImagePath });
 lms.start();
 const server = http.createServer((req, res) => {
   handle(req, res).catch(e => { log('request failed', req.url, e.message); try { send(res, 500, { error: 'Server error' }); } catch { /* already sent */ } });

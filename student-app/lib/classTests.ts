@@ -14,7 +14,9 @@ export interface CtTest {
   state: 'not_started' | 'in_progress' | 'submitted'; can_start: boolean;
   result: { attempt_id: string; score: number | null; max_score: number | null; needs_marking: boolean } | null;
 }
-export interface CtQuestion { id: string; type: 'mcq' | 'short'; text: string; options: string[]; marks: number }
+// Pictures: [image N] in the text marks where images[N-1] goes; option_images[k] goes with option k.
+export interface CtQuestion { id: string; type: 'mcq' | 'short'; text: string; options: string[]; marks: number;
+  images?: string[]; option_images?: (string | null)[] }
 export interface CtAttempt {
   attempt: { id: string; status: string; started_at: string; deadline_at: string | null; server_now: string };
   quiz: { id: string; title: string; subject: string; instructions: string | null; time_limit_mins: number | null; total_marks: number };
@@ -23,7 +25,8 @@ export interface CtAttempt {
 }
 export interface CtResult {
   attempt_id: string; score: number | null; max_score: number | null; needs_marking: boolean; show_answers: boolean; late?: boolean;
-  review: { id: string; type: 'mcq' | 'short'; text: string; options: string[]; correct: string | null; explanation: string | null;
+  review: { id: string; type: 'mcq' | 'short'; text: string; options: string[]; images?: string[]; option_images?: (string | null)[];
+    correct: string | null; explanation: string | null;
     marks: number; your_answer: string | null; marks_awarded: number | null }[] | null;
 }
 export type CtAnswer = { question_id: string; selected?: string | null; text?: string | null };
@@ -77,9 +80,21 @@ async function withSession<T>(fn: (s: CtSession) => Promise<T>): Promise<T> {
   return fn(s);
 }
 
+// The server sends picture paths like /lms/img/x.jpg; the tablet needs the full address.
+const absUrl = (base: string, u: string | null | undefined) => (u ? (/^https?:/i.test(u) ? u : `${base}${u}`) : null);
+function withPics<T extends { images?: string[]; option_images?: (string | null)[] }>(base: string, q: T): T {
+  return { ...q, images: (q.images || []).map(u => absUrl(base, u)).filter(Boolean) as string[],
+    option_images: (q.option_images || []).map(u => absUrl(base, u)) };
+}
+const resultPics = (base: string, r: CtResult): CtResult => ({ ...r, review: r.review ? r.review.map(q => withPics(base, q)) : r.review });
+
 export const listTests = () => withSession(s => call<{ student: { name: string; class_name: string }; tests: CtTest[] }>(s.base, '/lms/tests', { token: s.token }));
-export const startTest = (id: string) => withSession(s => call<CtAttempt>(s.base, `/lms/tests/${id}/start`, { method: 'POST', token: s.token }));
-export const getResult = (attemptId: string) => withSession(s => call<CtResult>(s.base, `/lms/attempts/${attemptId}/result`, { token: s.token }));
+export const startTest = (id: string) => withSession(async s => {
+  const a = await call<CtAttempt>(s.base, `/lms/tests/${id}/start`, { method: 'POST', token: s.token });
+  return { ...a, questions: a.questions.map(q => withPics(s.base, q)) };
+});
+export const getResult = (attemptId: string) => withSession(async s =>
+  resultPics(s.base, await call<CtResult>(s.base, `/lms/attempts/${attemptId}/result`, { token: s.token })));
 
 // Answers waiting to reach the server (Wi-Fi dropped), kept across restarts.
 async function readPending(): Promise<Record<string, Record<string, CtAnswer>>> {
@@ -109,7 +124,8 @@ export async function submitTest(attemptId: string, answers: CtAnswer[]): Promis
   const pending = await readPending();
   const all = { ...(pending[attemptId] || {}) };
   for (const a of answers) all[a.question_id] = a;
-  const r = await withSession(s => call<CtResult>(s.base, `/lms/attempts/${attemptId}/submit`, { method: 'POST', token: s.token, body: { answers: Object.values(all) }, timeout: 30000 }));
+  const r = await withSession(async s => resultPics(s.base,
+    await call<CtResult>(s.base, `/lms/attempts/${attemptId}/submit`, { method: 'POST', token: s.token, body: { answers: Object.values(all) }, timeout: 30000 })));
   delete pending[attemptId]; await writePending(pending);
   return r;
 }

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams, useNavigation } from 'expo-router';
 import { useTheme } from '@/context/ThemeContext';
@@ -107,13 +107,19 @@ export default function TakeTest() {
                 {q.type === 'mcq' && <Ionicons name={ok ? 'checkmark-circle' : q.your_answer ? 'close-circle' : 'remove-circle'} size={20} color={ok ? C.success : q.your_answer ? C.danger : C.muted} />}
                 <Text style={[s.label, { color: C.textSoft }]}>Question {n + 1}, {q.marks} mark{q.marks === 1 ? '' : 's'}</Text>
               </View>
-              <QuestionBody text={q.text} images={[]} textStyle={[s.body, { color: C.text }]} />
+              <QuestionBody text={q.text} images={q.images || []} imageHeight={180} textStyle={[s.body, { color: C.text }]} />
               {q.type === 'mcq' ? (
                 <>
                   <Text style={[s.small, { color: C.textSoft }]}>
                     {q.your_answer ? `Your answer: ${q.your_answer.toUpperCase()}. ${q.options[LETTERS.indexOf(q.your_answer)] ?? ''}` : 'Not answered'}
                   </Text>
+                  {!!q.your_answer && !!q.option_images?.[LETTERS.indexOf(q.your_answer)] && (
+                    <Image source={{ uri: q.option_images[LETTERS.indexOf(q.your_answer)]! }} resizeMode="contain" accessibilityLabel="Picture for your answer" style={s.optImgSmall} />
+                  )}
                   {!ok && q.correct && <Text style={[s.small, { color: C.success, fontWeight: '700' }]}>Answer: {q.correct.toUpperCase()}. {q.options[LETTERS.indexOf(q.correct)]}</Text>}
+                  {!ok && !!q.correct && !!q.option_images?.[LETTERS.indexOf(q.correct)] && (
+                    <Image source={{ uri: q.option_images[LETTERS.indexOf(q.correct)]! }} resizeMode="contain" accessibilityLabel="Picture for the right answer" style={s.optImgSmall} />
+                  )}
                   {q.explanation && <Text style={[s.small, { color: C.textSoft }]}>{q.explanation}</Text>}
                 </>
               ) : (
@@ -163,7 +169,7 @@ export default function TakeTest() {
       )}
       <ScrollView contentContainerStyle={s.page} keyboardShouldPersistTaps="handled">
         {i === 0 && !!data.quiz.instructions && <Text style={[s.small, { color: C.textSoft }]}>{data.quiz.instructions}</Text>}
-        <QuestionBody text={q.text} images={[]} textStyle={[s.question, { color: C.text }]} />
+        <QuestionBody text={q.text} images={q.images || []} textStyle={[s.question, { color: C.text }]} />
         {q.type === 'mcq' ? (
           <View style={{ gap: 10 }}>
             {q.options.map((opt, k) => {
@@ -173,7 +179,12 @@ export default function TakeTest() {
                 <Pressable key={k} accessibilityRole="radio" accessibilityState={{ checked: on }} onPress={() => choose(q.id, letter)}
                   style={[s.option, { borderColor: on ? C.primaryText : C.border, backgroundColor: on ? C.primaryLight : C.surface }]}>
                   <Text style={[s.optLetter, { color: on ? C.primaryText : C.text }]}>{letter.toUpperCase()}</Text>
-                  <Text style={[s.optText, { color: C.text }]}>{opt}</Text>
+                  <View style={{ flex: 1, gap: 6 }}>
+                    {!!opt && <Text style={[s.optText, { color: C.text }]}>{opt}</Text>}
+                    {!!q.option_images?.[k] && (
+                      <Image source={{ uri: q.option_images[k]! }} resizeMode="contain" accessibilityLabel={`Picture for option ${letter.toUpperCase()}`} style={s.optImg} />
+                    )}
+                  </View>
                 </Pressable>
               );
             })}
@@ -233,7 +244,9 @@ const s = createThemedStyles({
   question:      { fontSize: 18, lineHeight: 26, fontWeight: '600' },
   option:        { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 14, borderWidth: 1.5 },
   optLetter:     { fontSize: 16, fontWeight: '800', width: 20 },
-  optText:       { fontSize: 16, flex: 1, lineHeight: 22 },
+  optText:       { fontSize: 16, lineHeight: 22 },
+  optImg:        { width: '100%', height: 140, backgroundColor: '#FFFFFF', borderRadius: 8 },
+  optImgSmall:   { width: '100%', height: 110, backgroundColor: '#FFFFFF', borderRadius: 8 },
   answer:        { minHeight: 180, borderWidth: 1, borderRadius: 12, padding: 14, fontSize: 16, lineHeight: 22 },
   card:          { padding: 16, borderRadius: 16, borderWidth: 1, gap: 8 },
   reviewHead:    { flexDirection: 'row', alignItems: 'center', gap: 6 },
