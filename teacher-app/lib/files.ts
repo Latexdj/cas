@@ -22,3 +22,30 @@ export async function pickFile(types: string[] = ['*/*'], maxMb = 10): Promise<P
 }
 
 export const isPickError = (x: unknown): x is { error: string } => !!x && typeof (x as { error?: unknown }).error === 'string';
+
+// Download a file from the CAS API (signed in) and hand it to the phone's
+// share sheet, so the teacher can save it or send it on WhatsApp.
+export async function downloadAndShare(path: string, filename: string, mime: string): Promise<string | null> {
+  const { api } = await import('./api');
+  const { storage } = await import('./storage');
+  const token = await storage.getToken();
+  const url = `${api.defaults.baseURL}${path}`;
+  try {
+    if (Platform.OS === 'web') {
+      const res = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+      if (!res.ok) return 'Could not download the file.';
+      const href = URL.createObjectURL(await res.blob());
+      const a = document.createElement('a'); a.href = href; a.download = filename; a.click(); URL.revokeObjectURL(href);
+      return null;
+    }
+    const Sharing = await import('expo-sharing');
+    const dest = `${FileSystem.cacheDirectory}${filename}`;
+    const r = await FileSystem.downloadAsync(url, dest, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    if (r.status >= 400) return 'Could not download the file.';
+    if (!(await Sharing.isAvailableAsync())) return 'Sharing is not available on this phone.';
+    await Sharing.shareAsync(r.uri, { mimeType: mime, dialogTitle: filename });
+    return null;
+  } catch {
+    return 'Could not download the file. Check your connection.';
+  }
+}
