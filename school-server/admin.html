@@ -90,6 +90,21 @@
     </section>
   </div>
 
+  <section class="card" aria-labelledby="h-cas">
+    <div class="row" style="justify-content:space-between">
+      <div><h2 id="h-cas">Connect to CAS (class tests)</h2><p class="muted" id="cassub"></p></div>
+      <div class="row" id="casbtns"></div>
+    </div>
+    <div id="caspair" class="row" hidden>
+      <input type="text" id="casschool" placeholder="School code" style="min-width:140px">
+      <input type="text" id="cascode" placeholder="Pairing code from CAS" style="min-width:200px" autocapitalize="characters">
+      <button class="primary" id="caspairok">Connect</button>
+    </div>
+    <p class="muted" id="caspairhelp" hidden>In CAS, open LMS, School Server, and click Make a pairing code. This PC needs internet to connect.</p>
+    <div id="casmsg" role="status"></div>
+    <p class="muted" id="casteacher"></p>
+  </section>
+
   <section class="card" aria-labelledby="h-lm">
     <div class="row" style="justify-content:space-between">
       <div>
@@ -183,6 +198,7 @@ async function load() {
   $('pack').innerHTML += `<p class="muted">Last online check: ${when(s.sync.last_sync)}${sync ? `. ${esc(sync.message)}` : ''}</p>`;
   $('sync').disabled = !!s.sync.running;
 
+  renderCas(s);
   if (s.lm) $('lmsummary').textContent = s.lm.files
     ? `${s.lm.files} file${s.lm.files === 1 ? '' : 's'}, ${(s.lm.size / 1073741824 >= 1 ? (s.lm.size / 1073741824).toFixed(2) + ' GB' : (s.lm.size / 1048576).toFixed(1) + ' MB')} in total.`
     : 'No files yet.';
@@ -235,6 +251,44 @@ $('savename').onclick = async () => {
   await fetch('/admin/config', { method: 'POST', body: JSON.stringify({ school_name: $('schoolname').value }) });
   $('namemsg').textContent = 'Saved.'; setTimeout(() => { $('namemsg').textContent = ''; }, 2000); load();
 };
+
+// ── Connect to CAS ──
+let casConfirm = false;
+function renderCas(s) {
+  const c = s.cas;
+  if (!c) return;
+  const addr = (s.lan[0] && `${s.lan[0].address}:${s.port}`) || `localhost:${s.port}`;
+  if (c.connected && !c.revoked) {
+    const ls = c.last_sync;
+    $('cassub').textContent = `Connected to ${c.school?.name || 'CAS'}. ${c.counts.students} students and ${c.counts.teachers} teachers can sign in. ${c.counts.open_tests} test${c.counts.open_tests === 1 ? '' : 's'} open${c.counts.results_waiting ? `, ${c.counts.results_waiting} result${c.counts.results_waiting === 1 ? '' : 's'} waiting to send` : ''}.`
+      + (ls ? ` Last sync ${when(ls.at)}: ${ls.message}` : '');
+    $('caspair').hidden = true; $('caspairhelp').hidden = true;
+    $('casbtns').innerHTML = casConfirm
+      ? `<span class="muted">Disconnect? Sign-ins keep working with the copied roster, but nothing syncs.</span><button id="casdiscyes">Disconnect</button><button id="casdiscno">Cancel</button>`
+      : `<button class="primary" id="cassync" ${c.syncing ? 'disabled' : ''}>Sync now</button><button id="casdisc">Disconnect</button>`;
+    $('casteacher').innerHTML = `Teachers open <strong>http://${esc(addr)}/teacher</strong> on a laptop or phone on the school Wi-Fi to make and run tests.`;
+  } else {
+    $('cassub').textContent = c.revoked ? 'CAS disconnected this server. Connect it again with a new pairing code.' : 'Not connected. Connect it so students and teachers can sign in for class tests, and results reach CAS.';
+    $('caspair').hidden = false; $('caspairhelp').hidden = false; $('casbtns').innerHTML = ''; $('casteacher').textContent = '';
+  }
+}
+document.addEventListener('click', async (e) => {
+  const id = e.target.id;
+  if (id === 'caspairok') {
+    msg($('casmsg'), 'Connecting…', 'info');
+    const r = await fetch('/admin/cas/pair', { method: 'POST', body: JSON.stringify({ school_code: $('casschool').value, code: $('cascode').value }) });
+    const d = await r.json();
+    msg($('casmsg'), r.ok ? `Connected to ${d.school.name}. Copying the roster…` : d.error, r.ok ? 'ok' : 'bad');
+    if (r.ok) { $('cascode').value = ''; setTimeout(load, 4000); }
+    load();
+  } else if (id === 'cassync') {
+    e.target.disabled = true; msg($('casmsg'), 'Syncing with CAS…', 'info');
+    const d = await (await fetch('/admin/cas/sync', { method: 'POST' })).json();
+    msg($('casmsg'), d.message, d.ok ? 'ok' : d.offline ? 'info' : 'bad'); load();
+  } else if (id === 'casdisc') { casConfirm = true; load(); }
+  else if (id === 'casdiscno') { casConfirm = false; load(); }
+  else if (id === 'casdiscyes') { casConfirm = false; await fetch('/admin/cas/disconnect', { method: 'POST' }); msg($('casmsg'), 'Disconnected.', 'info'); load(); }
+});
 
 // ── Learning materials ──
 let lmPath = '';

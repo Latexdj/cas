@@ -7,7 +7,8 @@ if (Test-Path (Join-Path $here 'dist')) { Remove-Item -Recurse -Force (Join-Path
 New-Item -ItemType Directory -Force $out | Out-Null
 
 Copy-Item (Get-Command node).Source (Join-Path $out 'node.exe')
-foreach ($f in 'server.js', 'admin.html', 'README.txt') { Copy-Item (Join-Path $here $f) $out }
+foreach ($f in 'server.js', 'lms.js', 'admin.html', 'teacher.html', 'README.txt') { Copy-Item (Join-Path $here $f) $out }
+Copy-Item (Join-Path $here 'vendor') (Join-Path $out 'vendor') -Recurse
 # Batch files and the README need Windows line endings.
 foreach ($f in 'install.bat', 'uninstall.bat', 'run.bat', 'README.txt') {
   $text = [IO.File]::ReadAllText((Join-Path $here $f)) -replace "`r?`n", "`r`n"

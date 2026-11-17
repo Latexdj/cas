@@ -547,6 +547,30 @@ function checkIn(req) {
   devicesDirty = true;
 }
 
+// ── Offline LMS ───────────────────────────────────────────────────────────────
+
+function pascoForTeachers(subject) {
+  const m = packManifest();
+  if (!m) return { subjects: [] };
+  if (!subject) return { subjects: m.subjects.map(s => ({ name: s.name, slug: s.slug, count: s.count })) };
+  const d = packDir();
+  const pack = d && readJson(path.join(d, 'subjects', `${subject}.json`));
+  if (!pack) return { subjects: [], questions: [] };
+  const paperName = new Map((pack.papers || []).map(pp => [pp.id, [pp.exam, pp.year, pp.paper_label].filter(Boolean).join(' ')]));
+  const MARK = /\[image(?:\s+\d+)?\]/gi;
+  return {
+    subject: pack.subject,
+    questions: (pack.questions || []).map(q => ({
+      id: q.id, type: q.question_type === 'theory' ? 'short' : 'mcq', paper: paperName.get(q.paper_id) || '', no: q.question_no,
+      text: String(q.question_text || '').replace(MARK, '').replace(/\n{3,}/g, '\n\n').trim(), options: q.options || [],
+      correct: q.correct, explanation: q.explanation, marking_scheme: q.marking_scheme,
+      has_picture: !!((q.images && q.images.filter(Boolean).length) || q.image_url || (q.option_images || []).some(Boolean)),
+    })),
+  };
+}
+
+let lms = null;   // set in start()
+
 // ── HTTP ──────────────────────────────────────────────────────────────────────
 
 function clientIp(req) { return String(req.socket.remoteAddress || '').replace(/^::ffff:/, ''); }
@@ -598,8 +622,14 @@ async function handle(req, res) {
   const url = new URL(req.url, 'http://x');
   const p = url.pathname;
 
+  // Offline LMS (tablets and the teacher page).
+  if (p.startsWith('/lms/') && lms) { if (await lms.handle(req, res, url)) return; }
+  if (req.method === 'GET' && (p === '/teacher' || p === '/teacher/')) {
+    return send(res, 200, fs.readFileSync(path.join(ROOT, 'teacher.html'), 'utf8'));
+  }
+
   if (req.method === 'OPTIONS') {
-    return send(res, 204, '', { 'Access-Control-Allow-Headers': 'X-CAS-Device, X-CAS-App-Build, X-CAS-App-Version, X-CAS-Pack-Version', 'Access-Control-Allow-Methods': 'GET' });
+    return send(res, 204, '', { 'Access-Control-Allow-Headers': 'X-CAS-Device, X-CAS-App-Build, X-CAS-App-Version, X-CAS-Pack-Version, Range', 'Access-Control-Allow-Methods': 'GET' });
   }
 
   // Tablets
@@ -672,6 +702,7 @@ async function handle(req, res) {
         pack: m ? { version: m.version, published_at: m.published_at, source: m.source, loaded_at: m.loaded_at, subjects: m.subjects } : null,
         app_info: appInfo(), sync: { ...state, running: syncing },
         lm_copy: lmCopy,
+        cas: lms ? lms.status() : null,
         devices: Object.entries(devices).map(([id, d]) => ({ id, ...d })).sort((a, b) => String(b.last_seen).localeCompare(String(a.last_seen))),
       });
     }
@@ -709,6 +740,12 @@ async function handle(req, res) {
         if (to === null) return send(res, 400, { error: 'Bad destination folder' });
         return send(res, 200, await copyIntoLm(body.from, to));
       }
+      if (req.method === 'POST' && p === '/admin/cas/pair') {
+        const body = JSON.parse((await readBody(req, 64 * 1024)).toString('utf8') || '{}');
+        return send(res, 200, { school: await lms.pair(body.school_code, body.code) });
+      }
+      if (req.method === 'POST' && p === '/admin/cas/disconnect') { lms.disconnect(); return send(res, 200, { ok: true }); }
+      if (req.method === 'POST' && p === '/admin/cas/sync') return send(res, 200, (await lms.sync()) || { ok: false, message: 'Not connected to CAS.' });
       if (req.method === 'POST' && p === '/admin/sync') return send(res, 200, await syncFromCloud());
       if (req.method === 'POST' && p === '/admin/pack') {
         const body = await readBody(req, 500 * 1024 * 1024);
@@ -740,6 +777,8 @@ async function handle(req, res) {
 }
 
 function start() {
+lms = require('./lms.js')({ DATA, log, send, readBody, config, pascoForTeachers });
+lms.start();
 const server = http.createServer((req, res) => {
   handle(req, res).catch(e => { log('request failed', req.url, e.message); try { send(res, 500, { error: 'Server error' }); } catch { /* already sent */ } });
 });

@@ -81,6 +81,7 @@ const boardReportRoutes       = require('./routes/board-report');
 const lessonObservationRoutes = require('./routes/lesson-observation');
 const teacherResourcesRoutes  = require('./routes/teacher-resources');
 const pascoBankRoutes         = require('./routes/pasco-bank');
+const schoolServerRoutes      = require('./routes/school-server');
 const departmentBudgetsRoutes = require('./routes/department-budgets');
 const helpChatRoutes          = require('./routes/help-chat');
 const policyDocumentsRoutes   = require('./routes/policy-documents');
@@ -209,6 +210,7 @@ app.use('/api/board-report',          boardReportRoutes);
 app.use('/api/lesson-observation',    lessonObservationRoutes);
 app.use('/api/teacher-resources',     teacherResourcesRoutes);
 app.use('/api/pasco-bank',            pascoBankRoutes);
+app.use('/api/school-server',         schoolServerRoutes);
 app.use('/api/department-budgets',    departmentBudgetsRoutes);
 app.use('/api/policy-documents',      policyDocumentsRoutes);
 app.use('/api/resumption',            resumptionRoutes);
@@ -2889,6 +2891,35 @@ async function runMigrations() {
         )`);
       await pool.query(`INSERT INTO pasco_pack_state (id) VALUES (true) ON CONFLICT DO NOTHING`);
     } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] past questions:', e.message); }
+
+    // CAS School Server link: pairing codes, connected servers, and the ids
+    // that make offline tests and attempts safe to send more than once.
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS school_servers (
+          id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          school_id         UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+          name              TEXT NOT NULL,
+          token_hash        TEXT NOT NULL UNIQUE,
+          last_seen_at      TIMESTAMPTZ,
+          last_sync_summary TEXT,
+          created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+          revoked_at        TIMESTAMPTZ
+        )`);
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS school_server_pairing (
+          id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          school_id  UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+          code_hash  TEXT NOT NULL,
+          expires_at TIMESTAMPTZ NOT NULL,
+          created_by UUID,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )`);
+      await pool.query(`ALTER TABLE lms_quizzes ADD COLUMN IF NOT EXISTS offline_ref TEXT`);
+      await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS uq_lms_quizzes_offline_ref ON lms_quizzes(offline_ref) WHERE offline_ref IS NOT NULL`);
+      await pool.query(`ALTER TABLE lms_quiz_attempts ADD COLUMN IF NOT EXISTS offline_ref TEXT`);
+      await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS uq_lms_quiz_attempts_offline_ref ON lms_quiz_attempts(offline_ref) WHERE offline_ref IS NOT NULL`);
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] school server link:', e.message); }
 
     // Academic year date range
     try {

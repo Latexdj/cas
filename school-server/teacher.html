@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CAS Class Tests</title>
+<style>
+  :root {
+    --bg: #F4EFE6; --card: #FFFFFF; --sunken: #FAF6EF; --line: #E2D9CC;
+    --ink: #1C1208; --ink2: #4A3F32; --muted: #6E6253;
+    --brand: #145C44; --brand-ink: #FFFFFF; --brand-soft: #E8F4EE;
+    --gold: #9A6F1E; --gold-soft: #F7EDDA; --bad: #B83232; --bad-soft: #FBEAEA;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0E1A0C; --card: #16241A; --sunken: #122013; --line: #2E4230;
+      --ink: #EEE8DF; --ink2: #B8B0A2; --muted: #A8A091;
+      --brand: #2D8A63; --brand-ink: #FFFFFF; --brand-soft: #1C3A2B;
+      --gold: #E8A63C; --gold-soft: #372C15; --bad: #F08B7E; --bad-soft: #371515;
+      color-scheme: dark;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 980px; margin: 0 auto; padding: 20px 16px 64px; display: grid; gap: 16px; }
+  h1 { margin: 0; font-size: 22px; } h2 { margin: 0; font-size: 17px; } p { margin: 0; }
+  .muted { color: var(--muted); font-size: 14px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; display: grid; gap: 12px; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .between { justify-content: space-between; }
+  button, .btn { min-height: 44px; padding: 0 16px; border-radius: 10px; font: 600 14px system-ui, sans-serif; cursor: pointer; border: 1px solid var(--line); background: var(--card); color: var(--ink); }
+  button.primary { background: var(--brand); border-color: var(--brand); color: var(--brand-ink); }
+  button.danger { color: var(--bad); }
+  button.link { border: none; background: none; padding: 0; min-height: 0; color: var(--brand); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+  button:disabled { opacity: .5; cursor: default; }
+  label { font-size: 13px; font-weight: 600; color: var(--ink2); display: grid; gap: 4px; }
+  input, select, textarea { min-height: 44px; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--ink); font: 15px system-ui, sans-serif; width: 100%; }
+  textarea { min-height: 70px; resize: vertical; }
+  input[type=checkbox], input[type=radio] { width: 20px; height: 20px; min-height: 0; accent-color: var(--brand); }
+  .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+  .tag { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+  .tag.open { background: var(--brand-soft); color: var(--brand); }
+  .tag.draft { background: var(--sunken); color: var(--muted); border: 1px solid var(--line); }
+  .tag.closed { background: var(--gold-soft); color: var(--gold); }
+  .msg { font-size: 14px; padding: 8px 12px; border-radius: 10px; }
+  .msg.ok { background: var(--brand-soft); color: var(--brand); } .msg.bad { background: var(--bad-soft); color: var(--bad); } .msg.info { background: var(--gold-soft); color: var(--gold); }
+  .q { border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: grid; gap: 10px; background: var(--sunken); }
+  .opt { display: grid; grid-template-columns: 24px 18px 1fr; gap: 8px; align-items: center; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th { text-align: left; color: var(--muted); font-weight: 600; padding: 8px; } td { border-top: 1px solid var(--line); padding: 8px; vertical-align: top; }
+  .tablewrap { overflow-x: auto; }
+  .big { font-size: 26px; font-weight: 800; }
+  .stat { background: var(--sunken); border-radius: 12px; padding: 12px; }
+  [hidden] { display: none !important; }
+  .pick { display: grid; gap: 6px; max-height: 420px; overflow: auto; border: 1px solid var(--line); border-radius: 10px; padding: 8px; }
+  .pick label { font-weight: 400; color: var(--ink); display: grid; grid-template-columns: 22px 1fr; gap: 8px; align-items: start; padding: 6px; border-radius: 8px; }
+  .pick label:hover { background: var(--sunken); }
+</style>
+</head>
+<body>
+<main>
+  <!-- Sign in -->
+  <section id="v-login" class="card" style="max-width:420px;margin:40px auto 0" hidden>
+    <div><h1>Class tests</h1><p class="muted">Sign in with your CAS teacher code and password.</p></div>
+    <form id="loginform" class="grid" style="grid-template-columns:1fr">
+      <label>Teacher code<input id="lcode" autocomplete="username" autocapitalize="characters" required></label>
+      <label>Password<input id="lpass" type="password" autocomplete="current-password" required></label>
+      <button class="primary" type="submit" id="lbtn">Sign in</button>
+      <div id="lmsg" role="alert"></div>
+    </form>
+  </section>
+
+  <!-- Header -->
+  <header id="top" class="row between" hidden>
+    <div><h1>Class tests</h1><p class="muted" id="whoami"></p></div>
+    <div class="row"><button id="newtest" class="primary">New test</button><button id="signout">Sign out</button></div>
+  </header>
+
+  <!-- My tests -->
+  <section id="v-list" hidden>
+    <div id="tests" style="display:grid;gap:12px"></div>
+  </section>
+
+  <!-- Editor -->
+  <section id="v-edit" class="card" hidden>
+    <div class="row between"><h2 id="edtitle">New test</h2><button class="link" id="edback">Back to my tests</button></div>
+    <div class="grid">
+      <label>Title<input id="ftitle" placeholder="Week 6 quiz"></label>
+      <label>Class<select id="fclass"></select></label>
+      <label>Subject<input id="fsubject" list="subjects"><datalist id="subjects"></datalist></label>
+      <label>Time limit (minutes, empty for none)<input id="ftime" inputmode="numeric"></label>
+    </div>
+    <label>Instructions (optional)<textarea id="finstr"></textarea></label>
+    <div class="row">
+      <label class="row" style="display:flex;font-weight:400"><input type="checkbox" id="fshow" checked> Show students the answers after they submit</label>
+      <label class="row" style="display:flex;font-weight:400"><input type="checkbox" id="frand"> Shuffle the question order</label>
+    </div>
+    <div class="row between"><h2>Questions <span class="muted" id="qcount"></span></h2>
+      <div class="row"><button id="addmcq">Add objective</button><button id="addshort">Add short answer</button><button id="addpasco">Add from Past Questions</button></div></div>
+    <div id="pasco" class="card" hidden style="background:var(--sunken)">
+      <div class="row between"><strong>Add from Past Questions</strong><button class="link" id="pclose">Close</button></div>
+      <select id="psubject"></select>
+      <div id="plist" class="pick"></div>
+      <div class="row"><button class="primary" id="padd">Add selected</button><span class="muted" id="pnote"></span></div>
+    </div>
+    <div id="qs" style="display:grid;gap:10px"></div>
+    <div id="edmsg" role="alert"></div>
+    <div class="row"><button class="primary" id="saveopen">Save and open for students</button><button id="savedraft">Save as draft</button></div>
+  </section>
+
+  <!-- Results -->
+  <section id="v-res" hidden style="display:grid;gap:16px">
+    <div class="row between"><div><h2 id="rtitle"></h2><p class="muted" id="rsub"></p></div>
+      <div class="row"><button class="link" id="rback">Back to my tests</button></div></div>
+    <div class="grid" id="rstats"></div>
+    <div class="row" id="ractions"></div>
+    <div class="card" id="rmarkcard" hidden><h2>Short answers to mark</h2><div id="rmark" style="display:grid;gap:10px"></div></div>
+    <div class="card"><div class="row between"><h2>Students</h2><button id="rcsv">Download Excel (CSV)</button></div>
+      <div class="tablewrap"><table><thead><tr><th>Name</th><th>Student ID</th><th>Status</th><th>Score</th></tr></thead><tbody id="rrows"></tbody></table></div></div>
+  </section>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const LET = ['A', 'B', 'C', 'D', 'E'];
+let token = null; try { token = localStorage.getItem('cas_teacher_token'); } catch {}
+let me = null, editing = null, draft = null, resTimer = null, resId = null;
+
+async function api(path, opts = {}) {
+  const r = await fetch(path, { ...opts, headers: { Authorization: `Bearer ${token}`, ...(opts.body ? { 'Content-Type': 'application/json' } : {}) } });
+  if (r.status === 401) { signOut(); throw new Error('Sign in again.'); }
+  const d = r.headers.get('content-type')?.includes('json') ? await r.json() : await r.text();
+  if (!r.ok) throw new Error(d.error || `Error ${r.status}`);
+  return d;
+}
+function msg(el, text, tone) { el.innerHTML = text ? `<div class="msg ${tone}">${esc(text)}</div>` : ''; }
+function show(view) { for (const v of ['v-login', 'v-list', 'v-edit', 'v-res']) $(v).hidden = v !== view; $('top').hidden = view === 'v-login'; if (view !== 'v-res') { clearInterval(resTimer); resTimer = null; } }
+
+// ── Sign in ──
+$('loginform').onsubmit = async (e) => {
+  e.preventDefault(); $('lbtn').disabled = true; msg($('lmsg'), '', '');
+  try {
+    const r = await fetch('/lms/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role: 'teacher', code: $('lcode').value, password: $('lpass').value }) });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error);
+    token = d.token; try { localStorage.setItem('cas_teacher_token', token); } catch {}
+    $('lpass').value = ''; start();
+  } catch (err) { msg($('lmsg'), err.message || 'Could not sign in.', 'bad'); }
+  finally { $('lbtn').disabled = false; }
+};
+function signOut() {
+  if (token) fetch('/lms/logout', { method: 'POST', headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
+  token = null; try { localStorage.removeItem('cas_teacher_token'); } catch {}
+  show('v-login');
+}
+$('signout').onclick = signOut;
+
+async function start() {
+  if (!token) return show('v-login');
+  try { me = await api('/lms/teacher/me'); } catch { return; }
+  const sync = me.online;
+  $('whoami').textContent = `${me.name}. ` + (sync ? (sync.ok ? `Last sent to CAS ${new Date(sync.at).toLocaleString()}.` : sync.message) : 'Not yet synced with CAS.');
+  $('fclass').innerHTML = '<option value="">Choose a class</option>' + me.classes.map(c => `<option>${esc(c)}</option>`).join('');
+  $('subjects').innerHTML = [...new Set(me.courses.map(c => c.subject))].map(s => `<option value="${esc(s)}">`).join('');
+  listTests();
+}
+
+// ── My tests ──
+async function listTests() {
+  show('v-list');
+  const tests = await api('/lms/teacher/tests');
+  $('tests').innerHTML = tests.length ? tests.map(t => `
+    <article class="card">
+      <div class="row between">
+        <div><h2>${esc(t.title)}</h2>
+          <p class="muted">${esc(t.class_name)}, ${esc(t.subject)}. ${t.question_count} question${t.question_count === 1 ? '' : 's'}${t.time_limit_mins ? `, ${t.time_limit_mins} min` : ''}${t.origin === 'cloud' ? '. Made in CAS' : ''}</p></div>
+        <span class="tag ${t.status}">${{ draft: 'Draft', open: 'Open', closed: 'Closed' }[t.status]}</span>
+      </div>
+      <p>${t.submitted} of ${t.class_size} submitted${t.started ? `, ${t.started} taking it now` : ''}${t.to_mark ? `. <strong>${t.to_mark} answer${t.to_mark === 1 ? '' : 's'} to mark</strong>` : ''}</p>
+      ${t.status !== 'draft' ? `<p class="muted">${t.waiting_for_cas ? 'Results waiting to be sent to CAS (the server sends them when it is online).' : 'Results sent to CAS.'}</p>` : ''}
+      ${t.removed_in_cas ? '<p class="muted">This test was removed in CAS.</p>' : ''}
+      <div class="row">
+        ${t.status === 'open' ? `<button data-status="closed" data-id="${t.id}">Close test</button>` : `<button class="primary" data-status="open" data-id="${t.id}" ${t.removed_in_cas ? 'disabled' : ''}>${t.status === 'closed' ? 'Open again' : 'Open for students'}</button>`}
+        ${t.status !== 'draft' ? `<button data-results="${t.id}">Results</button>` : ''}
+        ${t.origin === 'local' && t.submitted + t.started === 0 ? `<button data-edit="${t.id}">Edit</button>` : ''}
+        ${t.origin === 'local' && t.submitted + t.started === 0 ? `<span data-del="${t.id}"><button class="danger">Delete</button></span>` : ''}
+      </div>
+    </article>`).join('') : `<div class="card"><h2>No tests yet</h2><p class="muted">Tests you make here, and published LMS quizzes for your classes in CAS, appear here. Students on the school Wi-Fi see a test once you open it.</p></div>`;
+}
+document.addEventListener('click', async (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  try {
+    if (b.dataset.status) { await api(`/lms/teacher/tests/${b.dataset.id}/status`, { method: 'POST', body: JSON.stringify({ status: b.dataset.status }) }); listTests(); }
+    else if (b.dataset.results) openResults(b.dataset.results);
+    else if (b.dataset.edit) openEditor(b.dataset.edit);
+    else if (b.closest('[data-del]') && !b.dataset.yes && !b.dataset.no) {
+      const wrap = b.closest('[data-del]');
+      wrap.innerHTML = `<span class="muted">Delete this test?</span> <button class="danger" data-yes="1">Delete</button> <button data-no="1">Cancel</button>`;
+    } else if (b.dataset.yes) { await api(`/lms/teacher/tests/${b.closest('[data-del]').dataset.del}`, { method: 'DELETE' }); listTests(); }
+    else if (b.dataset.no) listTests();
+  } catch (err) { alertInline(err.message); }
+});
+function alertInline(text) { const d = document.createElement('div'); d.className = 'msg bad'; d.textContent = text; $('tests').prepend(d); setTimeout(() => d.remove(), 5000); }
+
+// ── Editor ──
+$('newtest').onclick = () => openEditor(null);
+$('edback').onclick = () => listTests();
+function blankQ(type) { return type === 'short' ? { type: 'short', text: '', marks: 2, explanation: '' } : { type: 'mcq', text: '', options: ['', '', '', ''], correct: '', marks: 1, explanation: '' }; }
+async function openEditor(id) {
+  editing = id; msg($('edmsg'), '', ''); $('pasco').hidden = true;
+  if (id) {
+    const t = await api(`/lms/teacher/tests/${id}`);
+    draft = { title: t.title, class_name: t.class_name, subject: t.subject, time_limit_mins: t.time_limit_mins || '', instructions: t.instructions || '',
+      show_answers: !!t.show_answers, randomise: !!t.randomise, questions: t.questions.map(q => ({ type: q.type, text: q.text, options: q.options, correct: q.correct, marks: q.marks, explanation: q.explanation || '' })) };
+  } else draft = { title: '', class_name: '', subject: '', time_limit_mins: '', instructions: '', show_answers: true, randomise: false, questions: [blankQ('mcq')] };
+  $('edtitle').textContent = id ? 'Edit test' : 'New test';
+  $('ftitle').value = draft.title; $('fclass').value = draft.class_name; $('fsubject').value = draft.subject;
+  $('ftime').value = draft.time_limit_mins; $('finstr').value = draft.instructions; $('fshow').checked = draft.show_answers; $('frand').checked = draft.randomise;
+  if (draft.class_name && !me.classes.includes(draft.class_name)) $('fclass').insertAdjacentHTML('beforeend', `<option>${esc(draft.class_name)}</option>`), $('fclass').value = draft.class_name;
+  renderQs(); show('v-edit');
+}
+function countLabel() {
+  const n = draft.questions.length, m = draft.questions.reduce((t, x) => t + (Number(x.marks) || 0), 0);
+  $('qcount').textContent = `(${n} question${n === 1 ? '' : 's'}, ${m} mark${m === 1 ? '' : 's'})`;
+}
+function renderQs() {
+  countLabel();
+  $('qs').innerHTML = draft.questions.map((q, i) => `
+    <div class="q" data-i="${i}">
+      <div class="row between"><strong>${i + 1}. ${q.type === 'short' ? 'Short answer' : 'Objective'}</strong>
+        <div class="row"><label class="row" style="display:flex">Marks <input data-f="marks" value="${esc(q.marks)}" inputmode="decimal" style="width:80px"></label>
+          <button class="link" data-up="${i}" ${i === 0 ? 'disabled' : ''}>Move up</button><button class="link danger" data-rm="${i}">Remove</button></div></div>
+      <textarea data-f="text" placeholder="Question">${esc(q.text)}</textarea>
+      ${q.type === 'short' ? `<textarea data-f="explanation" placeholder="Marking guide for you (students don't see it)">${esc(q.explanation)}</textarea>` : `
+        ${q.options.map((o, k) => `<div class="opt"><input type="radio" name="c${i}" data-correct="${k}" ${q.correct === LET[k].toLowerCase() ? 'checked' : ''} aria-label="${LET[k]} is the answer"><strong>${LET[k]}</strong><input data-opt="${k}" value="${esc(o)}" placeholder="Option ${LET[k]}"></div>`).join('')}
+        <div class="row">${q.options.length < 5 ? `<button class="link" data-addopt="${i}">Add option</button>` : ''}${q.options.length > 2 ? `<button class="link" data-rmopt="${i}">Remove last option</button>` : ''}</div>
+        <input data-f="explanation" value="${esc(q.explanation)}" placeholder="Explanation shown after submitting (optional)">`}
+    </div>`).join('') || '<p class="muted">No questions yet.</p>';
+}
+$('qs').addEventListener('input', (e) => {
+  const box = e.target.closest('[data-i]'); if (!box) return; const q = draft.questions[box.dataset.i];
+  if (e.target.dataset.f) q[e.target.dataset.f] = e.target.value;
+  if (e.target.dataset.opt) q.options[e.target.dataset.opt] = e.target.value;
+  if (e.target.dataset.correct !== undefined) q.correct = LET[e.target.dataset.correct].toLowerCase();
+  if (e.target.dataset.f === 'marks') countLabel();
+});
+$('qs').addEventListener('change', (e) => { if (e.target.dataset.correct !== undefined) { const q = draft.questions[e.target.closest('[data-i]').dataset.i]; q.correct = LET[e.target.dataset.correct].toLowerCase(); } });
+$('qs').addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.rm) draft.questions.splice(+b.dataset.rm, 1);
+  else if (b.dataset.up) { const i = +b.dataset.up; [draft.questions[i - 1], draft.questions[i]] = [draft.questions[i], draft.questions[i - 1]]; }
+  else if (b.dataset.addopt) draft.questions[+b.dataset.addopt].options.push('');
+  else if (b.dataset.rmopt) { const q = draft.questions[+b.dataset.rmopt]; const gone = LET[q.options.length - 1].toLowerCase(); q.options.pop(); if (q.correct === gone) q.correct = ''; }
+  else return;
+  renderQs();
+});
+$('addmcq').onclick = () => { draft.questions.push(blankQ('mcq')); renderQs(); };
+$('addshort').onclick = () => { draft.questions.push(blankQ('short')); renderQs(); };
+
+// Past Questions picker
+let pascoQs = [];
+$('addpasco').onclick = async () => {
+  $('pasco').hidden = false;
+  const d = await api('/lms/teacher/pasco');
+  $('psubject').innerHTML = d.subjects.length ? '<option value="">Choose a subject</option>' + d.subjects.map(s => `<option value="${esc(s.slug)}">${esc(s.name)} (${s.count})</option>`).join('') : '<option value="">No past questions on this server yet</option>';
+  $('plist').innerHTML = ''; $('pnote').textContent = '';
+};
+$('pclose').onclick = () => { $('pasco').hidden = true; };
+$('psubject').onchange = async () => {
+  if (!$('psubject').value) return;
+  const d = await api(`/lms/teacher/pasco?subject=${encodeURIComponent($('psubject').value)}`);
+  pascoQs = d.questions;
+  if (!$('fsubject').value) $('fsubject').value = d.subject;
+  $('plist').innerHTML = pascoQs.map((q, i) => `<label><input type="checkbox" data-pq="${i}"><span><span class="muted">${esc(q.paper)}${q.no ? `, question ${q.no}` : ''}${q.type === 'short' ? ', theory' : ''}${q.has_picture ? ', has a picture (not copied)' : ''}</span><br>${esc(q.text.slice(0, 220))}</span></label>`).join('');
+};
+$('padd').onclick = () => {
+  const picked = [...document.querySelectorAll('[data-pq]:checked')].map(c => pascoQs[c.dataset.pq]);
+  for (const q of picked) {
+    draft.questions.push(q.type === 'short'
+      ? { type: 'short', text: q.text, marks: 5, explanation: q.marking_scheme || '' }
+      : { type: 'mcq', text: q.text, options: q.options.slice(0, 5), correct: q.correct || '', marks: 1, explanation: q.explanation || '' });
+  }
+  $('pnote').textContent = picked.length ? `Added ${picked.length}.` : 'Tick the questions to add.';
+  document.querySelectorAll('[data-pq]:checked').forEach(c => { c.checked = false; });
+  renderQs();
+};
+
+async function save(open) {
+  Object.assign(draft, { title: $('ftitle').value, class_name: $('fclass').value, subject: $('fsubject').value, time_limit_mins: $('ftime').value,
+    instructions: $('finstr').value, show_answers: $('fshow').checked, randomise: $('frand').checked });
+  if (!draft.questions.length && open) return msg($('edmsg'), 'Add at least one question before opening the test.', 'bad');
+  try {
+    let id = editing;
+    if (id) await api(`/lms/teacher/tests/${id}`, { method: 'PUT', body: JSON.stringify(draft) });
+    else id = (await api('/lms/teacher/tests', { method: 'POST', body: JSON.stringify(draft) })).id;
+    if (open) await api(`/lms/teacher/tests/${id}/status`, { method: 'POST', body: JSON.stringify({ status: 'open' }) });
+    listTests();
+  } catch (err) { msg($('edmsg'), err.message, 'bad'); }
+}
+$('saveopen').onclick = () => save(true);
+$('savedraft').onclick = () => save(false);
+
+// ── Results ──
+$('rback').onclick = () => listTests();
+async function openResults(id) {
+  resId = id; show('v-res'); await renderResults();
+  clearInterval(resTimer);
+  resTimer = setInterval(() => { if (!document.activeElement || !document.activeElement.matches('#rmark input')) renderResults(); }, 5000);
+}
+async function renderResults() {
+  const r = await api(`/lms/teacher/tests/${resId}/results`);
+  const t = r.test, s = r.summary;
+  $('rtitle').textContent = t.title;
+  $('rsub').textContent = `${t.class_name}, ${t.total_marks} marks. ${t.status === 'open' ? 'Open: students can take it now.' : t.status === 'closed' ? 'Closed.' : 'Draft.'}`;
+  $('rstats').innerHTML = `
+    <div class="stat"><div class="big">${s.submitted}/${s.class_size}</div><div class="muted">submitted</div></div>
+    <div class="stat"><div class="big">${s.taking}</div><div class="muted">taking it now</div></div>
+    <div class="stat"><div class="big">${s.average == null ? 'None' : `${s.average.toFixed(1)}/${t.total_marks}`}</div><div class="muted">average so far</div></div>`;
+  $('ractions').innerHTML = t.status === 'open' ? `<button data-status="closed" data-id="${t.id}">Close test (submits unfinished answers)</button>` : `<button class="primary" data-status="open" data-id="${t.id}">Open again</button>`;
+  $('rrows').innerHTML = r.students.map(x => `<tr><td>${esc(x.name)}</td><td>${esc(x.code)}</td><td>${esc(x.state)}${x.to_mark ? ', to mark' : ''}</td><td>${x.score == null ? '' : `${+x.score.toFixed(2)}/${x.max_score}`}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">No students in this class on the server.</td></tr>';
+  $('rmarkcard').hidden = !r.marking.length;
+  $('rmark').innerHTML = r.marking.map(m => `
+    <div class="q"><div class="muted">${esc(m.student)}: ${esc(m.question.slice(0, 140))}</div><div style="white-space:pre-wrap">${esc(m.answer)}</div>
+      <div class="row"><label class="row" style="display:flex">Marks (0 to ${m.max}) <input style="width:90px" inputmode="decimal" value="${m.marks ?? ''}" data-a="${m.attempt_id}" data-q="${m.question_id}" data-max="${m.max}"></label>
+      <button data-savemark="1">Save</button><span class="muted">${m.marks == null ? 'Not marked' : 'Marked'}</span></div></div>`).join('');
+}
+$('rmark').addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-savemark]'); if (!b) return;
+  const inp = b.parentElement.querySelector('input');
+  try { await api('/lms/teacher/marks', { method: 'PUT', body: JSON.stringify({ attempt_id: inp.dataset.a, question_id: inp.dataset.q, marks: inp.value }) }); b.textContent = 'Saved'; setTimeout(renderResults, 600); }
+  catch (err) { b.nextElementSibling.textContent = err.message; }
+});
+$('ractions').addEventListener('click', () => setTimeout(renderResults, 400));
+$('rcsv').onclick = async () => {
+  const r = await fetch(`/lms/teacher/tests/${resId}/results.csv`, { headers: { Authorization: `Bearer ${token}` } });
+  const blob = await r.blob(); const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = `${$('rtitle').textContent} results.csv`; document.body.appendChild(a); a.click(); a.remove();
+};
+
+start();
+</script>
+</body>
+</html>
