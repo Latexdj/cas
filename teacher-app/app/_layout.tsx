@@ -18,7 +18,7 @@ import { ReminderTapHandler } from '@/components/ReminderTapHandler';
 const SCREEN_TITLES: [string, string][] = [
   ['reminders', 'Lesson reminders'], ['memos', 'Memos'], ['letters', 'My Letters'], ['clinic', 'Clinic'],
   ['resources', 'Resources'], ['conduct', 'My Queries'], ['student-attendance', 'Student Attendance'],
-  ['id-scan', 'Scan ID Card'], ['invigilation', 'Invigilation'], ['lms/index', 'My Courses'], ['lms/[courseId]', 'Course'],
+  ['id-scan', 'Scan ID Card'], ['invigilation', 'Invigilation'], ['lms/index', 'My Courses'], ['lms/[courseId]', 'Course'], ['form-class', 'Form Class'],
 ];
 
 function InitialLayout() {
