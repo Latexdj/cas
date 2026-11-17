@@ -49,3 +49,14 @@ export async function downloadAndShare(path: string, filename: string, mime: str
     return 'Could not download the file. Check your connection.';
   }
 }
+
+// Post a picked .xlsx as multipart form data (native needs { uri, name, type }).
+export type UploadResult = { saved: number; skipped: number; errors: { row: number; message: string }[] };
+export async function uploadSheet(path: string, file: { uri: string; name: string; mime: string }, fields: Record<string, string>) {
+  const { api } = await import('./api');
+  const form = new FormData();
+  if (Platform.OS === 'web') form.append('file', await (await fetch(file.uri)).blob(), file.name);
+  else form.append('file', { uri: file.uri, name: file.name, type: file.mime || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' } as unknown as Blob);
+  for (const [k, v] of Object.entries(fields)) form.append(k, v);
+  return api.post<UploadResult>(path, form, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 60000 });
+}

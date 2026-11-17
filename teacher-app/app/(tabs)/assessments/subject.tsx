@@ -1,233 +1,205 @@
 ﻿import React, { useCallback, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Modal, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { useFocusEffect, router, useLocalSearchParams } from 'expo-router';
+import { Pressable, Text, View } from 'react-native';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { api } from '@/lib/api';
 import { useTheme } from '@/context/ThemeContext';
-import { createThemedStyles, tc } from '@/lib/themedStyles';
+import { api } from '@/lib/api';
+import { downloadAndShare, isPickError, pickFile, uploadSheet } from '@/lib/files';
+import { Body, Button, Card, ChoiceChips, Chip, Empty, Field, InlineConfirm, Loading, Notice, Row, Screen, Title, errText } from '@/components/ui/kit';
 
-interface AssessmentMode { id: string; name: string; ca_contribution: number }
-interface Assessment {
-  id: string; mode_id: string; mode_name: string; ca_contribution: number;
-  title: string | null; date: string | null; max_score: number; score_count: number;
+interface Mode { id: string; name: string; ca_contribution: number }
+interface Assessment { id: string; mode_id: string; mode_name: string; title: string | null; date: string | null; max_score: number | string; score_count: number }
+type Status = 'draft' | 'submitted' | 'hod_approved' | 'final_approved' | 'published' | 'rejected';
+interface SubStatus { status: Status; submitted_at: string | null; hod_comment: string | null; rejected_reason: string | null }
+interface Readiness {
+  totalStudents: number; examScoredCount: number; examComplete: boolean; missingModes: string[];
+  incompleteAssessments: { id: string; label: string; modeName: string; actedOn: number; teacherName: string; isOwn: boolean }[]; canSubmit: boolean;
 }
+type Upload = { saved: number; skipped: number; errors: { row: number; message: string }[] };
 
-export default function SubjectAssessmentsScreen() {
-  const Colors = useTheme();
-  const { subject, class_name, year_id, semester, year_name } = useLocalSearchParams<{
-    subject: string; class_name: string; year_id: string; semester: string; year_name: string;
-  }>();
+const STATUS: Record<Status, { label: string; tone: 'warn' | 'ok' | 'neutral' | 'bad' | 'brand'; desc: string }> = {
+  draft: { label: 'Draft', tone: 'warn', desc: 'You can still change scores. Submit to your HOD when they are complete.' },
+  submitted: { label: 'Submitted', tone: 'brand', desc: 'With your HOD for review. Scores are locked.' },
+  hod_approved: { label: 'HOD approved', tone: 'ok', desc: 'Your HOD approved them. Waiting for final review by management.' },
+  final_approved: { label: 'Final approval', tone: 'neutral', desc: 'Approved by management. Waiting to be published.' },
+  published: { label: 'Published', tone: 'ok', desc: 'Published. Students can see them.' },
+  rejected: { label: 'Sent back', tone: 'bad', desc: 'Sent back for correction. Change the scores and submit again.' },
+};
+const XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
-  const [assessments, setAssessments] = useState<Assessment[]>([]);
-  const [modes,       setModes]       = useState<AssessmentMode[]>([]);
-  const [loading,     setLoading]     = useState(true);
-  const [refreshing,  setRefreshing]  = useState(false);
-
-  // New assessment modal state
-  const [showModal, setShowModal]   = useState(false);
-  const [modeId,    setModeId]      = useState('');
-  const [title,     setTitle]       = useState('');
-  const [date,      setDate]        = useState('');
-  const [maxScore,  setMaxScore]    = useState('');
-  const [creating,  setCreating]    = useState(false);
-  const [createErr, setCreateErr]   = useState('');
-
-  const load = useCallback(async () => {
-    try {
-      const [aRes, mRes] = await Promise.all([
-        api.get<Assessment[]>('/api/assessments', {
-          params: { academic_year_id: year_id, semester, subject, class_name },
-        }),
-        api.get<AssessmentMode[]>('/api/assessment-modes'),
-      ]);
-      setAssessments(aRes.data);
-      setModes(mRes.data);
-      if (mRes.data.length > 0 && !modeId) setModeId(mRes.data[0].id);
-    } catch {
-      // silently fail on refresh
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [year_id, semester, subject, class_name, modeId]);
-
-  useFocusEffect(useCallback(() => { setLoading(true); load(); }, [load]));
-  const onRefresh = () => { setRefreshing(true); load(); };
-
-  async function createAssessment() {
-    if (!modeId) { setCreateErr('Please select a mode.'); return; }
-    if (!maxScore || parseFloat(maxScore) <= 0) { setCreateErr('Max score is required.'); return; }
-    setCreating(true); setCreateErr('');
-    try {
-      await api.post('/api/assessments', {
-        academic_year_id: year_id,
-        semester:         parseInt(semester),
-        subject,
-        class_name,
-        mode_id:   modeId,
-        title:     title.trim() || null,
-        date:      date || null,
-        max_score: parseFloat(maxScore),
-      });
-      setShowModal(false);
-      setTitle(''); setDate(''); setMaxScore(''); setCreateErr('');
-      await load();
-    } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      setCreateErr(msg ?? 'Failed to create.');
-    } finally { setCreating(false); }
-  }
-
-  async function deleteAssessment(id: string, label: string) {
-    Alert.alert('Delete Assessment', `Delete "${label}"? All scores will be lost.`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete', style: 'destructive',
-        onPress: async () => {
-          try { await api.delete(`/api/assessments/${id}`); await load(); }
-          catch { Alert.alert('Error', 'Failed to delete.'); }
-        },
-      },
-    ]);
-  }
-
-  const inputStyle = [styles.input, { borderColor: Colors.border, color: Colors.text, backgroundColor: Colors.surface }];
-
+function Check({ ok, label, blocking = true }: { ok: boolean; label: string; blocking?: boolean }) {
+  const C = useTheme();
+  const col = ok ? C.success : blocking ? C.danger : C.warning;
   return (
-    <View style={[styles.container, { backgroundColor: Colors.bg }]}>
-      {/* Header info */}
-      <View style={[styles.headerCard, { backgroundColor: Colors.surface, borderColor: Colors.border }]}>
-        <Text style={[styles.headerSubject, { color: Colors.text }]}>{subject}</Text>
-        <Text style={[styles.headerMeta, { color: Colors.muted }]}>{class_name} | {year_name} | Semester {semester}</Text>
-      </View>
-
-      {loading ? (
-        <ActivityIndicator size="large" color={Colors.primaryText} style={{ marginTop: 40 }} />
-      ) : (
-        <FlatList
-          data={assessments}
-          keyExtractor={i => i.id}
-          contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 100 }}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
-          ListEmptyComponent={
-            <View style={styles.center}>
-              <Ionicons name="clipboard-outline" size={40} color={Colors.muted} />
-              <Text style={[styles.emptyText, { color: Colors.muted }]}>No assessments yet.{'\n'}Tap + to add one.</Text>
-            </View>
-          }
-          ListHeaderComponent={
-            <TouchableOpacity
-              style={[styles.examBtn, { borderColor: Colors.accent, backgroundColor: Colors.bg }]}
-              onPress={() => router.push({ pathname: '/(tabs)/assessments/exam', params: { subject, class_name, year_id, semester, year_name } })}
-            >
-              <Ionicons name="document-text-outline" size={16} color={Colors.accent} />
-              <Text style={[styles.examBtnText, { color: Colors.accent }]}>Enter End-of-Semester Exam Scores</Text>
-            </TouchableOpacity>
-          }
-          renderItem={({ item }) => {
-            const label = item.title ?? item.mode_name;
-            const dateStr = item.date ? new Date(item.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : null;
-            return (
-              <View style={[styles.card, { backgroundColor: Colors.surface, borderColor: Colors.border }]}>
-                <TouchableOpacity style={styles.cardMain}
-                  onPress={() => router.push({ pathname: '/(tabs)/assessments/scores', params: { assessment_id: item.id, subject, class_name, year_id, semester, assessment_label: label } })}>
-                  <View style={styles.cardRow}>
-                    <View style={[styles.modeBadge, { backgroundColor: Colors.primaryLight }]}>
-                      <Text style={[styles.modeBadgeText, { color: Colors.primaryText }]}>{item.mode_name}</Text>
-                    </View>
-                    {dateStr && <Text style={[styles.dateText, { color: Colors.muted }]}>{dateStr}</Text>}
-                  </View>
-                  <Text style={[styles.cardTitle, { color: Colors.text }]}>{label}</Text>
-                  <Text style={[styles.cardMeta, { color: Colors.muted }]}>Max: {item.max_score} | {item.score_count} score{item.score_count !== 1 ? 's' : ''} entered</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.cardDelete} onPress={() => deleteAssessment(item.id, label)}>
-                  <Ionicons name="trash-outline" size={16} color={Colors.danger} />
-                </TouchableOpacity>
-              </View>
-            );
-          }}
-        />
-      )}
-
-      {/* Add button */}
-      <TouchableOpacity
-        style={[styles.fab, { backgroundColor: Colors.primary }]}
-        onPress={() => setShowModal(true)}
-      >
-        <Ionicons name="add" size={28} color={tc('#fff')} />
-      </TouchableOpacity>
-
-      {/* Create modal */}
-      <Modal visible={showModal} transparent animationType="slide" onRequestClose={() => setShowModal(false)}>
-        <View style={styles.overlay}>
-          <View style={[styles.sheet, { backgroundColor: Colors.surface }]}>
-            <Text style={[styles.sheetTitle, { color: Colors.text }]}>New Assessment</Text>
-
-            <Text style={[styles.label, { color: Colors.muted }]}>Mode *</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
-              <View style={{ flexDirection: 'row', gap: 8 }}>
-                {modes.map(m => (
-                  <TouchableOpacity key={m.id} onPress={() => setModeId(m.id)}
-                    style={[styles.pill, { backgroundColor: modeId === m.id ? Colors.primary : Colors.bg, borderColor: modeId === m.id ? Colors.primary : Colors.border }]}>
-                    <Text style={{ fontSize: 13, fontWeight: '600', color: modeId === m.id ? '#fff' : Colors.text }}>{m.name}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </ScrollView>
-
-            <Text style={[styles.label, { color: Colors.muted }]}>Title (optional)</Text>
-            <TextInput style={inputStyle} value={title} onChangeText={setTitle} placeholder="e.g. Week 3 Test" placeholderTextColor={Colors.muted} />
-
-            <Text style={[styles.label, { color: Colors.muted }]}>Date (YYYY-MM-DD)</Text>
-            <TextInput style={inputStyle} value={date} onChangeText={setDate} placeholder="e.g. 2025-03-14" placeholderTextColor={Colors.muted} keyboardType="numeric" />
-
-            <Text style={[styles.label, { color: Colors.muted }]}>Max Score</Text>
-            <TextInput style={inputStyle} value={maxScore} onChangeText={setMaxScore} keyboardType="numeric" placeholder="e.g. 50" placeholderTextColor={Colors.muted} />
-
-            {createErr ? <Text style={[styles.errText, { color: Colors.danger }]}>{createErr}</Text> : null}
-
-            <View style={styles.btnRow}>
-              <TouchableOpacity style={[styles.btn, { backgroundColor: Colors.bg, borderColor: Colors.border }]} onPress={() => setShowModal(false)}>
-                <Text style={{ color: Colors.text, fontWeight: '600' }}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.btn, { backgroundColor: Colors.primary, flex: 1 }]} onPress={createAssessment} disabled={creating}>
-                <Text style={{ color: tc('#fff', 'text'), fontWeight: '700' }}>{creating ? 'Creating...' : 'Create'}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
+    <View style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-start', padding: 10, borderRadius: 10, backgroundColor: ok ? C.successLight : blocking ? C.dangerLight : C.warningLight }}>
+      <Ionicons name={ok ? 'checkmark-circle' : 'alert-circle'} size={18} color={col} />
+      <Text style={{ flex: 1, color: C.text, fontSize: 14 }}>{label}</Text>
     </View>
   );
 }
 
-const styles = createThemedStyles({
-  container:    { flex: 1 },
-  headerCard:   { margin: 16, marginBottom: 0, borderRadius: 14, padding: 14, borderWidth: 1 },
-  headerSubject:{ fontSize: 17, fontWeight: '800' },
-  headerMeta:   { fontSize: 12, marginTop: 3 },
-  center:       { alignItems: 'center', justifyContent: 'center', paddingVertical: 40 },
-  emptyText:    { fontSize: 14, textAlign: 'center', marginTop: 10, lineHeight: 22 },
-  examBtn:      { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: 12, borderWidth: 1.5, borderStyle: 'dashed', marginBottom: 8 },
-  examBtnText:  { fontSize: 13, fontWeight: '700' },
-  card:         { borderRadius: 14, borderWidth: 1, flexDirection: 'row', overflow: 'hidden' },
-  cardMain:     { flex: 1, padding: 14 },
-  cardDelete:   { padding: 14, justifyContent: 'center', alignItems: 'center' },
-  cardRow:      { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
-  modeBadge:    { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
-  modeBadgeText:{ fontSize: 12, fontWeight: '700' },
-  dateText:     { fontSize: 12 },
-  cardTitle:    { fontSize: 14, fontWeight: '700' },
-  cardMeta:     { fontSize: 12, marginTop: 2 },
-  fab:          { position: 'absolute', bottom: 28, right: 20, width: 56, height: 56, borderRadius: 28, justifyContent: 'center', alignItems: 'center', elevation: 4, shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 6, shadowOffset: { width: 0, height: 3 } },
-  overlay:      { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
-  sheet:        { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 36 },
-  sheetTitle:   { fontSize: 18, fontWeight: '800', marginBottom: 16 },
-  label:        { fontSize: 12, fontWeight: '600', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 },
-  input:        { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, marginBottom: 12 },
-  pill:         { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1 },
-  errText:      { fontSize: 13, marginBottom: 10 },
-  btnRow:       { flexDirection: 'row', gap: 10, marginTop: 4 },
-  btn:          { paddingVertical: 13, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 1, paddingHorizontal: 16 },
-});
+export default function SubjectAssessmentsScreen() {
+  const C = useTheme();
+  const { subject, class_name, year_id, semester, year_name } = useLocalSearchParams<{ subject: string; class_name: string; year_id: string; semester: string; year_name: string }>();
+  const q = { academic_year_id: year_id, semester, subject, class_name };
+  const [list, setList] = useState<Assessment[] | null>(null);
+  const [modes, setModes] = useState<Mode[]>([]);
+  const [sub, setSub] = useState<SubStatus>({ status: 'draft', submitted_at: null, hod_comment: null, rejected_reason: null });
+  const [ready, setReady] = useState<Readiness | null>(null);
+  const [msg, setMsg] = useState<{ text: string; tone: 'ok' | 'bad' } | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [form, setForm] = useState({ mode: '', title: '', date: '', max: '' });
+  const [busy, setBusy] = useState<string | null>(null);
+  const [confirm, setConfirm] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [upload, setUpload] = useState<Upload | null>(null);
+  const locked = !['draft', 'rejected'].includes(sub.status);
 
+  const load = useCallback(async () => {
+    try {
+      const [a, m] = await Promise.all([api.get<Assessment[]>('/api/assessments', { params: q }), api.get<Mode[]>('/api/assessment-modes')]);
+      setList(a.data ?? []); setModes(m.data ?? []); setForm(f => ({ ...f, mode: f.mode || m.data?.[0]?.id || '' }));
+    } catch (e) { setList(prev => prev ?? []); setMsg({ text: errText(e, 'Could not load the assessments.'), tone: 'bad' }); }
+    api.get<(SubStatus & { subject: string; class_name: string })[]>('/api/result-submissions/my-status', { params: { academic_year_id: year_id, semester } })
+      .then(r => { const s = r.data.find(x => x.subject === subject && x.class_name === class_name); setSub(s ?? { status: 'draft', submitted_at: null, hod_comment: null, rejected_reason: null }); }).catch(() => {});
+    api.get<Readiness>('/api/result-submissions/readiness-check', { params: q }).then(r => setReady(r.data)).catch(() => {});
+  }, [year_id, semester, subject, class_name]); // eslint-disable-line react-hooks/exhaustive-deps
+  useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  async function create() {
+    if (!form.mode) { setMsg({ text: 'Choose the kind of assessment.', tone: 'bad' }); return; }
+    if (!form.max || parseFloat(form.max) <= 0) { setMsg({ text: 'Enter the highest score.', tone: 'bad' }); return; }
+    if (form.date && !/^\d{4}-\d{2}-\d{2}$/.test(form.date)) { setMsg({ text: 'Write the date like 2026-11-14.', tone: 'bad' }); return; }
+    setBusy('create'); setMsg(null);
+    try {
+      await api.post('/api/assessments', { ...q, semester: parseInt(semester, 10), mode_id: form.mode, title: form.title.trim() || null, date: form.date || null, max_score: parseFloat(form.max) });
+      setAdding(false); setForm(f => ({ ...f, title: '', date: '', max: '' })); load();
+    } catch (e) { setMsg({ text: errText(e, 'Could not create the assessment.'), tone: 'bad' }); }
+    finally { setBusy(null); }
+  }
+  async function remove(id: string) {
+    try { await api.delete(`/api/assessments/${id}`); setList(p => p?.filter(a => a.id !== id) ?? p); load(); }
+    catch (e) { setMsg({ text: errText(e, 'Could not delete the assessment.'), tone: 'bad' }); }
+    setConfirm(null);
+  }
+  async function submit() {
+    setBusy('submit'); setMsg(null);
+    try {
+      await api.post('/api/result-submissions/submit', { academic_year_id: year_id, semester: Number(semester), subject, class_name });
+      setSubmitting(false); setMsg({ text: 'Results submitted to your HOD.', tone: 'ok' }); load();
+    } catch (e) { setMsg({ text: errText(e, 'Could not submit the results.'), tone: 'bad' }); load(); }
+    finally { setBusy(null); }
+  }
+  async function template() {
+    setBusy('template');
+    const e = await downloadAndShare(`/api/assessments/class-template?${new URLSearchParams(q).toString()}`, `${subject}_${class_name}_sem${semester}_CAs.xlsx`.replace(/[^\w.]+/g, '_'), XLSX);
+    if (e) setMsg({ text: e, tone: 'bad' });
+    setBusy(null);
+  }
+  async function uploadFile() {
+    const f = await pickFile([XLSX, 'application/vnd.ms-excel'], 10);
+    if (isPickError(f)) { setMsg({ text: f.error, tone: 'bad' }); return; }
+    if (!f) return;
+    setBusy('upload'); setMsg(null); setUpload(null);
+    try { const { data } = await uploadSheet('/api/assessments/class-upload-scores', f, q); setUpload(data); load(); }
+    catch (e) {
+      const body = (e as { response?: { data?: Partial<Upload> & { error?: string } } }).response?.data;
+      setMsg({ text: body?.error ?? errText(e, 'The upload did not work.'), tone: 'bad' });
+      if (body?.errors?.length) setUpload({ saved: body.saved ?? 0, skipped: body.skipped ?? 0, errors: body.errors });
+    } finally { setBusy(null); }
+  }
+
+  const st = STATUS[sub.status] ?? STATUS.draft;
+  const go = (pathname: '/(tabs)/assessments/exam' | '/(tabs)/assessments/scores', extra: Record<string, string> = {}) =>
+    router.push({ pathname, params: { subject, class_name, year_id, semester, year_name, ...extra } });
+
+  return (
+    <Screen onRefresh={load}>
+      <Title sub={`${class_name}, ${year_name}, semester ${semester}`}>{subject}</Title>
+      <Card accent={sub.status === 'rejected' ? C.danger : undefined}>
+        <Row style={{ alignItems: 'center' }}><Text style={{ flex: 1, color: C.textSoft, fontSize: 13, fontWeight: '700' }}>Results</Text><Chip label={st.label} tone={st.tone} /></Row>
+        <Body small>{st.desc}</Body>
+        {sub.status === 'rejected' && !!sub.rejected_reason && <Body small style={{ color: C.danger }}>Reason: {sub.rejected_reason}</Body>}
+        {!!sub.hod_comment && <Body small soft>HOD's comment: {sub.hod_comment}</Body>}
+        {!locked && !submitting && <Button label="Submit to HOD" icon="send-outline" onPress={() => { setSubmitting(true); setMsg(null); load(); }} />}
+        {submitting && (
+          <View style={{ gap: 8 }}>
+            {!ready ? <Loading label="Checking your scores…" /> : (
+              <>
+                <Check ok={ready.examComplete} label={`End-of-semester exam: ${ready.examScoredCount} of ${ready.totalStudents} students scored`} />
+                {ready.missingModes.map(n => <Check key={n} ok={false} label={`${n}: no assessment created yet`} />)}
+                {ready.incompleteAssessments.map(a => <Check key={a.id} ok={false}
+                  label={`${a.label} (${a.modeName})${a.isOwn ? '' : ` by ${a.teacherName}`}: ${a.actedOn} of ${ready.totalStudents} scored or marked absent`} />)}
+                {ready.canSubmit ? <Body small style={{ color: C.success, fontWeight: '700' }}>Everything is in. You can submit.</Body> : <Body small soft>Finish the items above, then submit.</Body>}
+              </>
+            )}
+            <Row>
+              <Button label="Submit now" grow busy={busy === 'submit'} disabled={!ready?.canSubmit} onPress={submit} />
+              <Button label="Cancel" kind="secondary" grow onPress={() => setSubmitting(false)} />
+            </Row>
+          </View>
+        )}
+      </Card>
+      <Notice text={msg?.text} tone={msg?.tone} onClose={() => setMsg(null)} />
+
+      <Pressable onPress={() => go('/(tabs)/assessments/exam')} accessibilityRole="button"
+        style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: C.accent, backgroundColor: pressed ? C.bg : C.surface })}>
+        <Ionicons name="document-text-outline" size={20} color={C.accent} />
+        <View style={{ flex: 1 }}>
+          <Text style={{ color: C.text, fontSize: 15, fontWeight: '700' }}>End-of-semester exam</Text>
+          {ready && <Body small soft>{ready.examScoredCount} of {ready.totalStudents} scored</Body>}
+        </View>
+        <Ionicons name="chevron-forward" size={18} color={C.muted} />
+      </Pressable>
+
+      <Row>
+        <Button label="CA template" kind="secondary" icon="download-outline" grow busy={busy === 'template'} onPress={template} />
+        <Button label="Upload CA sheet" kind="secondary" icon="cloud-upload-outline" grow busy={busy === 'upload'} disabled={locked} onPress={uploadFile} />
+      </Row>
+      {upload && (
+        <Card>
+          <Row>
+            <Chip label={`${upload.saved} saved`} tone="ok" />
+            {upload.skipped > 0 && <Chip label={`${upload.skipped} empty rows skipped`} />}
+            {upload.errors.length > 0 && <Chip label={`${upload.errors.length} problems`} tone="bad" />}
+          </Row>
+          {upload.errors.map((e, i) => <Body key={i} small style={{ color: C.danger }}>Row {e.row}: {e.message}</Body>)}
+          <Button label="Close" kind="quiet" onPress={() => setUpload(null)} style={{ alignSelf: 'flex-start' }} />
+        </Card>
+      )}
+
+      {adding ? (
+        <Card>
+          <Title>New assessment</Title>
+          <ChoiceChips label="Kind" value={form.mode} onChange={v => setForm(f => ({ ...f, mode: v }))} options={modes.map(m => ({ key: m.id, label: m.name }))} />
+          <Field label="Title (optional)" value={form.title} onChangeText={v => setForm(f => ({ ...f, title: v }))} placeholder="For example, week 3 test" />
+          <Field label="Date (optional)" value={form.date} onChangeText={v => setForm(f => ({ ...f, date: v }))} placeholder="2026-11-14" />
+          <Field label="Highest score" value={form.max} onChangeText={v => setForm(f => ({ ...f, max: v }))} keyboardType="decimal-pad" placeholder="For example 50" />
+          <Row>
+            <Button label="Create" grow busy={busy === 'create'} onPress={create} />
+            <Button label="Cancel" kind="secondary" grow onPress={() => setAdding(false)} />
+          </Row>
+        </Card>
+      ) : !locked && <Button label="New assessment" icon="add" onPress={() => { setAdding(true); setMsg(null); }} />}
+
+      {list === null ? <Loading /> : list.length === 0 ? <Empty icon="clipboard-outline" title="No assessments yet" text="Add class tests, exercises and projects here." /> : list.map(a => {
+        const label = a.title ?? a.mode_name;
+        return (
+          <Card key={a.id}>
+            <Pressable onPress={() => go('/(tabs)/assessments/scores', { assessment_id: a.id, assessment_label: label })} accessibilityRole="button" style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <View style={{ flex: 1, gap: 4 }}>
+                <Row><Chip label={a.mode_name} tone="brand" />{!!a.date && <Body small soft>{new Date(a.date).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}</Body>}</Row>
+                <Text style={{ color: C.text, fontSize: 15, fontWeight: '700' }}>{label}</Text>
+                <Body small soft>Out of {Number(a.max_score)}. {a.score_count} {a.score_count === 1 ? 'score' : 'scores'} entered</Body>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={C.muted} />
+            </Pressable>
+            {!locked && (confirm === a.id
+              ? <InlineConfirm question={`Delete "${label}"? All its scores are lost.`} confirmLabel="Delete" onConfirm={() => remove(a.id)} onCancel={() => setConfirm(null)} />
+              : <Button label="Delete" kind="quiet" onPress={() => setConfirm(a.id)} style={{ alignSelf: 'flex-start' }} />)}
+          </Card>
+        );
+      })}
+    </Screen>
+  );
+}
