@@ -6,12 +6,16 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { storage } from '@/lib/storage';
 import { createThemedStyles, tc } from '@/lib/themedStyles';
 import { AppUpdateBanner } from '@/components/AppUpdateBanner';
+import { findSchoolServer } from '@/lib/schoolServer';
 
 export default function WelcomeScreen() {
   const insets = useSafeAreaInsets();
   const [logo, setLogo] = useState<string | null>(null);
 
+  const [hasServer, setHasServer] = useState(false);
   useEffect(() => { storage.getSchoolLogo().then(setLogo); }, []);
+  // Class tests run on the school server, so the card only shows on its Wi-Fi.
+  useEffect(() => { findSchoolServer().then(sv => setHasServer(!!sv)).catch(() => {}); }, []);
 
   return (
     <View style={[s.root, { paddingTop: insets.top }]}>
@@ -62,6 +66,19 @@ export default function WelcomeScreen() {
           </View>
           <Ionicons name="chevron-forward" size={20} color={tc('#8C7E6E')} />
         </TouchableOpacity>
+
+        {hasServer && (
+          <TouchableOpacity style={s.loginCard} onPress={() => router.push('/class-tests')} activeOpacity={0.82} accessibilityRole="button">
+            <View style={[s.loginIconWrap]}>
+              <Ionicons name="clipboard-outline" size={32} color={tc('#145C44')} />
+            </View>
+            <View style={s.loginText}>
+              <Text style={s.loginTitle}>Class tests</Text>
+              <Text style={s.loginSub}>Take tests your teacher has opened</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={tc('#8C7E6E')} />
+          </TouchableOpacity>
+        )}
 
         {/* Login — secondary action */}
         <TouchableOpacity

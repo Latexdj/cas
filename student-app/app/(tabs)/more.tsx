@@ -31,6 +31,7 @@ export default function MoreScreen() {
     { label: 'Exeat',     icon: 'exit-outline',           iconColor: '#EA580C', route: '/exeat',     color: '#FFF7ED' },
     { label: 'LMS',       icon: 'school-outline',         iconColor: '#0F766E', route: '/lms',       color: '#ECFDF5' },
     { label: 'Past Questions', icon: 'help-circle-outline', iconColor: '#9A6F1E', route: '/past-questions', color: '#FBF3E2' },
+    { label: 'Class tests', icon: 'clipboard-outline', iconColor: '#145C44', route: '/class-tests', color: '#E8F4EE' },
     { label: 'Clinic',    icon: 'medkit-outline',         iconColor: '#DC2626', route: '/clinic',    color: '#FEF2F2' },
     { label: 'Conduct',   icon: 'shield-checkmark-outline', iconColor: '#145C44', route: '/conduct', color: '#F0FDF4' },
     { label: 'Profile',   icon: 'person-circle-outline',  iconColor: '#475569', route: '/profile',   color: '#F1F5F9' },

@@ -93,6 +93,40 @@ with its app and past-questions versions, so you can see which still need to
 update.
 
 
+Learning materials
+------------------
+On the server's page, under Learning materials:
+  * Upload files or a whole folder, or "Copy from this PC" to copy an
+    existing LM folder (for example D:\LM). Keep the usual layout:
+    form, then subject, then the files.
+  * Every tablet on the school Wi-Fi downloads everything into its Learning
+    Materials when the app opens (only new or changed files). Tablets show
+    progress and can pause. Files removed here are removed from tablets.
+  * Large videos take time over Wi-Fi. Let tablets finish near the access
+    points the first time.
+
+
+Class tests (offline LMS)
+-------------------------
+1. Connect the server to CAS (once, needs internet on this PC):
+   in CAS, open LMS > School Server and click "Make a pairing code".
+   On the server's page, under Connect to CAS, type the school code and
+   the pairing code, then Connect. The server copies the students,
+   teachers and their passwords (protected, not readable) from CAS.
+2. Teachers open http://<server address>:8787/teacher on a laptop or phone
+   on the school Wi-Fi, sign in with their CAS teacher code and password,
+   make a test (or pick questions from Past Questions) and open it.
+   Published LMS quizzes from CAS appear there too and can be opened.
+3. Students open Class tests in the CAS Student app, sign in with their
+   CAS student ID and password, and take the test. Answers save as they go;
+   the time limit is kept by the server.
+4. Teachers watch results live, mark short answers, and download a CSV.
+   Whenever this PC has internet (it checks every 10 minutes), tests and
+   results go to CAS LMS, where "Sync to CA" can turn them into CA scores.
+Note: on the school Wi-Fi, sign-ins travel unencrypted. Keep the school
+network closed to the public.
+
+
 Troubleshooting
 ---------------
   * Tablets can't find the server: check the tablet is on the school Wi-Fi

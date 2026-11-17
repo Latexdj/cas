@@ -20,7 +20,7 @@ function InitialLayout() {
     const inTabs      = seg === '(tabs)';
     const inLogin     = seg === 'login';
     const inChangePwd = seg === 'change-password';
-    const inPublic    = ['welcome', 'materials', 'viewer', 'past-questions'].includes(seg);
+    const inPublic    = ['welcome', 'materials', 'viewer', 'past-questions', 'class-tests'].includes(seg);
     const inModal     = ['timetable', 'calendar', 'fees', 'clearance', 'library', 'exeat', 'profile', 'clinic', 'conduct', 'lms'].includes(seg);
 
     if (!user && !inLogin && !inPublic) {
@@ -53,6 +53,8 @@ function InitialLayout() {
         <Stack.Screen name="past-questions/play"   options={{ headerShown: true, title: 'Practice', headerBackTitle: 'Back' }} />
         <Stack.Screen name="past-questions/updates" options={{ headerShown: true, title: 'Get new questions', headerBackTitle: 'Back' }} />
         <Stack.Screen name="past-questions/papers"  options={{ headerShown: true, title: 'All papers', headerBackTitle: 'Back' }} />
+        <Stack.Screen name="class-tests/index"      options={{ headerShown: true, title: 'Class tests', headerBackTitle: 'Back' }} />
+        <Stack.Screen name="class-tests/[id]"       options={{ headerShown: true, title: 'Test', headerBackTitle: 'Back' }} />
         <Stack.Screen name="timetable"       options={{ headerShown: true, title: 'Timetable',  headerBackTitle: 'Back' }} />
         <Stack.Screen name="calendar"        options={{ headerShown: true, title: 'Calendar',   headerBackTitle: 'Back' }} />
         <Stack.Screen name="fees"            options={{ headerShown: true, title: 'Fees',        headerBackTitle: 'Back' }} />
