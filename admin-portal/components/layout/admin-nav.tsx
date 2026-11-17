@@ -526,7 +526,7 @@ export const NAV: NavSection[] = [
   { label: 'People', items: [p('/students'), p('/teachers'), p('/teacher-profile-requests'), p('/staff-accounts'), p('/houses'), p('/promotions'), p('/form-teachers'), p('/management')] },
   { label: 'Teaching', items: [
     p('/timetable'), p('/school-breaks'), p('/lesson-observation'), p('/teacher-resources'),
-    mod('LMS', ['/lms', '/lms/pasco']),
+    mod('LMS', ['/lms', '/lms/pasco', '/school-server']),
     p('/meetings'), p('/absences'), p('/leave-excuses'), p('/student-attendance'), p('/manual-entry'),
   ] },
   { label: 'Assessment', items: [
