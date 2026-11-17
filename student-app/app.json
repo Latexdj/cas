@@ -3,7 +3,7 @@
     "name": "CAS Student",
     "slug": "cas-student",
     "scheme": "cas-student",
-    "version": "1.2.2",
+    "version": "1.2.3",
     "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -32,7 +32,7 @@
         "android.permission.MANAGE_EXTERNAL_STORAGE",
         "android.permission.REQUEST_INSTALL_PACKAGES"
       ],
-      "versionCode": 11
+      "versionCode": 12
     },
     "web": {
       "favicon": "./assets/favicon.png",

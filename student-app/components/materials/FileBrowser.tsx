@@ -19,7 +19,6 @@ const APP_LM_BASE    = '/storage/emulated/0/Android/data/com.cas.student/files/L
 const SHARED_LM_BASE = '/storage/emulated/0/LM';
 
 // Helpers for building URIs once the base is resolved
-function lmUri(base: string)  { return `file://${base}`; }
 function lmPath(base: string, stack: string[], name?: string) {
   const parts = name ? [...stack, name] : stack;
   return parts.length ? `${base}/${parts.join('/')}` : base;
@@ -62,14 +61,13 @@ function fmtSize(bytes?: number): string {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
-// ── LM base resolution ────────────────────────────────────────────────────────
-// Returns the LM base path the app should use, or null if neither location is
-// accessible. Prefers the app-specific external directory (no permission needed);
-// falls back to shared storage when that directory doesn't exist.
-async function findLmBase(): Promise<string | null> {
-  if (Platform.OS !== 'android') return SHARED_LM_BASE;
-
-  // Try every candidate location — first one with readable content wins.
+// ── LM locations ──────────────────────────────────────────────────────────────
+// Materials can be in several places: the app's own folder (downloads from the
+// school server, or copied there by USB) and the shared LM folder (copied by
+// USB). Every location with content is shown, merged into one tree.
+async function findLmBases(): Promise<string[]> {
+  if (Platform.OS !== 'android') return [SHARED_LM_BASE];
+  const found: string[] = [];
   // readDirectoryAsync is used (not getInfoAsync) because FUSE blocks stat()
   // traversal through Android/data/ even for the app's own package dir.
   const candidates = [
@@ -82,23 +80,10 @@ async function findLmBase(): Promise<string | null> {
   for (const base of candidates) {
     try {
       const names = await FileSystem.readDirectoryAsync(`file://${base}`);
-      console.log(`[CAS] probe "${base}" → ${names.length} items`);
-      if (names.length > 0) return base;
-    } catch (e: any) {
-      console.log(`[CAS] probe "${base}" threw: ${e?.message ?? e}`);
-    }
+      if (names.some(n => !n.startsWith('.'))) found.push(base);
+    } catch { /* not there, or no access */ }
   }
-
-  // No candidate had content — check if shared storage is accessible at all.
-  // If the root probe also returns empty, it's a permission issue.
-  try {
-    const root = await FileSystem.readDirectoryAsync('file:///storage/emulated/0/');
-    console.log(`[CAS] root probe → ${root.length} items`);
-    if (root.length > 0) return null; // storage accessible but no LM folder found
-  } catch (e: any) {
-    console.log(`[CAS] root probe threw: ${e?.message ?? e}`);
-  }
-  return null;
+  return found;
 }
 
 // ── Hidden-files check ────────────────────────────────────────────────────────
@@ -141,8 +126,12 @@ interface Props {
 export default function FileBrowser({ showBackAsClose }: Props) {
   const C = useTheme();
 
-  const [lmBase,  setLmBase]  = useState<string | null>(null);
+  const [bases,   setBases]   = useState<string[]>([]);
+  const basesRef = useRef<string[]>([]);
+  const setAllBases = (b: string[]) => { basesRef.current = b; setBases(b); };
   const [stack,   setStack]   = useState<string[]>([]);
+  const stackRef = useRef<string[]>([]);
+  stackRef.current = stack;
   const [items,   setItems]   = useState<FsItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState<'permission' | 'not-found' | 'other' | null>(null);
@@ -150,27 +139,28 @@ export default function FileBrowser({ showBackAsClose }: Props) {
   const [docsHidden, setDocsHidden] = useState(false);
   const needsAttention = useRef(false);
 
-  const currentUri = lmBase
-    ? (stack.length ? `${lmUri(lmBase)}/${stack.join('/')}` : lmUri(lmBase))
-    : '';
-
-  // ── Load directory ──────────────────────────────────────────────────────────
-  const loadDir = useCallback(async (dirUri: string) => {
+  // ── Load directory (the same folder path in every location, merged) ───────
+  const loadDir = useCallback(async (path: string[], from: string[] = basesRef.current) => {
     setLoading(true); setError(null);
     try {
-      const names = await FileSystem.readDirectoryAsync(dirUri);
-      const detailed = await Promise.all(
-        names.map(async name => {
+      const byName = new Map<string, FsItem>();
+      let read = 0; let lastErr: unknown = null;
+      for (const base of from) {
+        const dirUri = `file://${lmPath(base, path)}`;
+        let names: string[];
+        try { names = await FileSystem.readDirectoryAsync(dirUri); read++; }
+        catch (e) { lastErr = e; continue; }
+        for (const name of names) {
+          if (name.startsWith('.') || byName.has(name)) continue;   // the first location's copy wins
           const uri  = `${dirUri}/${name}`;
-          const info = await FileSystem.getInfoAsync(uri);
-          return {
-            name,
-            uri,
-            isDirectory: info.isDirectory ?? false,
-            size: (info as any).size as number | undefined,
-          } as FsItem;
-        })
-      );
+          const info = await FileSystem.getInfoAsync(uri).catch(() => null);
+          if (!info?.exists) continue;
+          byName.set(name, { name, uri, isDirectory: info.isDirectory ?? false, size: (info as any).size as number | undefined });
+        }
+      }
+      // A folder that exists in no location (e.g. removed while open).
+      if (!read && from.length) throw lastErr ?? new Error('ENOENT');
+      const detailed = [...byName.values()];
       // Folders first, then files; both alphabetical
       detailed.sort((a, b) => {
         if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1;
@@ -199,26 +189,35 @@ export default function FileBrowser({ showBackAsClose }: Props) {
   // ── Resolve LM base, check nothing is hidden, then load root ───────────────
   const initialise = useCallback(async () => {
     setLoading(true); setError(null); setDocsHidden(false);
-    const base = await findLmBase();
+    const found = await findLmBases();
     // With a school server on the Wi-Fi, materials are downloaded into the
-    // app's own LM folder. Look for the server in the background (it can
-    // take a few seconds) and switch to that folder if one is found.
-    if (base !== APP_LM_BASE && Platform.OS === 'android') {
+    // app's own LM folder. Look for the server in the background (it can take
+    // a few seconds) and add that folder alongside the others if one is found.
+    if (!found.includes(APP_LM_BASE) && Platform.OS === 'android') {
       findSchoolServer().then(async sv => {
         if (!sv) return;
         await ensureAppLm();
-        setError(null); setDocsHidden(false);
-        setLmBase(APP_LM_BASE); setStack([]);
-        await loadDir(lmUri(APP_LM_BASE));
+        if (basesRef.current.includes(APP_LM_BASE)) return;
+        const next = [APP_LM_BASE, ...basesRef.current];
+        setAllBases(next); setError(null);
+        await loadDir(stackRef.current, next);
       }).catch(() => {});
     }
-    if (!base) { setError('permission'); setLoading(false); return; }
-    const hidden = await documentsHidden(base);
-    if (hidden === 'all') { setError('permission'); setLoading(false); return; }
-    setDocsHidden(hidden === 'documents');
-    setLmBase(base);
+    // Shared folders where Android hides documents until All files access is on.
+    let hiddenAll = 0;
+    for (const b of found) {
+      const hidden = await documentsHidden(b);
+      if (hidden === 'all') hiddenAll++;
+      if (hidden === 'documents') setDocsHidden(true);
+    }
+    const usable = found;
+    if (!usable.length || (hiddenAll && hiddenAll === usable.length)) { setError('permission'); setLoading(false); return; }
+    if (hiddenAll) setDocsHidden(true);
+    // Keep the app's folder if the school server was found while this ran.
+    const all = basesRef.current.includes(APP_LM_BASE) && !usable.includes(APP_LM_BASE) ? [APP_LM_BASE, ...usable] : usable;
+    setAllBases(all);
     setStack([]);
-    await loadDir(lmUri(base));
+    await loadDir([], all);
   }, [loadDir]);
 
   useEffect(() => { initialise(); }, [initialise]);
@@ -228,8 +227,11 @@ export default function FileBrowser({ showBackAsClose }: Props) {
   const sync = useLmSync();
   useEffect(() => { startLmSync(); }, []);
   useEffect(() => {
-    if (!sync.landed || !lmBase) return;
-    const t = setTimeout(() => loadDir(currentUri), 1500);
+    if (!sync.landed) return;
+    // Files landed in the app's folder: make sure it is one of the locations shown.
+    const next = basesRef.current.includes(APP_LM_BASE) ? basesRef.current : [APP_LM_BASE, ...basesRef.current];
+    if (next !== basesRef.current) setAllBases(next);
+    const t = setTimeout(() => loadDir(stackRef.current, next), 1500);
     return () => clearTimeout(t);
   }, [sync.landed]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -252,7 +254,7 @@ export default function FileBrowser({ showBackAsClose }: Props) {
   }
 
   useEffect(() => {
-    if (lmBase && !loading && !error) loadDir(currentUri);
+    if (bases.length && !loading && !error) loadDir(stack);
   }, [stack]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Navigation ──────────────────────────────────────────────────────────────
@@ -265,7 +267,7 @@ export default function FileBrowser({ showBackAsClose }: Props) {
       router.push({
         pathname: '/viewer',
         params: {
-          path: lmPath(lmBase!, stack, item.name),
+          path: item.uri.replace(/^file:\/\//, ''),
           type: kind,
           name: item.name,
         },
@@ -361,7 +363,7 @@ export default function FileBrowser({ showBackAsClose }: Props) {
         <Ionicons name="warning-outline" size={52} color={C.muted as string} />
         <Text style={[s.stateTitle, { color: C.text }]}>Could Not Read Folder</Text>
         <Text style={[s.stateText, { color: C.muted }]}>An unexpected error occurred reading the materials folder.</Text>
-        <TouchableOpacity style={[s.permBtn, { backgroundColor: C.primary, marginTop: 20 }]} onPress={() => loadDir(currentUri)}>
+        <TouchableOpacity style={[s.permBtn, { backgroundColor: C.primary, marginTop: 20 }]} onPress={() => loadDir(stack)}>
           <Text style={s.permBtnText}>Retry</Text>
         </TouchableOpacity>
       </View>
