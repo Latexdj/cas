@@ -8,9 +8,13 @@ import { useSyncExternalStore } from 'react';
 import { Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import { findSchoolServer } from './schoolServer';
+import { hasLmFs, mkdirs, moveFile } from '../modules/lm-fs';
 
 export const APP_LM = 'file:///storage/emulated/0/Android/data/com.cas.student/files/LM';
-const RECORD = `${APP_LM}/.cas-sync.json`;
+// expo-file-system can't create files in APP_LM (only change ones that exist),
+// so folders and moves there go through the lm-fs native module, and the
+// record of what came from the server is kept in the app's private storage.
+const RECORD = `${FileSystem.documentDirectory}lm-sync.json`;
 const RESERVE = 300 * 1024 * 1024;   // leave this much space free on the tablet
 
 interface ServerFile { path: string; size: number; mtime: number }
@@ -58,10 +62,7 @@ let pausedResume: { path: string; data: string } | null = null;
 /** Makes sure the app's LM folder exists (so the browser can show it while files arrive). */
 export async function ensureAppLm() {
   if (Platform.OS !== 'android') return;
-  try {
-    const info = await FileSystem.getInfoAsync(APP_LM);
-    if (!info.exists) await FileSystem.makeDirectoryAsync(APP_LM, { intermediates: true });
-  } catch { /* the browser shows its own error */ }
+  mkdirs(APP_LM);
 }
 
 export async function startLmSync() {
@@ -69,6 +70,7 @@ export async function startLmSync() {
   if (running) return;
   running = true; pauseRequested = false;
   try {
+    if (!hasLmFs()) { set({ phase: 'error', message: 'This version of the app cannot save materials. Update the app from the school server.' }); return; }
     set({ phase: 'checking', message: 'Looking for the school server…' });
     const server = await findSchoolServer();
     if (!server) { set({ phase: 'no-server', message: '' }); return; }
@@ -129,7 +131,10 @@ export async function startLmSync() {
       const dest = `${APP_LM}/${f.path}`;
       const part = `${parentOf(dest)}/.${nameOf(dest)}.part`;
       set({ current: f.path, done: i });
-      await FileSystem.makeDirectoryAsync(parentOf(dest), { intermediates: true }).catch(() => {});
+      if (!mkdirs(parentOf(dest))) {
+        set({ phase: 'error', message: `Could not make the folder for ${nameOf(dest)} on this tablet.` });
+        return;
+      }
       const url = `${server.base}/lm/file?path=${encodeURIComponent(f.path)}`;
       const resume = pausedResume?.path === f.path ? pausedResume.data : undefined;
       pausedResume = null;
@@ -152,8 +157,10 @@ export async function startLmSync() {
         await FileSystem.deleteAsync(part, { idempotent: true }).catch(() => {});
         continue;   // tried again next round
       }
-      await FileSystem.deleteAsync(dest, { idempotent: true }).catch(() => {});
-      await FileSystem.moveAsync({ from: part, to: dest });
+      if (!moveFile(part, dest)) {
+        set({ phase: 'error', message: `Could not save ${nameOf(dest)} on this tablet.` });
+        return;
+      }
       rec.files[f.path] = { size: f.size, mtime: f.mtime };
       await writeRecord(rec);
       bytesDone += f.size;
