@@ -53,6 +53,9 @@
   .big { font-size: 26px; font-weight: 800; }
   .stat { background: var(--sunken); border-radius: 12px; padding: 12px; }
   [hidden] { display: none !important; }
+  .ticks { display: flex; flex-wrap: wrap; gap: 8px; }
+  .ticks label { display: flex; align-items: center; gap: 6px; font-weight: 400; border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; background: var(--card); min-height: 40px; cursor: pointer; }
+  .ticks label.all { font-weight: 700; }
   .pick { display: grid; gap: 6px; max-height: 420px; overflow: auto; border: 1px solid var(--line); border-radius: 10px; padding: 8px; }
   .pick label { font-weight: 400; color: var(--ink); display: grid; grid-template-columns: 22px 1fr; gap: 8px; align-items: start; padding: 6px; border-radius: 8px; }
   .pick label:hover { background: var(--sunken); }
@@ -87,10 +90,13 @@
     <div class="row between"><h2 id="edtitle">New test</h2><button class="link" id="edback">Back to my tests</button></div>
     <div class="grid">
       <label>Title<input id="ftitle" placeholder="Week 6 quiz"></label>
-      <label>Class<select id="fclass"></select></label>
-      <label>Subject<input id="fsubject" list="subjects"><datalist id="subjects"></datalist></label>
+      <label>Subject<select id="fsubject"></select></label>
+      <label>Record as<select id="frecord"></select></label>
       <label>Time limit (minutes, empty for none)<input id="ftime" inputmode="numeric"></label>
     </div>
+    <div><strong>Classes</strong> <span class="muted" id="fclasshint">Tick every class taking it, for merged classes too.</span>
+      <div class="ticks" id="fclasses" style="margin-top:6px"></div></div>
+    <p class="muted" id="frecordhint"></p>
     <label>Instructions (optional)<textarea id="finstr"></textarea></label>
     <div class="row">
       <label class="row" style="display:flex;font-weight:400"><input type="checkbox" id="fshow" checked> Show students the answers after they submit</label>
@@ -117,7 +123,7 @@
     <div class="row" id="ractions"></div>
     <div class="card" id="rmarkcard" hidden><h2>Short answers to mark</h2><div id="rmark" style="display:grid;gap:10px"></div></div>
     <div class="card"><div class="row between"><h2>Students</h2><button id="rcsv">Download Excel (CSV)</button></div>
-      <div class="tablewrap"><table><thead><tr><th>Name</th><th>Student ID</th><th>Status</th><th>Score</th></tr></thead><tbody id="rrows"></tbody></table></div></div>
+      <div class="tablewrap"><table><thead><tr><th>Name</th><th>Student ID</th><th>Class</th><th>Status</th><th>Score</th></tr></thead><tbody id="rrows"></tbody></table></div></div>
   </section>
 </main>
 
@@ -162,8 +168,11 @@ async function start() {
   try { me = await api('/lms/teacher/me'); } catch { return; }
   const sync = me.online;
   $('whoami').textContent = `${me.name}. ` + (sync ? (sync.ok ? `Last sent to CAS ${new Date(sync.at).toLocaleString()}.` : sync.message) : 'Not yet synced with CAS.');
-  $('fclass').innerHTML = '<option value="">Choose a class</option>' + me.classes.map(c => `<option>${esc(c)}</option>`).join('');
-  $('subjects').innerHTML = [...new Set(me.courses.map(c => c.subject))].map(s => `<option value="${esc(s)}">`).join('');
+  $('fsubject').innerHTML = me.subjects.length
+    ? '<option value="">Choose a subject</option>' + me.subjects.map(x => `<option>${esc(x.subject)}</option>`).join('')
+    : '<option value="">No lessons on your timetable yet</option>';
+  $('frecord').innerHTML = me.modes.map(m => `<option value="ca:${esc(m.id)}">${esc(m.name)}</option>`).join('')
+    + '<option value="exam">End-of-semester exam</option><option value="none">Practice (not recorded)</option>';
   listTests();
 }
 
@@ -180,6 +189,7 @@ async function listTests() {
       </div>
       <p>${t.submitted} of ${t.class_size} submitted${t.started ? `, ${t.started} taking it now` : ''}${t.to_mark ? `. <strong>${t.to_mark} answer${t.to_mark === 1 ? '' : 's'} to mark</strong>` : ''}</p>
       ${t.status !== 'draft' ? `<p class="muted">${t.waiting_for_cas ? 'Results waiting to be sent to CAS (the server sends them when it is online).' : 'Results sent to CAS.'}</p>` : ''}
+      ${t.origin === 'local' ? `<p class="muted">${t.record_as === 'ca' ? `Recorded in Assessments as ${esc(t.mode_name || 'a CA assessment')} when you close it.` : t.record_as === 'exam' ? 'Recorded in Assessments as the end-of-semester exam when you close it.' : 'Practice: not recorded in Assessments.'}${t.record_note ? ` ${esc(t.record_note)}` : ''}</p>` : ''}
       ${t.removed_in_cas ? '<p class="muted">This test was removed in CAS.</p>' : ''}
       <div class="row">
         ${t.status === 'open' ? `<button data-status="closed" data-id="${t.id}">Close test</button>` : `<button class="primary" data-status="open" data-id="${t.id}" ${t.removed_in_cas ? 'disabled' : ''}>${t.status === 'closed' ? 'Open again' : 'Open for students'}</button>`}
@@ -212,15 +222,39 @@ async function openEditor(id) {
   editing = id; msg($('edmsg'), '', ''); $('pasco').hidden = true;
   if (id) {
     const t = await api(`/lms/teacher/tests/${id}`);
-    draft = { title: t.title, class_name: t.class_name, subject: t.subject, time_limit_mins: t.time_limit_mins || '', instructions: t.instructions || '',
+    draft = { title: t.title, class_names: t.class_names || [], subject: t.subject, record: t.record_as === 'ca' ? `ca:${t.mode_id}` : t.record_as === 'exam' ? 'exam' : 'none',
+      time_limit_mins: t.time_limit_mins || '', instructions: t.instructions || '',
       show_answers: !!t.show_answers, randomise: !!t.randomise, questions: t.questions.map(q => ({ type: q.type, text: q.text, options: q.options, correct: q.correct, marks: q.marks, explanation: q.explanation || '' })) };
-  } else draft = { title: '', class_name: '', subject: '', time_limit_mins: '', instructions: '', show_answers: true, randomise: false, questions: [blankQ('mcq')] };
+  } else draft = { title: '', class_names: [], subject: me.subjects.length === 1 ? me.subjects[0].subject : '', record: me.modes.length ? `ca:${me.modes[0].id}` : 'none',
+    time_limit_mins: '', instructions: '', show_answers: true, randomise: false, questions: [blankQ('mcq')] };
   $('edtitle').textContent = id ? 'Edit test' : 'New test';
-  $('ftitle').value = draft.title; $('fclass').value = draft.class_name; $('fsubject').value = draft.subject;
+  $('ftitle').value = draft.title; $('fsubject').value = draft.subject; $('frecord').value = draft.record;
+  renderClasses(); recordHint();
   $('ftime').value = draft.time_limit_mins; $('finstr').value = draft.instructions; $('fshow').checked = draft.show_answers; $('frand').checked = draft.randomise;
-  if (draft.class_name && !me.classes.includes(draft.class_name)) $('fclass').insertAdjacentHTML('beforeend', `<option>${esc(draft.class_name)}</option>`), $('fclass').value = draft.class_name;
   renderQs(); show('v-edit');
 }
+function renderClasses() {
+  const subj = me.subjects.find(x => x.subject === $('fsubject').value);
+  if (!subj) { $('fclasses').innerHTML = `<span class="muted">${me.subjects.length ? 'Choose the subject first.' : 'Ask the admin to put your lessons on the timetable in CAS.'}</span>`; return; }
+  const ticked = new Set(draft.class_names);
+  const all = subj.classes.length > 1 && subj.classes.every(c => ticked.has(c));
+  $('fclasses').innerHTML = (subj.classes.length > 1 ? `<label class="all"><input type="checkbox" data-allcls ${all ? 'checked' : ''}> All my classes</label>` : '')
+    + subj.classes.map(c => `<label><input type="checkbox" data-cls="${esc(c)}" ${ticked.has(c) || subj.classes.length === 1 ? 'checked' : ''}> ${esc(c)}</label>`).join('');
+  if (subj.classes.length === 1) draft.class_names = [subj.classes[0]];
+}
+function recordHint() {
+  const v = $('frecord').value;
+  $('frecordhint').textContent = v === 'none' ? 'Practice tests are not recorded in Assessments.'
+    : `When you close the test and have marked every written answer, scores go into Assessments as ${v === 'exam' ? 'the end-of-semester exam' : $('frecord').selectedOptions[0]?.textContent || 'this assessment'}, for each class. Students who did not take it are left blank.`;
+}
+$('fsubject').onchange = () => { draft.class_names = []; renderClasses(); };
+$('frecord').onchange = recordHint;
+$('fclasses').addEventListener('change', (e) => {
+  const subj = me.subjects.find(x => x.subject === $('fsubject').value); if (!subj) return;
+  if (e.target.dataset.allcls !== undefined) draft.class_names = e.target.checked ? [...subj.classes] : [];
+  else draft.class_names = [...document.querySelectorAll('[data-cls]:checked')].map(c => c.dataset.cls);
+  renderClasses();
+});
 function countLabel() {
   const n = draft.questions.length, m = draft.questions.reduce((t, x) => t + (Number(x.marks) || 0), 0);
   $('qcount').textContent = `(${n} question${n === 1 ? '' : 's'}, ${m} mark${m === 1 ? '' : 's'})`;
@@ -272,7 +306,6 @@ $('psubject').onchange = async () => {
   if (!$('psubject').value) return;
   const d = await api(`/lms/teacher/pasco?subject=${encodeURIComponent($('psubject').value)}`);
   pascoQs = d.questions;
-  if (!$('fsubject').value) $('fsubject').value = d.subject;
   $('plist').innerHTML = pascoQs.map((q, i) => `<label><input type="checkbox" data-pq="${i}"><span><span class="muted">${esc(q.paper)}${q.no ? `, question ${q.no}` : ''}${q.type === 'short' ? ', theory' : ''}${q.has_picture ? ', has a picture (not copied)' : ''}</span><br>${esc(q.text.slice(0, 220))}</span></label>`).join('');
 };
 $('padd').onclick = () => {
@@ -288,8 +321,10 @@ $('padd').onclick = () => {
 };
 
 async function save(open) {
-  Object.assign(draft, { title: $('ftitle').value, class_name: $('fclass').value, subject: $('fsubject').value, time_limit_mins: $('ftime').value,
-    instructions: $('finstr').value, show_answers: $('fshow').checked, randomise: $('frand').checked });
+  const rec = $('frecord').value;
+  Object.assign(draft, { title: $('ftitle').value, subject: $('fsubject').value, time_limit_mins: $('ftime').value,
+    instructions: $('finstr').value, show_answers: $('fshow').checked, randomise: $('frand').checked,
+    record_as: rec.startsWith('ca:') ? 'ca' : rec, mode_id: rec.startsWith('ca:') ? rec.slice(3) : null });
   if (!draft.questions.length && open) return msg($('edmsg'), 'Add at least one question before opening the test.', 'bad');
   try {
     let id = editing;
@@ -313,13 +348,14 @@ async function renderResults() {
   const r = await api(`/lms/teacher/tests/${resId}/results`);
   const t = r.test, s = r.summary;
   $('rtitle').textContent = t.title;
-  $('rsub').textContent = `${t.class_name}, ${t.total_marks} marks. ${t.status === 'open' ? 'Open: students can take it now.' : t.status === 'closed' ? 'Closed.' : 'Draft.'}`;
+  $('rsub').textContent = `${t.class_name}, ${t.total_marks} marks. ${t.status === 'open' ? 'Open: students can take it now.' : t.status === 'closed' ? 'Closed.' : 'Draft.'}`
+    + (t.record_as ? ` ${t.record_note || (t.status === 'closed' ? (r.marking.some(m => m.marks == null) ? 'Mark every written answer, then the scores go into Assessments.' : 'Scores go into Assessments when the server is next online.') : `Scores go into Assessments as ${t.record_as === 'exam' ? 'the exam' : t.mode_name || 'a CA assessment'} when you close it.`)}` : '');
   $('rstats').innerHTML = `
     <div class="stat"><div class="big">${s.submitted}/${s.class_size}</div><div class="muted">submitted</div></div>
     <div class="stat"><div class="big">${s.taking}</div><div class="muted">taking it now</div></div>
     <div class="stat"><div class="big">${s.average == null ? 'None' : `${s.average.toFixed(1)}/${t.total_marks}`}</div><div class="muted">average so far</div></div>`;
   $('ractions').innerHTML = t.status === 'open' ? `<button data-status="closed" data-id="${t.id}">Close test (submits unfinished answers)</button>` : `<button class="primary" data-status="open" data-id="${t.id}">Open again</button>`;
-  $('rrows').innerHTML = r.students.map(x => `<tr><td>${esc(x.name)}</td><td>${esc(x.code)}</td><td>${esc(x.state)}${x.to_mark ? ', to mark' : ''}</td><td>${x.score == null ? '' : `${+x.score.toFixed(2)}/${x.max_score}`}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">No students in this class on the server.</td></tr>';
+  $('rrows').innerHTML = r.students.map(x => `<tr><td>${esc(x.name)}</td><td>${esc(x.code)}</td><td>${esc(x.class_name || '')}</td><td>${esc(x.state)}${x.to_mark ? ', to mark' : ''}</td><td>${x.score == null ? '' : `${+x.score.toFixed(2)}/${x.max_score}`}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">No students in these classes on the server.</td></tr>';
   $('rmarkcard').hidden = !r.marking.length;
   $('rmark').innerHTML = r.marking.map(m => `
     <div class="q"><div class="muted">${esc(m.student)}: ${esc(m.question.slice(0, 140))}</div><div style="white-space:pre-wrap">${esc(m.answer)}</div>

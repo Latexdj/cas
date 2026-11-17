@@ -1,3 +1,4 @@
+const { recordQuiz } = require('../services/lms-record.service');
 const router = require('express').Router();
 const pool   = require('../config/db');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
@@ -771,59 +772,13 @@ router.get('/quizzes/:id/results', teacherOrAdmin, async (req, res, next) => {
 // module) — also requires 'assessments' to be enabled, not just 'lms'.
 router.post('/quizzes/:id/sync-to-ca', teacherOrAdmin, checkModuleAccess('assessments'), async (req, res, next) => {
   try {
-    const { rows: qRows } = await pool.query(
-      `SELECT q.*, c.subject_name, c.class_name, c.academic_year_id, c.semester, c.teacher_id
-       FROM lms_quizzes q JOIN lms_courses c ON c.id=q.course_id
-       WHERE q.id=$1 AND q.school_id=$2`,
-      [req.params.id, req.schoolId]);
-    if (!qRows.length) return res.status(404).json({ error: 'Quiz not found' });
-    const quiz = qRows[0];
     const isAdmin = req.user.role === 'admin' || req.user.role === 'super_admin';
-    if (!isAdmin && quiz.teacher_id !== req.user.id) return res.status(403).json({ error: 'Not your course' });
-    if (!quiz.assessment_mode_id) return res.status(400).json({ error: 'No assessment mode set for this quiz. Edit the quiz and select a CA mode first.' });
-
-    const { rows: totalRows } = await pool.query(
-      'SELECT COALESCE(SUM(marks),0) AS total FROM lms_quiz_questions WHERE quiz_id=$1',
-      [req.params.id]);
-    const quizMaxScore = parseFloat(totalRows[0].total) || 100;
-
-    const { rows: assRows } = await pool.query(
-      `INSERT INTO assessments (school_id, academic_year_id, semester, subject, class_name, teacher_id, mode_id, title, date, max_score, lms_quiz_id)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,CURRENT_DATE,$9,$10)
-       ON CONFLICT (lms_quiz_id) WHERE lms_quiz_id IS NOT NULL
-         DO UPDATE SET title=EXCLUDED.title, max_score=EXCLUDED.max_score, teacher_id=EXCLUDED.teacher_id
-       RETURNING id`,
-      [req.schoolId, quiz.academic_year_id, quiz.semester, quiz.subject_name, quiz.class_name,
-       quiz.teacher_id, quiz.assessment_mode_id, quiz.title, quizMaxScore, req.params.id]);
-    const assessmentId = assRows[0].id;
-
-    const { rows: attempts } = await pool.query(
-      `SELECT student_id, score, max_score FROM lms_quiz_attempts
-       WHERE quiz_id=$1 AND is_complete=true AND school_id=$2`,
-      [req.params.id, req.schoolId]);
-
-    const caClient = await pool.connect();
-    try {
-      await caClient.query('BEGIN');
-      for (const att of attempts) {
-        const score = parseFloat(att.score) || 0;
-        const max = parseFloat(att.max_score) || quizMaxScore;
-        const scaled = max > 0 ? Math.round((score / max) * quizMaxScore * 100) / 100 : 0;
-        await caClient.query(
-          `INSERT INTO assessment_scores (assessment_id, student_id, score)
-           VALUES ($1,$2,$3)
-           ON CONFLICT (assessment_id, student_id) DO UPDATE SET score=EXCLUDED.score`,
-          [assessmentId, att.student_id, scaled]);
-      }
-      await caClient.query('UPDATE lms_quizzes SET ca_synced_at=now() WHERE id=$1', [req.params.id]);
-      await caClient.query('COMMIT');
-    } catch (txErr) {
-      await caClient.query('ROLLBACK');
-      caClient.release();
-      return next(txErr);
+    const r = await recordQuiz(req.params.id, req.schoolId, { teacherId: isAdmin ? null : req.user.id });
+    if (!r.ok) {
+      const status = { NOT_FOUND: 404, FORBIDDEN: 403, LOCKED: 409 }[r.code] || 400;
+      return res.status(status).json({ error: r.error });
     }
-    caClient.release();
-    res.json({ message: 'Synced successfully', assessment_id: assessmentId, student_count: attempts.length });
+    res.json({ message: r.kind === 'exam' ? 'Recorded as the exam' : 'Synced successfully', assessment_id: r.assessment_id, student_count: r.student_count });
   } catch (err) { next(err); }
 });
 

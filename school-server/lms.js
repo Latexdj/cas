@@ -52,6 +52,18 @@ module.exports = function createLms(ctx) {
     CREATE TABLE IF NOT EXISTS login_fail (code_key TEXT PRIMARY KEY, count INTEGER, until INTEGER);
   `);
 
+  // Added for merged classes and recording in the Assessments module.
+  for (const sql of ['ALTER TABLE quizzes ADD COLUMN mode_id TEXT', 'ALTER TABLE quizzes ADD COLUMN record_as TEXT',
+    'ALTER TABLE quizzes ADD COLUMN record_dirty INTEGER DEFAULT 0', 'ALTER TABLE quizzes ADD COLUMN record_note TEXT']) {
+    try { db.exec(sql); } catch { /* already there */ }
+  }
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS assignments (teacher_id TEXT, subject TEXT, class_name TEXT);
+    CREATE INDEX IF NOT EXISTS ix_assignments_teacher ON assignments(teacher_id);
+    CREATE TABLE IF NOT EXISTS quiz_cloud (quiz_id TEXT NOT NULL, class_key TEXT NOT NULL, class_name TEXT, cloud_id TEXT, PRIMARY KEY (quiz_id, class_key));
+    CREATE TABLE IF NOT EXISTS question_cloud (question_id TEXT NOT NULL, class_key TEXT NOT NULL, cloud_id TEXT, PRIMARY KEY (question_id, class_key));
+  `);
+
   const q = (sql) => db.prepare(sql);
   const all = (sql, ...a) => q(sql).all(...a);
   const one = (sql, ...a) => q(sql).get(...a);
@@ -127,7 +139,11 @@ module.exports = function createLms(ctx) {
         for (const t of roster.teachers) tt.run(t.id, t.teacher_code, key(t.teacher_code), t.name, t.pin_hash || null);
         const ct = q('INSERT INTO courses(id,teacher_id,subject,class_name) VALUES(?,?,?,?)');
         for (const c of roster.courses) ct.run(c.id, c.teacher_id, c.subject_name, c.class_name);
+        run('DELETE FROM assignments');
+        const at = q('INSERT INTO assignments(teacher_id,subject,class_name) VALUES(?,?,?)');
+        for (const a of roster.assignments || []) at.run(a.teacher_id, a.subject, a.class_name);
       });
+      setMeta('modes', JSON.stringify(roster.modes || []));
       setMeta('roster_at', nowIso()); setMeta('term', JSON.stringify(roster.term));
       if (roster.school?.name) setMeta('cas_school', JSON.stringify({ ...(link().school || {}), name: roster.school.name, code: roster.school.code }));
 
@@ -137,10 +153,7 @@ module.exports = function createLms(ctx) {
       tx(() => {
         for (const cz of quizzes) {
           seen.add(cz.id);
-          if (cz.offline_ref && one('SELECT id FROM quizzes WHERE id=?', cz.offline_ref)) {
-            run('UPDATE quizzes SET cloud_id=? WHERE id=?', cz.id, cz.offline_ref);  // one we made here
-            continue;
-          }
+          if (cz.offline_ref && one('SELECT id FROM quizzes WHERE id=?', String(cz.offline_ref).split('#')[0])) continue;  // one we made here
           const local = one('SELECT id FROM quizzes WHERE cloud_id=?', cz.id);
           const id = local?.id || uuid();
           if (local) {
@@ -173,7 +186,8 @@ module.exports = function createLms(ctx) {
       let pushedQuizzes = 0;
       if (toPush.length) {
         const body = { quizzes: toPush.map(z => ({
-          offline_ref: z.id, teacher_id: z.teacher_id, subject: z.subject, class_name: z.class_name, title: z.title,
+          offline_ref: z.id, teacher_id: z.teacher_id, subject: z.subject, class_name: z.class_name, class_names: classList(z.class_name),
+          mode_id: z.record_as === 'ca' ? z.mode_id : null, record_as_exam: z.record_as === 'exam', title: z.title,
           instructions: z.instructions, time_limit_mins: z.time_limit_mins, randomise: !!z.randomise, show_answers_after: !!z.show_answers,
           questions: all('SELECT * FROM questions WHERE quiz_id=? ORDER BY sort', z.id).map(x => ({
             local_id: x.id, type: x.type, text: x.text, options: JSON.parse(x.options || '[]'), correct: x.correct, explanation: x.explanation, marks: x.marks,
@@ -182,23 +196,41 @@ module.exports = function createLms(ctx) {
         const r = await casFetch('/lms/quizzes', { method: 'POST', body });
         tx(() => {
           for (const res of r.quizzes) {
-            if (!res.quiz_id) continue;
-            run('UPDATE quizzes SET cloud_id=?, dirty=0 WHERE id=?', res.quiz_id, res.offline_ref);
-            for (const [localId, cloudId] of Object.entries(res.question_ids || {})) run('UPDATE questions SET cloud_id=? WHERE id=?', cloudId, localId);
+            const perClass = res.classes || (res.quiz_id ? [{ class_name: one('SELECT class_name FROM quizzes WHERE id=?', res.offline_ref)?.class_name, quiz_id: res.quiz_id, question_ids: res.question_ids }] : []);
+            if (!perClass.length) { if (res.error) log('CAS did not take test', res.offline_ref, res.error); continue; }
+            for (const c of perClass) {
+              run(`INSERT INTO quiz_cloud(quiz_id,class_key,class_name,cloud_id) VALUES(?,?,?,?)
+                   ON CONFLICT(quiz_id,class_key) DO UPDATE SET cloud_id=excluded.cloud_id, class_name=excluded.class_name`,
+                res.offline_ref, key(c.class_name), c.class_name, c.quiz_id);
+              for (const [localId, cloudId] of Object.entries(c.question_ids || {})) {
+                run(`INSERT INTO question_cloud(question_id,class_key,cloud_id) VALUES(?,?,?)
+                     ON CONFLICT(question_id,class_key) DO UPDATE SET cloud_id=excluded.cloud_id`, localId, key(c.class_name), cloudId);
+                run('UPDATE questions SET cloud_id=COALESCE(cloud_id, ?) WHERE id=?', cloudId, localId);
+              }
+            }
+            run('UPDATE quizzes SET cloud_id=?, dirty=0 WHERE id=?', perClass[0].quiz_id, res.offline_ref);
             pushedQuizzes++;
           }
         });
       }
 
       // Results.
-      const pending = all(`SELECT a.*, z.cloud_id AS quiz_cloud_id FROM attempts a JOIN quizzes z ON z.id=a.quiz_id
-                            WHERE a.status='submitted' AND a.dirty=1 AND z.cloud_id IS NOT NULL LIMIT 500`);
+      const pending = all(`SELECT a.*, z.cloud_id AS quiz_cloud_id, z.origin, st.class_name AS student_class FROM attempts a
+                            JOIN quizzes z ON z.id=a.quiz_id LEFT JOIN students st ON st.id=a.student_id
+                            WHERE a.status='submitted' AND a.dirty=1 AND z.cloud_id IS NOT NULL LIMIT 500`)
+        .map(a => {
+          if (a.origin !== 'local') return a;
+          const ck = key(a.student_class);
+          const qc = one('SELECT cloud_id FROM quiz_cloud WHERE quiz_id=? AND class_key=?', a.quiz_id, ck);
+          return { ...a, quiz_cloud_id: qc?.cloud_id || a.quiz_cloud_id, class_key: ck };
+        });
       let sent = 0;
       if (pending.length) {
         const attempts = pending.map(a => ({
           offline_ref: a.id, quiz_id: a.quiz_cloud_id, student_id: a.student_id, started_at: a.started_at, submitted_at: a.submitted_at,
           score: a.score, max_score: a.max_score,
-          answers: all(`SELECT an.*, qu.cloud_id FROM answers an JOIN questions qu ON qu.id=an.question_id WHERE an.attempt_id=?`, a.id)
+          answers: all(`SELECT an.*, COALESCE(qc.cloud_id, qu.cloud_id) AS cloud_id FROM answers an JOIN questions qu ON qu.id=an.question_id
+                        LEFT JOIN question_cloud qc ON qc.question_id=qu.id AND qc.class_key=? WHERE an.attempt_id=?`, a.class_key || '', a.id)
             .filter(x => x.cloud_id)
             .map(x => ({ question_id: x.cloud_id, selected_option: x.selected, answer_text: x.text_answer,
               is_correct: x.is_correct == null ? null : !!x.is_correct, marks_awarded: x.marks || 0 })),
@@ -208,11 +240,37 @@ module.exports = function createLms(ctx) {
         if (r.rejected?.length) log('results not accepted by CAS:', JSON.stringify(r.rejected.slice(0, 5)));
       }
 
+      // Closed tests whose results are all sent and marked: record them in
+      // the Assessments module under the chosen mode (or as the exam).
+      let recorded = 0;
+      const ready = all(`SELECT z.id FROM quizzes z WHERE z.origin='local' AND z.status='closed' AND z.record_dirty=1
+                           AND z.record_as IN ('ca','exam') AND z.cloud_id IS NOT NULL
+                           AND NOT EXISTS (SELECT 1 FROM attempts a WHERE a.quiz_id=z.id AND a.status='submitted' AND (a.dirty=1 OR a.needs_marking>0))`);
+      if (ready.length) {
+        const r = await casFetch('/lms/record', { method: 'POST', body: { offline_refs: ready.map(z => z.id) } });
+        tx(() => {
+          for (const z of ready) {
+            const rows = (r.results || []).filter(x => x.offline_ref === z.id);
+            if (!rows.length) continue;
+            const ok = rows.filter(x => x.ok).map(x => x.class_name);
+            const bad = rows.filter(x => !x.ok);
+            const locked = bad.filter(x => x.code === 'LOCKED').map(x => x.class_name);
+            const other = bad.filter(x => x.code !== 'LOCKED');
+            const note = (ok.length ? `Recorded in Assessments for ${ok.join(', ')}.` : '')
+              + (locked.length ? ` Not recorded for ${locked.join(', ')}: those results are already with the HOD, so they are locked. Once they are unlocked, open and close the test again.` : '')
+              + (other.length ? ` Not recorded for ${other.map(x => `${x.class_name} (${String(x.error || '').replace(/\.$/, '')})`).join(', ')}.` : '');
+            run('UPDATE quizzes SET record_dirty=0, record_note=? WHERE id=?', note.trim(), z.id);
+            if (ok.length) recorded++;
+          }
+        });
+      }
+
       const counts = one('SELECT (SELECT COUNT(*) FROM students) AS s, (SELECT COUNT(*) FROM teachers) AS t');
       result.ok = true;
       result.message = `Roster: ${counts.s} students, ${counts.t} teachers. ${quizzes.length} CAS test${quizzes.length === 1 ? '' : 's'}.`
         + (pushedQuizzes ? ` Sent ${pushedQuizzes} test${pushedQuizzes === 1 ? '' : 's'} made here.` : '')
-        + (sent ? ` Sent ${sent} result${sent === 1 ? '' : 's'}.` : '');
+        + (sent ? ` Sent ${sent} result${sent === 1 ? '' : 's'}.` : '')
+        + (recorded ? ` Recorded ${recorded} test${recorded === 1 ? '' : 's'} in Assessments.` : '');
       await casFetch('/summary', { method: 'POST', body: { summary: result.message } }).catch(() => {});
     } catch (e) {
       result.message = e.code === 'REVOKED' ? 'CAS has disconnected this server. Connect it again with a new pairing code.'
@@ -268,7 +326,9 @@ module.exports = function createLms(ctx) {
 
   // ── Tests: shared helpers ───────────────────────────────────────────────────
 
-  const sameClass = (a, b) => key(a) === key(b);
+  // A test's class_name can list merged classes: "1A, 1B".
+  const classList = (s) => String(s || '').split(',').map(x => x.trim()).filter(Boolean);
+  const sameClass = (testClasses, cls) => classList(testClasses).some(c => key(c) === key(cls));
   const quizQuestions = (quizId) => all('SELECT * FROM questions WHERE quiz_id=? ORDER BY sort', quizId)
     .map(x => ({ ...x, options: JSON.parse(x.options || '[]') }));
   const totalMarks = (qs) => qs.reduce((n, x) => n + (Number(x.marks) || 0), 0);
@@ -451,13 +511,22 @@ module.exports = function createLms(ctx) {
     // ── Teachers ──
     const me = one('SELECT * FROM teachers WHERE id=?', s.user_id);
     if (!me) { send(res, 401, { error: 'Sign in again.' }); return true; }
-    const classSize = (cls) => all('SELECT class_name FROM students').filter(x => sameClass(x.class_name, cls)).length;
+    const classSize = (cls) => all('SELECT class_name FROM students').filter(x => sameClass(cls, x.class_name)).length;
+    // What this teacher teaches, from the timetable: [{ subject, classes: [...] }].
+    const mySubjects = () => {
+      const m = new Map();
+      for (const a of all('SELECT subject, class_name FROM assignments WHERE teacher_id=?', me.id)) {
+        if (!m.has(a.subject)) m.set(a.subject, new Set());
+        m.get(a.subject).add(a.class_name);
+      }
+      const byNum = (a, b) => a.localeCompare(b, undefined, { numeric: true });
+      return [...m.entries()].sort(([a], [b]) => byNum(a, b)).map(([subject, set]) => ({ subject, classes: [...set].sort(byNum) }));
+    };
+    const modes = () => JSON.parse(meta('modes') || '[]');
     const mine = (id) => { const z = one('SELECT * FROM quizzes WHERE id=?', id); return z && z.teacher_id === me.id ? z : null; };
 
     if (req.method === 'GET' && p === '/lms/teacher/me') {
-      const classes = [...new Set(all('SELECT class_name FROM students WHERE class_name IS NOT NULL').map(x => x.class_name))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-      send(res, 200, { name: me.name, courses: all('SELECT subject, class_name FROM courses WHERE teacher_id=? ORDER BY class_name, subject', me.id), classes,
-        online: JSON.parse(meta('last_sync') || 'null') });
+      send(res, 200, { name: me.name, subjects: mySubjects(), modes: modes(), online: JSON.parse(meta('last_sync') || 'null') });
       return true;
     }
     if (req.method === 'GET' && p === '/lms/teacher/tests') {
@@ -466,6 +535,7 @@ module.exports = function createLms(ctx) {
         const sub = atts.filter(a => a.status === 'submitted');
         return {
           id: z.id, origin: z.origin, title: z.title, subject: z.subject, class_name: z.class_name, status: z.status,
+          record_as: z.record_as, mode_name: modes().find(m => m.id === z.mode_id)?.name || null, record_note: z.record_note,
           time_limit_mins: z.time_limit_mins, question_count: one('SELECT COUNT(*) AS n FROM questions WHERE quiz_id=?', z.id).n,
           class_size: classSize(z.class_name), started: atts.filter(a => a.status === 'in_progress').length, submitted: sub.length,
           to_mark: sub.reduce((n, a) => n + (a.needs_marking || 0), 0),
@@ -478,14 +548,14 @@ module.exports = function createLms(ctx) {
     }
     if (req.method === 'POST' && p === '/lms/teacher/tests') {
       const b = await json(req);
-      const err = validateTest(b);
+      const err = validateTest(b, mySubjects(), modes());
       if (err) { send(res, 400, { error: err }); return true; }
       const id = uuid();
       tx(() => {
-        run(`INSERT INTO quizzes(id,origin,teacher_id,subject,class_name,title,instructions,time_limit_mins,max_attempts,randomise,show_answers,status,created_at,updated_at)
-             VALUES(?, 'local', ?,?,?,?,?,?,1,?,?, 'draft', ?, ?)`,
-          id, me.id, b.subject.trim(), b.class_name.trim(), b.title.trim(), b.instructions || null, b.time_limit_mins ? parseInt(b.time_limit_mins, 10) : null,
-          b.randomise ? 1 : 0, b.show_answers === false ? 0 : 1, nowIso(), nowIso());
+        run(`INSERT INTO quizzes(id,origin,teacher_id,subject,class_name,title,instructions,time_limit_mins,max_attempts,randomise,show_answers,status,created_at,updated_at,mode_id,record_as)
+             VALUES(?, 'local', ?,?,?,?,?,?,1,?,?, 'draft', ?, ?, ?, ?)`,
+          id, me.id, b.subject.trim(), testClasses(b).join(', '), b.title.trim(), b.instructions || null, b.time_limit_mins ? parseInt(b.time_limit_mins, 10) : null,
+          b.randomise ? 1 : 0, b.show_answers === false ? 0 : 1, nowIso(), nowIso(), b.record_as === 'ca' ? b.mode_id : null, recordAs(b));
         saveQuestions(id, b.questions);
       });
       send(res, 201, { id });
@@ -497,19 +567,19 @@ module.exports = function createLms(ctx) {
       if (!z) { send(res, 404, { error: 'Test not found.' }); return true; }
       const hasAttempts = !!one('SELECT 1 AS x FROM attempts WHERE quiz_id=?', z.id);
       if (!m[2] && req.method === 'GET') {
-        send(res, 200, { ...z, questions: quizQuestions(z.id), has_attempts: hasAttempts, editable: z.origin === 'local' && !hasAttempts });
+        send(res, 200, { ...z, class_names: classList(z.class_name), questions: quizQuestions(z.id), has_attempts: hasAttempts, editable: z.origin === 'local' && !hasAttempts });
         return true;
       }
       if (!m[2] && req.method === 'PUT') {
         if (z.origin !== 'local') { send(res, 409, { error: 'Tests from CAS are edited in CAS.' }); return true; }
         if (hasAttempts) { send(res, 409, { error: 'Students have started this test, so its questions can no longer change.' }); return true; }
         const b = await json(req);
-        const err = validateTest(b);
+        const err = validateTest(b, mySubjects(), modes());
         if (err) { send(res, 400, { error: err }); return true; }
         tx(() => {
-          run(`UPDATE quizzes SET subject=?, class_name=?, title=?, instructions=?, time_limit_mins=?, randomise=?, show_answers=?, dirty=1, updated_at=? WHERE id=?`,
-            b.subject.trim(), b.class_name.trim(), b.title.trim(), b.instructions || null, b.time_limit_mins ? parseInt(b.time_limit_mins, 10) : null,
-            b.randomise ? 1 : 0, b.show_answers === false ? 0 : 1, nowIso(), z.id);
+          run(`UPDATE quizzes SET subject=?, class_name=?, title=?, instructions=?, time_limit_mins=?, randomise=?, show_answers=?, mode_id=?, record_as=?, dirty=1, updated_at=? WHERE id=?`,
+            b.subject.trim(), testClasses(b).join(', '), b.title.trim(), b.instructions || null, b.time_limit_mins ? parseInt(b.time_limit_mins, 10) : null,
+            b.randomise ? 1 : 0, b.show_answers === false ? 0 : 1, b.record_as === 'ca' ? b.mode_id : null, recordAs(b), nowIso(), z.id);
           run('DELETE FROM questions WHERE quiz_id=?', z.id);
           saveQuestions(z.id, b.questions);
         });
@@ -528,7 +598,7 @@ module.exports = function createLms(ctx) {
         if (!status) { send(res, 400, { error: 'Unknown status' }); return true; }
         if (status === 'open' && !one('SELECT 1 AS x FROM questions WHERE quiz_id=?', z.id)) { send(res, 400, { error: 'Add questions before opening the test.' }); return true; }
         if (status === 'draft' && hasAttempts) { send(res, 409, { error: 'Students have taken this test.' }); return true; }
-        run('UPDATE quizzes SET status=?, updated_at=? WHERE id=?', status, nowIso(), z.id);
+        run('UPDATE quizzes SET status=?, updated_at=?, record_dirty=CASE WHEN ?=\'closed\' AND record_as IS NOT NULL THEN 1 ELSE record_dirty END WHERE id=?', status, nowIso(), status, z.id);
         if (status === 'closed') for (const a of all(`SELECT id FROM attempts WHERE quiz_id=? AND status='in_progress'`, z.id)) finishAttempt(a.id);
         if (status !== 'draft' && z.origin === 'local') sync().catch(() => {});
         send(res, 200, { ok: true, status });
@@ -563,6 +633,7 @@ module.exports = function createLms(ctx) {
       const left = all(`SELECT an.text_answer FROM questions qu LEFT JOIN answers an ON an.question_id=qu.id AND an.attempt_id=?
                          WHERE qu.quiz_id=? AND qu.type='short' AND an.marks IS NULL`, a.id, z.id).filter(r => (r.text_answer || '').trim()).length;
       run('UPDATE attempts SET score=?, needs_marking=?, dirty=1 WHERE id=?', sum, left, a.id);
+      if (z.status === 'closed' && z.record_as) run('UPDATE quizzes SET record_dirty=1 WHERE id=?', z.id);
       send(res, 200, { ok: true, score: sum, needs_marking: left });
       return true;
     }
@@ -574,10 +645,22 @@ module.exports = function createLms(ctx) {
     return true;
   }
 
-  function validateTest(b) {
+  // Classes chosen for a test (ticked list, or the older single class).
+  function testClasses(b) {
+    const list = Array.isArray(b.class_names) ? b.class_names : classList(b.class_name);
+    return [...new Set(list.map(c => String(c).trim()).filter(Boolean))];
+  }
+  function recordAs(b) { return b.record_as === 'ca' ? 'ca' : b.record_as === 'exam' ? 'exam' : null; }
+  function validateTest(b, subjects, modeList) {
     if (!String(b.title || '').trim()) return 'Give the test a title.';
-    if (!String(b.class_name || '').trim()) return 'Choose the class.';
-    if (!String(b.subject || '').trim()) return 'Enter the subject.';
+    if (!subjects.length) return 'Your timetable in CAS has no lessons yet, so there is no subject or class to choose. Ask the admin to add your lessons to the timetable.';
+    const subj = subjects.find(x => x.subject === String(b.subject || '').trim());
+    if (!subj) return 'Choose one of your subjects.';
+    const cls = testClasses(b);
+    if (!cls.length) return 'Tick at least one class.';
+    const notMine = cls.filter(c => !subj.classes.some(x => key(x) === key(c)));
+    if (notMine.length) return `You don't teach ${subj.subject} to ${notMine.join(', ')}.`;
+    if (b.record_as === 'ca' && !modeList.some(m => m.id === b.mode_id)) return 'Choose which kind of assessment to record it as.';
     if (b.time_limit_mins && !(parseInt(b.time_limit_mins, 10) > 0 && parseInt(b.time_limit_mins, 10) <= 600)) return 'The time limit must be 1 to 600 minutes.';
     const qs = Array.isArray(b.questions) ? b.questions : [];
     for (const [i, x] of qs.entries()) {
@@ -606,12 +689,12 @@ module.exports = function createLms(ctx) {
   function results(z) {
     const qs = quizQuestions(z.id);
     const shortQs = qs.filter(x => x.type === 'short');
-    const students = all('SELECT id, code, name, class_name FROM students ORDER BY name').filter(x => sameClass(x.class_name, z.class_name));
+    const students = all('SELECT id, code, name, class_name FROM students ORDER BY name').filter(x => sameClass(z.class_name, x.class_name));
     const byStudent = new Map();
     for (const a of all('SELECT * FROM attempts WHERE quiz_id=? ORDER BY started_at', z.id)) byStudent.set(a.student_id, a);   // latest wins
     const list = students.map(st => {
       const a = byStudent.get(st.id);
-      return { id: st.id, code: st.code, name: st.name, state: a ? (a.status === 'submitted' ? 'Submitted' : 'Taking it') : 'Not started',
+      return { id: st.id, code: st.code, name: st.name, class_name: st.class_name, state: a ? (a.status === 'submitted' ? 'Submitted' : 'Taking it') : 'Not started',
         attempt_id: a?.id || null, score: a?.score ?? null, max_score: a?.max_score ?? null, to_mark: !!a?.needs_marking, sent: a ? !a.dirty : null };
     });
     const marking = [];
@@ -624,7 +707,8 @@ module.exports = function createLms(ctx) {
       }
     }
     const sub = list.filter(x => x.state === 'Submitted');
-    return { test: { id: z.id, title: z.title, class_name: z.class_name, status: z.status, total_marks: totalMarks(qs) },
+    return { test: { id: z.id, title: z.title, class_name: z.class_name, status: z.status, total_marks: totalMarks(qs),
+        record_as: z.record_as, mode_name: JSON.parse(meta('modes') || '[]').find(m => m.id === z.mode_id)?.name || null, record_note: z.record_note },
       students: list, marking,
       summary: { class_size: list.length, submitted: sub.length, taking: list.filter(x => x.state === 'Taking it').length,
         average: sub.length ? sub.reduce((n, x) => n + (x.score || 0), 0) / sub.length : null } };

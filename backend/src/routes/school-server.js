@@ -4,6 +4,7 @@
 // long-lived token, then uses that token to copy down the roster and LMS
 // quizzes and to send back tests made and taken offline.
 
+const { recordQuiz } = require('../services/lms-record.service');
 const router = require('express').Router();
 const crypto = require('crypto');
 const pool = require('../config/db');
@@ -106,7 +107,21 @@ router.get('/roster', serverAuth, async (req, res, next) => {
       `SELECT id, teacher_id, subject_name, class_name FROM lms_courses
         WHERE school_id=$1 AND academic_year_id=$2 AND semester=$3 AND status <> 'archived'`,
       [req.schoolId, term.academic_year_id, term.semester])).rows : [];
-    res.json({ school: school[0], term, students, teachers, courses, at: new Date().toISOString() });
+    // What each teacher teaches, from the timetable (merged classes come as "1A, 1B").
+    const { rows: tt } = await pool.query(
+      `SELECT DISTINCT teacher_id, subject, class_names FROM timetable
+        WHERE school_id=$1 AND teacher_id IS NOT NULL AND subject IS NOT NULL AND subject <> ''`, [req.schoolId]);
+    const seen = new Set();
+    const assignments = [];
+    for (const r of tt) {
+      for (const c of String(r.class_names || '').split(',').map(x => x.trim()).filter(Boolean)) {
+        const k = `${r.teacher_id}|${r.subject.trim()}|${c}`;
+        if (!seen.has(k)) { seen.add(k); assignments.push({ teacher_id: r.teacher_id, subject: r.subject.trim(), class_name: c }); }
+      }
+    }
+    const { rows: modes } = await pool.query(
+      `SELECT id, name, ca_contribution FROM assessment_modes WHERE school_id=$1 ORDER BY sort_order, name`, [req.schoolId]);
+    res.json({ school: school[0], term, students, teachers, courses, assignments, modes, at: new Date().toISOString() });
   } catch (err) { next(err); }
 });
 
@@ -140,6 +155,10 @@ router.get('/lms/quizzes', serverAuth, async (req, res, next) => {
 });
 
 // Tests made on the school server's teacher page. Idempotent on offline_ref.
+// Tests made on the school network. A test can be for several classes
+// (merged classes); CAS keeps one quiz per class, in that class's course,
+// because the Assessments module records each subject and class separately.
+// Each class's quiz has offline_ref "<test id>#<class>".
 router.post('/lms/quizzes', serverAuth, async (req, res, next) => {
   const client = await pool.connect();
   try {
@@ -148,55 +167,89 @@ router.post('/lms/quizzes', serverAuth, async (req, res, next) => {
     const input = Array.isArray(req.body?.quizzes) ? req.body.quizzes : [];
     const out = [];
     for (const qz of input) {
-      const ref = String(qz.offline_ref || '').slice(0, 80);
-      if (!ref || !qz.teacher_id || !qz.subject || !qz.class_name || !qz.title) continue;
+      const ref = String(qz.offline_ref || '').slice(0, 60);
+      const classes = [...new Set((Array.isArray(qz.class_names) ? qz.class_names : String(qz.class_name || '').split(','))
+        .map(c => String(c).trim()).filter(Boolean))];
+      if (!ref || !qz.teacher_id || !qz.subject || !classes.length || !qz.title) continue;
       await client.query('BEGIN');
       try {
         const { rows: [t] } = await client.query(`SELECT id FROM teachers WHERE id=$1 AND school_id=$2`, [qz.teacher_id, req.schoolId]);
         if (!t) { await client.query('ROLLBACK'); out.push({ offline_ref: ref, error: 'Teacher not found' }); continue; }
-        const { rows: [course] } = await client.query(
-          `INSERT INTO lms_courses (school_id, teacher_id, subject_name, class_name, academic_year_id, semester, status)
-           VALUES ($1,$2,$3,$4,$5,$6,'published')
-           ON CONFLICT (school_id, teacher_id, subject_name, class_name, academic_year_id, semester)
-           DO UPDATE SET subject_name = EXCLUDED.subject_name RETURNING id`,
-          [req.schoolId, qz.teacher_id, qz.subject, qz.class_name, term.academic_year_id, term.semester]);
-        const { rows: [quiz] } = await client.query(
-          `INSERT INTO lms_quizzes (course_id, school_id, title, instructions, time_limit_mins, max_attempts,
-                                    is_published, randomise_questions, show_answers_after, offline_ref)
-           VALUES ($1,$2,$3,$4,$5,1,true,$6,$7,$8)
-           ON CONFLICT (offline_ref) WHERE offline_ref IS NOT NULL
-           DO UPDATE SET title=EXCLUDED.title, instructions=EXCLUDED.instructions, time_limit_mins=EXCLUDED.time_limit_mins,
-                         randomise_questions=EXCLUDED.randomise_questions, show_answers_after=EXCLUDED.show_answers_after
-           RETURNING id`,
-          [course.id, req.schoolId, String(qz.title).slice(0, 200), qz.instructions || null,
-           qz.time_limit_mins ? parseInt(qz.time_limit_mins, 10) : null, !!qz.randomise, qz.show_answers_after !== false, ref]);
-        // Questions are replaced only while no one has answered them in CAS.
-        const { rows: [{ n }] } = await client.query(
-          `SELECT COUNT(*)::int AS n FROM lms_quiz_attempts WHERE quiz_id=$1`, [quiz.id]);
-        const questionIds = {};
-        if (n === 0) {
-          await client.query(`DELETE FROM lms_quiz_questions WHERE quiz_id=$1`, [quiz.id]);
-          for (const [i, q] of (qz.questions || []).entries()) {
-            const isShort = q.type === 'short';
-            const ci = LETTERS.indexOf(String(q.correct || '').toLowerCase());
-            const options = isShort ? null : JSON.stringify((q.options || []).map((t, k) => ({ text: String(t), is_correct: k === ci })));
-            const { rows: [row] } = await client.query(
-              `INSERT INTO lms_quiz_questions (quiz_id, school_id, question_text, question_type, options, explanation, marks, sort_order)
-               VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7,$8) RETURNING id`,
-              [quiz.id, req.schoolId, String(q.text || ''), isShort ? 'short' : 'mcq', options, q.explanation || null,
-               Number(q.marks) || 1, i]);
-            questionIds[q.local_id] = row.id;
+        let modeId = null;
+        if (qz.mode_id) {
+          const { rows: [m] } = await client.query(`SELECT id FROM assessment_modes WHERE id=$1 AND school_id=$2`, [qz.mode_id, req.schoolId]);
+          modeId = m ? m.id : null;
+        }
+        const perClass = [];
+        for (const cls of classes) {
+          const { rows: [course] } = await client.query(
+            `INSERT INTO lms_courses (school_id, teacher_id, subject_name, class_name, academic_year_id, semester, status)
+             VALUES ($1,$2,$3,$4,$5,$6,'published')
+             ON CONFLICT (school_id, teacher_id, subject_name, class_name, academic_year_id, semester)
+             DO UPDATE SET subject_name = EXCLUDED.subject_name RETURNING id`,
+            [req.schoolId, qz.teacher_id, qz.subject, cls, term.academic_year_id, term.semester]);
+          const { rows: [quiz] } = await client.query(
+            `INSERT INTO lms_quizzes (course_id, school_id, title, instructions, time_limit_mins, max_attempts,
+                                      is_published, randomise_questions, show_answers_after, offline_ref, assessment_mode_id, record_as_exam)
+             VALUES ($1,$2,$3,$4,$5,1,true,$6,$7,$8,$9,$10)
+             ON CONFLICT (offline_ref) WHERE offline_ref IS NOT NULL
+             DO UPDATE SET course_id=EXCLUDED.course_id, title=EXCLUDED.title, instructions=EXCLUDED.instructions,
+                           time_limit_mins=EXCLUDED.time_limit_mins, randomise_questions=EXCLUDED.randomise_questions,
+                           show_answers_after=EXCLUDED.show_answers_after, assessment_mode_id=EXCLUDED.assessment_mode_id,
+                           record_as_exam=EXCLUDED.record_as_exam
+             RETURNING id`,
+            [course.id, req.schoolId, String(qz.title).slice(0, 200), qz.instructions || null,
+             qz.time_limit_mins ? parseInt(qz.time_limit_mins, 10) : null, !!qz.randomise, qz.show_answers_after !== false,
+             `${ref}#${cls}`.slice(0, 120), modeId, !!qz.record_as_exam]);
+          // Questions are replaced only while no one has answered them in CAS.
+          const { rows: [{ n }] } = await client.query(`SELECT COUNT(*)::int AS n FROM lms_quiz_attempts WHERE quiz_id=$1`, [quiz.id]);
+          const questionIds = {};
+          if (n === 0) {
+            await client.query(`DELETE FROM lms_quiz_questions WHERE quiz_id=$1`, [quiz.id]);
+            for (const [i, q] of (qz.questions || []).entries()) {
+              const isShort = q.type === 'short';
+              const ci = LETTERS.indexOf(String(q.correct || '').toLowerCase());
+              const options = isShort ? null : JSON.stringify((q.options || []).map((t, k) => ({ text: String(t), is_correct: k === ci })));
+              const { rows: [row] } = await client.query(
+                `INSERT INTO lms_quiz_questions (quiz_id, school_id, question_text, question_type, options, explanation, marks, sort_order)
+                 VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7,$8) RETURNING id`,
+                [quiz.id, req.schoolId, String(q.text || ''), isShort ? 'short' : 'mcq', options, q.explanation || null, Number(q.marks) || 1, i]);
+              questionIds[q.local_id] = row.id;
+            }
+          } else {
+            const { rows } = await client.query(`SELECT id, sort_order FROM lms_quiz_questions WHERE quiz_id=$1 ORDER BY sort_order`, [quiz.id]);
+            (qz.questions || []).forEach((q, i) => { if (rows[i]) questionIds[q.local_id] = rows[i].id; });
           }
-        } else {
-          const { rows } = await client.query(`SELECT id, sort_order FROM lms_quiz_questions WHERE quiz_id=$1 ORDER BY sort_order`, [quiz.id]);
-          (qz.questions || []).forEach((q, i) => { if (rows[i]) questionIds[q.local_id] = rows[i].id; });
+          perClass.push({ class_name: cls, quiz_id: quiz.id, question_ids: questionIds });
         }
         await client.query('COMMIT');
-        out.push({ offline_ref: ref, quiz_id: quiz.id, question_ids: questionIds });
+        out.push({ offline_ref: ref, classes: perClass });
       } catch (e) { await client.query('ROLLBACK'); out.push({ offline_ref: ref, error: e.message }); }
     }
     res.json({ quizzes: out });
   } catch (err) { next(err); } finally { client.release(); }
+});
+
+// Closed tests: record their scores in the Assessments module (the chosen CA
+// mode, or the exam). Safe to call again; it updates the same records.
+router.post('/lms/record', serverAuth, async (req, res, next) => {
+  try {
+    const refs = (Array.isArray(req.body?.offline_refs) ? req.body.offline_refs : []).map(r => String(r).slice(0, 60)).filter(Boolean);
+    const out = [];
+    for (const ref of refs) {
+      const { rows } = await pool.query(
+        `SELECT id, offline_ref FROM lms_quizzes WHERE school_id=$1 AND left(offline_ref, $3) = $2`,
+        [req.schoolId, `${ref}#`, ref.length + 1]);
+      for (const z of rows) {
+        const cls = z.offline_ref.slice(ref.length + 1);
+        try {
+          const r = await recordQuiz(z.id, req.schoolId);
+          out.push({ offline_ref: ref, class_name: cls, ok: r.ok, kind: r.kind, students: r.student_count, error: r.error, code: r.code });
+        } catch (e) { out.push({ offline_ref: ref, class_name: cls, ok: false, error: e.message }); }
+      }
+    }
+    res.json({ results: out });
+  } catch (err) { next(err); }
 });
 
 // Attempts taken on the school network. Idempotent on offline_ref; sending

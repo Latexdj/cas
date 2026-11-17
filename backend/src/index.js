@@ -2942,6 +2942,8 @@ async function runMigrations() {
       await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS uq_lms_quizzes_offline_ref ON lms_quizzes(offline_ref) WHERE offline_ref IS NOT NULL`);
       await pool.query(`ALTER TABLE lms_quiz_attempts ADD COLUMN IF NOT EXISTS offline_ref TEXT`);
       await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS uq_lms_quiz_attempts_offline_ref ON lms_quiz_attempts(offline_ref) WHERE offline_ref IS NOT NULL`);
+      // Offline Assessment can record a test as the end-of-semester exam instead of a CA mode.
+      await pool.query(`ALTER TABLE lms_quizzes ADD COLUMN IF NOT EXISTS record_as_exam BOOLEAN NOT NULL DEFAULT false`);
     } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] school server link:', e.message); }
 
     // Academic year date range
