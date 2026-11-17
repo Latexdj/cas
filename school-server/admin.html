@@ -92,7 +92,7 @@
 
   <section class="card" aria-labelledby="h-cas">
     <div class="row" style="justify-content:space-between">
-      <div><h2 id="h-cas">Connect to CAS (class tests)</h2><p class="muted" id="cassub"></p></div>
+      <div><h2 id="h-cas">Connect to CAS (Offline Assessment)</h2><p class="muted" id="cassub"></p></div>
       <div class="row" id="casbtns"></div>
     </div>
     <div id="caspair" class="row" hidden>
@@ -269,7 +269,7 @@ function renderCas(s) {
       : `<button class="primary" id="cassync" ${c.syncing ? 'disabled' : ''}>Sync now</button><button id="casdisc">Disconnect</button>`;
     $('casteacher').innerHTML = `Teachers open <strong>http://${esc(addr)}/teacher</strong> on a laptop or phone on the school Wi-Fi to make and run tests.`;
   } else {
-    $('cassub').textContent = c.revoked ? 'CAS disconnected this server. Connect it again with a new pairing code.' : 'Not connected. Connect it so students and teachers can sign in for class tests, and results reach CAS.';
+    $('cassub').textContent = c.revoked ? 'CAS disconnected this server. Connect it again with a new pairing code.' : 'Not connected. Connect it so students and teachers can sign in for Offline Assessment, and results reach CAS.';
     $('caspair').hidden = false; $('caspairhelp').hidden = false; $('casbtns').innerHTML = ''; $('casteacher').textContent = '';
   }
 }

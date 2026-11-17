@@ -56,7 +56,7 @@ async function call<T>(base: string, path: string, opts: { method?: string; body
 
 export async function signIn(code: string, password: string): Promise<CtSession> {
   const server = await findSchoolServer();
-  if (!server) throw new CtError('No school server was found. Class tests work on the school Wi-Fi.', 0);
+  if (!server) throw new CtError('No school server was found. Offline Assessment works on the school Wi-Fi.', 0);
   const d = await call<{ token: string; name: string; class_name: string; expires_in_hours: number }>(server.base, '/lms/login', {
     method: 'POST', body: { role: 'student', code: code.trim(), password }, timeout: 20000,
   });

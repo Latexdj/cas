@@ -126,7 +126,7 @@ export default function TakeTest() {
           );
         }) : <Text style={[s.small, { color: C.textSoft }]}>Your teacher will go through the answers.</Text>}
         <Pressable accessibilityRole="button" onPress={() => router.back()} style={[s.primary, { backgroundColor: C.primary }]}>
-          <Text style={s.primaryText}>Back to class tests</Text>
+          <Text style={s.primaryText}>Back to Offline Assessment</Text>
         </Pressable>
       </ScrollView>
     );

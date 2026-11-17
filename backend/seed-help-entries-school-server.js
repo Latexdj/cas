@@ -14,7 +14,7 @@ const ENTRIES = [
     feature_area: 'lms',
     applicable_roles: ['admin'],
     title: 'CAS School Server: updating tablets over the school Wi-Fi',
-    body: `The CAS School Server lets student tablets get new past questions, learning materials and new versions of the CAS Student app over the school's own Wi-Fi, with no internet. It also runs class tests offline.
+    body: `The CAS School Server lets student tablets get new past questions, learning materials and new versions of the CAS Student app over the school's own Wi-Fi, with no internet. It also runs Offline Assessment: tests, exercises, quizzes and exams without internet.
 
 It runs on one Windows PC that stays on at school, connected by cable to the main router that your Wi-Fi access points use. Ask CAS support for the CAS-School-Server folder, then on that PC:
 1. Give the PC a fixed address (on the router, or in Windows network settings). The setup guide in the folder shows how.
@@ -26,7 +26,7 @@ Tablets on the school Wi-Fi find the server by themselves when the CAS Student a
   {
     feature_area: 'lms',
     applicable_roles: ['admin'],
-    title: 'Connecting the school server to CAS for offline class tests',
+    title: 'Connecting the school server to CAS for Offline Assessment',
     body: `To let teachers give tests on the school Wi-Fi without internet, connect the school server to CAS once:
 1. Here in CAS, open LMS, School Server, and click Make a pairing code. The code works once, for 15 minutes.
 2. On the school server PC (which needs internet for this step), open http://localhost:8787, find Connect to CAS, type your school code and the pairing code, and click Connect.
@@ -38,12 +38,12 @@ LMS, School Server lists connected servers and when each was last in touch. Disc
   {
     feature_area: 'lms',
     applicable_roles: ['teacher'],
-    title: 'Giving a class test on the school Wi-Fi (no internet)',
+    title: 'Offline Assessment: giving a test or exam on the school Wi-Fi (no internet)',
     body: `If your school has a CAS School Server, you can give tests on the school Wi-Fi even when there is no internet.
 
-1. On a laptop or phone connected to the school Wi-Fi, open the address your admin gives you, ending in /teacher (for example http://192.168.88.10:8787/teacher), and sign in with your CAS teacher code and password.
+1. On your phone, connect to the school Wi-Fi, open the CAS Teacher app, and go to More, Offline Assessment, Open Offline Assessment. On a laptop, open the address your admin gives you, ending in /teacher (for example http://192.168.88.10:8787/teacher). Sign in with your CAS teacher code and password.
 2. Click New test. Give it a title, choose the class and subject, and set a time limit if you want one. Add objective questions (with the correct option) and short-answer questions (which you mark), or click Add from Past Questions to pick questions from the past-question bank.
-3. Click Save and open for students. Students in that class see it under Class tests in the CAS Student app.
+3. Click Save and open for students. Students in that class see it under Offline Assessment in the CAS Student app.
 4. Click Results to watch who has started and submitted, mark short answers, and download a CSV. Close the test when time is up; unfinished answers are submitted.
 
 LMS quizzes you published in CAS also appear on that page and can be opened there. Results reach your CAS LMS automatically when the school server next has internet, and you can then use Sync to CA.`,
@@ -51,11 +51,11 @@ LMS quizzes you published in CAS also appear on that page and can be opened ther
   {
     feature_area: 'lms',
     applicable_roles: ['student'],
-    title: 'Taking a class test on the school Wi-Fi',
-    body: `When your teacher opens a test on the school network, it appears in the CAS Student app under Class tests (on the first screen, or in More).
+    title: 'Offline Assessment: taking a test on the school Wi-Fi',
+    body: `When your teacher opens a test on the school network, it appears in the CAS Student app under Offline Assessment (on the first screen, or in More).
 
 1. Make sure the tablet is on the school Wi-Fi.
-2. Open Class tests and sign in with your CAS student ID and password.
+2. Open Offline Assessment and sign in with your CAS student ID and password.
 3. Tap Start test. Answer each question; your answers save as you go. If a timer shows, the test submits itself when time runs out.
 4. Tap Finish test, then Submit. You see your score, and your teacher marks any written answers.
 

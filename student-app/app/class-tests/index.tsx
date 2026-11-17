@@ -57,7 +57,7 @@ export default function ClassTestsHome() {
     return (
       <ScrollView style={{ backgroundColor: C.bg }} contentContainerStyle={s.page} keyboardShouldPersistTaps="handled">
         <View style={[s.card, { backgroundColor: C.surface, borderColor: C.border }]}>
-          <Text style={[s.title, { color: C.text }]}>Sign in for class tests</Text>
+          <Text style={[s.title, { color: C.text }]}>Sign in for Offline Assessment</Text>
           <Text style={[s.sub, { color: C.textSoft }]}>Use your CAS student ID and password. This works on the school Wi-Fi without internet.</Text>
           <Text style={[s.sub, { color: server ? C.success : C.textSoft }]}>
             {server === undefined ? 'Looking for the school server…' : server ? `School server found${server.info.school_name ? `: ${server.info.school_name}` : ''}` : 'No school server found. Connect to the school Wi-Fi.'}

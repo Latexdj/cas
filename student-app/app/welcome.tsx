@@ -73,7 +73,7 @@ export default function WelcomeScreen() {
               <Ionicons name="clipboard-outline" size={32} color={tc('#145C44')} />
             </View>
             <View style={s.loginText}>
-              <Text style={s.loginTitle}>Class tests</Text>
+              <Text style={s.loginTitle}>Offline Assessment</Text>
               <Text style={s.loginSub}>Take tests your teacher has opened</Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color={tc('#8C7E6E')} />

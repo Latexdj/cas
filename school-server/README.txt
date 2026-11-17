@@ -106,7 +106,7 @@ On the server's page, under Learning materials:
     points the first time.
 
 
-Class tests (offline LMS)
+Offline Assessment (offline LMS)
 -------------------------
 1. Connect the server to CAS (once, needs internet on this PC):
    in CAS, open LMS > School Server and click "Make a pairing code".
@@ -117,7 +117,7 @@ Class tests (offline LMS)
    on the school Wi-Fi, sign in with their CAS teacher code and password,
    make a test (or pick questions from Past Questions) and open it.
    Published LMS quizzes from CAS appear there too and can be opened.
-3. Students open Class tests in the CAS Student app, sign in with their
+3. Students open Offline Assessment in the CAS Student app, sign in with their
    CAS student ID and password, and take the test. Answers save as they go;
    the time limit is kept by the server.
 4. Teachers watch results live, mark short answers, and download a CSV.

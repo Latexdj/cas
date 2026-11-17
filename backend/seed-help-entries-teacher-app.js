@@ -32,7 +32,7 @@ Tapping a reminder opens Submit attendance for that lesson. Reminders work witho
 
 Today shows the lesson that is on now or next, with Submit attendance, the rest of today's lessons, meetings and notices.
 
-More lists everything else in sections: your responsibilities first (Form Class, My Department, Budgets, My House, Roll Call, Resumption Register, Library, Clearance), then Attendance, Students, Academics (Results, My Courses, Resources), Administrative (Leave, Conduct, Memos, My Letters, Clinic, Scan ID Card, My Observations) and your Account. You only see the items your school uses and the duties you hold.
+More lists everything else in sections: your responsibilities first (Form Class, My Department, Budgets, My House, Roll Call, Resumption Register, Library, Clearance), then Attendance, Students, Academics (Results, My Courses, Offline Assessment, Resources), Administrative (Leave, Conduct, Memos, My Letters, Clinic, Scan ID Card, My Observations) and your Account. You only see the items your school uses and the duties you hold.
 
 Messages appear as a bar across the top of the screen; tap the cross to close one. Files such as PDFs and Excel sheets open in your phone's share menu, so you can save them or send them on WhatsApp.`,
   },
