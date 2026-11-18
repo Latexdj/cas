@@ -364,7 +364,7 @@ module.exports = function createLms(ctx) {
     run('DELETE FROM lm_notes WHERE id=?', n.id);
   }
   // ── Learning games: weekly leaderboards (Monday reset), best score per student ──
-  const GAME_KEYS = new Set(['wassce-arena', 'bece-challenge', 'tool-id', 'right-order']);
+  const GAME_KEYS = new Set(['wassce-arena', 'bece-challenge', 'tool-id', 'right-order', 'cedi-climb-jhs', 'cedi-climb-shs', 'cedi-climb-ctvet']);
   function weekStart(now = new Date()) {
     const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));   // Accra is UTC
     d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
@@ -939,7 +939,7 @@ module.exports = function createLms(ctx) {
         let saved = 0;
         for (const r of list) {
           const score = Math.round(Number(r.score));
-          if (!/^[0-9a-f-]{36}$/i.test(String(r.id)) || !GAME_KEYS.has(r.game) || !(score >= 0 && score <= 100000)) continue;
+          if (!/^[0-9a-f-]{36}$/i.test(String(r.id)) || !GAME_KEYS.has(r.game) || !(score >= 0 && score <= 1000000)) continue;
           saved += ins.run(r.id, me.id, r.game, score, new Date(r.played_at || Date.now()).toISOString()).changes;
         }
         send(res, 200, { saved, received: list.length });

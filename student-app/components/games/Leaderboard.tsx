@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Text, TouchableOpacity, View } from 'react-native';
 import { useTheme } from '@/context/ThemeContext';
 import { createThemedStyles } from '@/lib/themedStyles';
-import { loadBoard, type Board, type BoardRow } from '@/lib/games';
+import { formatScore, loadBoard, type Board, type BoardRow } from '@/lib/games';
 
 const weekLabel = (iso: string) => new Date(`${iso}T12:00:00Z`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
 
@@ -30,7 +30,7 @@ export default function Leaderboard({ game, refreshKey = 0 }: { game: string; re
         <Text style={[s.name, { color: C.text, fontWeight: r.me ? '800' : '600' }]}>{r.me ? `${r.name} (you)` : r.name}</Text>
         {scope === 'school' && !!r.class_name && <Text style={[s.cls, { color: C.textSoft }]}>{r.class_name}</Text>}
       </View>
-      <Text style={[s.score, { color: C.text }]}>{r.score}</Text>
+      <Text style={[s.score, { color: C.text }]}>{formatScore(game, r.score)}</Text>
     </View>
   );
 
@@ -64,7 +64,7 @@ export default function Leaderboard({ game, refreshKey = 0 }: { game: string; re
                 {row(board.me, 'me')}
               </>
             )}
-            {board.personal_best != null && <Text style={[s.note, { color: C.textSoft }]}>Your best ever: {board.personal_best}</Text>}
+            {board.personal_best != null && <Text style={[s.note, { color: C.textSoft }]}>Your best ever: {formatScore(game, board.personal_best)}</Text>}
           </>
         )}
     </View>

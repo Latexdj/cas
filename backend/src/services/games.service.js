@@ -10,8 +10,8 @@
 const pool = require('../config/db');
 const { getCurrentYearSem } = require('../utils/school-context');
 
-const GAMES = new Set(['wassce-arena', 'bece-challenge', 'tool-id', 'right-order']);
-const MAX_SCORE = 100000;
+const GAMES = new Set(['wassce-arena', 'bece-challenge', 'tool-id', 'right-order', 'cedi-climb-jhs', 'cedi-climb-shs', 'cedi-climb-ctvet']);
+const MAX_SCORE = 1000000;   // Cedi Climb scores are cedis won, up to 750,000
 
 const hhmm = (t) => String(t).slice(0, 5);
 

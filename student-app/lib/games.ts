@@ -12,7 +12,7 @@ import { getSession as getSchoolSession } from './classTests';
 import { findSchoolServer } from './schoolServer';
 
 export type GameLevel = 'JHS' | 'SHS' | 'CTVET';
-export type GameType = 'quiz' | 'match' | 'order';
+export type GameType = 'quiz' | 'match' | 'order' | 'climb';
 export interface GameInfo { key: string; title: string; level: GameLevel; type: GameType; blurb: string; exam?: string }
 
 export const LEVELS: { key: GameLevel; label: string }[] = [
@@ -21,7 +21,11 @@ export const LEVELS: { key: GameLevel; label: string }[] = [
   { key: 'CTVET', label: 'CTVET' },
 ];
 
+const CLIMB_BLURB = 'Climb 15 questions from every subject for up to GH₵ 750,000. Safe levels at questions 5 and 10, three helps, and you can walk away at any time.';
 export const GAMES: GameInfo[] = [
+  { key: 'cedi-climb-jhs', title: 'Cedi Climb', level: 'JHS', type: 'climb', exam: 'BECE', blurb: CLIMB_BLURB },
+  { key: 'cedi-climb-shs', title: 'Cedi Climb', level: 'SHS', type: 'climb', exam: 'WASSCE', blurb: CLIMB_BLURB },
+  { key: 'cedi-climb-ctvet', title: 'Cedi Climb', level: 'CTVET', type: 'climb', blurb: 'Climb 15 questions on tools and procedures from every trade for up to GH₵ 750,000. Safe levels at questions 5 and 10, three helps, and you can walk away at any time.' },
   { key: 'bece-challenge', title: 'BECE Challenge', level: 'JHS', type: 'quiz', exam: 'BECE',
     blurb: 'Ten BECE past questions against the clock. Fast, correct answers and streaks score more.' },
   { key: 'wassce-arena', title: 'WASSCE Arena', level: 'SHS', type: 'quiz', exam: 'WASSCE',
@@ -32,6 +36,8 @@ export const GAMES: GameInfo[] = [
     blurb: 'Put the steps of real workshop jobs in the right order. Getting it right first time scores most.' },
 ];
 export const gameByKey = (key: string) => GAMES.find(g => g.key === key) ?? null;
+/** Scores as players see them: cedis for Cedi Climb, points for the rest. */
+export const formatScore = (game: string, n: number) => (game.startsWith('cedi-climb') ? `GH₵ ${n.toLocaleString('en-GB')}` : String(n));
 
 // ── When games are open ─────────────────────────────────────────────────────
 export interface GameSchedule {

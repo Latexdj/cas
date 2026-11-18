@@ -6,7 +6,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useTheme } from '@/context/ThemeContext';
 import { createThemedStyles } from '@/lib/themedStyles';
-import { gameByKey, lessonNow, loadSchedule, recordPlay, shuffle } from '@/lib/games';
+import { formatScore, gameByKey, lessonNow, loadSchedule, recordPlay, shuffle } from '@/lib/games';
+import { ctvetPools, pastQuestionPools, pickLadder, type ClimbPools, type ClimbQ } from '@/lib/climbQuestions';
+import CediClimb from '@/components/games/CediClimb';
 import { TRADES } from '@/lib/gameContent';
 import { examFilter, loadSubject, localManifest, type PackQuestion, type PackSubjectInfo } from '@/lib/quizPack';
 import QuizRace from '@/components/games/QuizRace';
@@ -17,7 +19,8 @@ import Leaderboard from '@/components/games/Leaderboard';
 type Round =
   | { type: 'quiz'; questions: PackQuestion[] }
   | { type: 'match'; pairs: [string, string][] }
-  | { type: 'order'; procedures: { title: string; steps: string[] }[] };
+  | { type: 'order'; procedures: { title: string; steps: string[] }[] }
+  | { type: 'climb'; ladder: ClimbQ[]; spares: ClimbPools };
 
 // Objective past questions the quiz can mark: an answer and at least two choices.
 const playable = (q: PackQuestion) => q.question_type === 'objective' && !!q.correct && q.options.filter(o => o !== null).length >= 2;
@@ -35,8 +38,9 @@ export default function GameScreen() {
   const [plays, setPlays] = useState(0);
 
   useEffect(() => {
-    if (game?.type === 'quiz') localManifest().then(m => setSubjects(m?.subjects ?? [])).catch(() => setSubjects([]));
-  }, [game?.type]);
+    if (game?.type === 'quiz' || (game?.type === 'climb' && game.exam)) localManifest().then(m => setSubjects(m?.subjects ?? [])).catch(() => setSubjects([]));
+    if (game?.type === 'climb') setChoice('all');   // every subject
+  }, [game?.type, game?.exam]);
 
   const start = useCallback(async () => {
     if (!game || !choice) return;
@@ -44,7 +48,12 @@ export default function GameScreen() {
     try {
       const lock = lessonNow(await loadSchedule());
       if (lock.locked) { setMsg(`Games are closed during lessons. They open again at ${lock.until}.`); return; }
-      if (game.type === 'quiz') {
+      if (game.type === 'climb') {
+        const src = game.exam ? await pastQuestionPools(game.exam as 'BECE' | 'WASSCE') : ctvetPools();
+        const picked = pickLadder(src.pools);
+        if (!picked) { setMsg(`There are not enough ${game.exam ?? ''} objective questions on this device yet for a full climb. Open Past Questions and get more subjects.`); return; }
+        setRound({ type: 'climb', ladder: picked.ladder, spares: picked.spares });
+      } else if (game.type === 'quiz') {
         const pack = await loadSubject(choice);
         if (!pack) { setMsg('That subject is not on this device yet. Open Past Questions to download it.'); return; }
         const inExam = examFilter(pack, game.exam);
@@ -76,6 +85,8 @@ export default function GameScreen() {
         {round.type === 'quiz' && <QuizRace questions={round.questions} onFinish={(sc, d) => finish(sc, `${d.correct} of ${d.total} correct`)} />}
         {round.type === 'match' && <MatchPairs pairs={round.pairs} onFinish={(sc, d) => finish(sc, `${d.misses} miss${d.misses === 1 ? '' : 'es'}, ${d.seconds} seconds`)} />}
         {round.type === 'order' && <OrderSteps procedures={round.procedures} onFinish={(sc, d) => finish(sc, `${d.firstTry} of ${d.jobs} right first time`)} />}
+        {round.type === 'climb' && <CediClimb ladder={round.ladder} spares={round.spares}
+          onFinish={(won, d) => finish(won, d.answered === 15 ? 'All 15 questions answered' : d.walked ? `Walked away after ${d.answered} question${d.answered === 1 ? '' : 's'}` : `${d.answered} question${d.answered === 1 ? '' : 's'} answered`)} />}
       </View>
     );
   }
@@ -91,13 +102,29 @@ export default function GameScreen() {
       {result ? (
         <View style={[s.result, { backgroundColor: C.surface, borderColor: result.newBest ? C.accent : C.border }]}>
           <Text style={[s.resultLabel, { color: C.textSoft }]}>{result.newBest ? 'New personal best' : 'Your score'}</Text>
-          <Text style={[s.resultScore, { color: C.text }]}>{result.score}</Text>
-          <Text style={[s.resultLine, { color: C.textSoft }]}>{result.line}. Your best: {result.best}.</Text>
+          <Text style={[s.resultScore, { color: C.text }]}>{formatScore(game.key, result.score)}</Text>
+          <Text style={[s.resultLine, { color: C.textSoft }]}>{result.line}. Your best: {formatScore(game.key, result.best)}.</Text>
         </View>
       ) : (
         <Text style={[s.blurb, { color: C.textSoft }]}>{game.blurb}</Text>
       )}
 
+      {game.type === 'climb' ? (
+        game.exam && subjects !== null && !subjects.length ? (
+          <View style={[s.empty, { backgroundColor: C.surface, borderColor: C.border }]}>
+            <Text style={[s.blurb, { color: C.text }]}>This game uses the past questions on this device, and none are downloaded yet.</Text>
+            <TouchableOpacity onPress={() => router.push('/past-questions')} accessibilityRole="button" style={[s.secondary, { borderColor: C.borderStrong }]}>
+              <Text style={[s.secondaryText, { color: C.text }]}>Get past questions</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <Text style={[s.blurb, { color: C.text }]}>
+            {game.exam
+              ? `Questions come from the ${game.exam} past questions of every subject on this device${subjects?.length ? ` (${subjects.length} subject${subjects.length === 1 ? '' : 's'})` : ''}, easy at the bottom and hard at the top.`
+              : 'Questions come from the tools and procedures of all seven trades, easy at the bottom and hard at the top.'}
+          </Text>
+        )
+      ) : (<>
       <Text style={[s.label, { color: C.text }]}>{game.type === 'quiz' ? 'Choose a subject' : 'Choose your trade'}</Text>
       {game.type === 'quiz' && subjects === null ? <ActivityIndicator color={C.primaryText} /> :
         game.type === 'quiz' && !subjects?.length ? (
@@ -117,6 +144,7 @@ export default function GameScreen() {
             ))}
           </View>
         )}
+      </>)}
 
       {!!msg && <Text style={[s.msg, { color: C.danger }]} accessibilityRole="alert">{msg}</Text>}
       <TouchableOpacity onPress={start} disabled={!choice || busy} accessibilityRole="button"

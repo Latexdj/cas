@@ -6,10 +6,10 @@ import { router, useFocusEffect } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '@/context/ThemeContext';
 import { createThemedStyles } from '@/lib/themedStyles';
-import { GAMES, LEVELS, lessonNow, loadSchedule, personalBests, sendScores, type GameLevel, type GameSchedule } from '@/lib/games';
+import { GAMES, LEVELS, formatScore, lessonNow, loadSchedule, personalBests, sendScores, type GameLevel, type GameSchedule } from '@/lib/games';
 
 const K_LEVEL = 'cas_g_level';
-const ICON: Record<string, keyof typeof Ionicons.glyphMap> = { quiz: 'timer-outline', match: 'grid-outline', order: 'list-outline' };
+const ICON: Record<string, keyof typeof Ionicons.glyphMap> = { quiz: 'timer-outline', match: 'grid-outline', order: 'list-outline', climb: 'trending-up-outline' };
 
 export default function GamesScreen() {
   const C = useTheme();
@@ -62,7 +62,7 @@ export default function GamesScreen() {
           <View style={{ flex: 1, gap: 4 }}>
             <Text style={[s.title, { color: C.text }]}>{g.title}</Text>
             <Text style={[s.blurb, { color: C.textSoft }]}>{g.blurb}</Text>
-            {bests[g.key] != null && <Text style={[s.best, { color: C.primaryText }]}>Your best: {bests[g.key]}</Text>}
+            {bests[g.key] != null && <Text style={[s.best, { color: C.primaryText }]}>Your best: {formatScore(g.key, bests[g.key])}</Text>}
           </View>
           <Ionicons name="chevron-forward" size={20} color={C.muted} />
         </TouchableOpacity>
