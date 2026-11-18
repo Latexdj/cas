@@ -103,39 +103,92 @@ module.exports = function createLms(ctx) {
   }
   const parseList = (v) => { try { const a = JSON.parse(v || '[]'); return Array.isArray(a) ? a : []; } catch { return []; } };
 
-  // ── Learning materials: the standard LM folders and teacher notes ──────────
-  // Every tablet gets the same LM tree:
-  //   WASSCE/FORM n/(CORE|ELECTIVE) SUBJECTS/(PICTURES|TEACHER NOTES|TEXTBOOKS|VIDEO)
-  //   WASSCE/WAEC PAST QUESTIONS/<year>
-  //   CTVET/CORE/(NCI|NCII)/<SUBJECT>/(the four content folders)
-  //   CTVET/ELECTIVES/<SUBJECT>/(the four content folders)
-  //   CTVET/PAST QUESTIONS/<year>
-  // The admin says which programme and level each class is in, and which
-  // subjects are core; teacher notes are placed from that.
-  const LM_TYPES = ['PICTURES', 'TEACHER NOTES', 'TEXTBOOKS', 'VIDEO'];
+  // ── Learning materials: class folders and teacher notes ──────────────────
+  // The LM tree is the school's own (copied in by the admin, e.g. their LM
+  // folder). Teacher notes follow it, like textbooks:
+  //   WASSCE/FORM n/CORE SUBJECTS/TEACHER NOTES/<subject>
+  //   WASSCE/FORM n/ELECTIVE SUBJECTS/TEACHER NOTES/<programme>/<subject>
+  //   CTVET/CORE (GENERIC)/(NCI|NCII)/<subject>/TEACHER NOTES
+  //   CTVET/ELECTIVES/<trade>/(NCI|NCII)/TEACHER NOTES/<subject>
+  // The admin says, per class, its exam (WASSCE/CTVET), form or level and
+  // programme (General Arts...) or, for CTVET, trade (WELDING FABRICATION
+  // TECH...), and per subject whether it is core and the
+  // name of its folder in LM.
   const WASSCE_LEVELS = ['FORM 1', 'FORM 2', 'FORM 3'];
   const CTVET_LEVELS = ['NCI', 'NCII'];
-  const DEFAULT_CORE = /^(ENGLISH LANGUAGE|MATHEMATICS|CORE MATHEMATICS|INTEGRATED SCIENCE|GENERAL SCIENCE|SOCIAL STUDIES|ICT|INTER\. ?MATH.*|INTER\. ?ENGLISH.*|ENG\. .*|ENGLISH .*)$/i;
+  const DEFAULT_CORE = /^(ENGLISH LANGUAGE|MATHEMATICS|CORE MATHEMATICS|INTEGRATED SCIENCE|GENERAL SCIENCE|SOCIAL STUDIES|INTER\. ?MATH.*|INTER\. ?ENGLISH.*|ENG\. .*|ENGLISH .*)$/i;
+  // Timetable short names for subjects whose LM folder has the full name.
+  const ALIASES = { 'ICT': 'Information & Communication Technology', 'ELECTIVE ICT': 'Information & Communication Technology',
+    'CRS': 'Christian Religious Studies', 'INTER. MATH': 'Intervention Mathematics', 'INTER. ENGLISH': 'Intervention English',
+    'MGT-IN-LIVING': 'Management in Living', 'T-DRAWING': 'Technical Drawing' };
   // A folder or file name that is safe on Windows and Android.
   const safePart = (s) => String(s || '').replace(/[<>:"/\\|?*\x00-\x1f]/g, ' ').replace(/\s+/g, ' ').trim().replace(/[. ]+$/, '');
   const byNum = (a, b) => String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' });
-
+  const norm = (s) => String(s || '').toLowerCase().replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ').trim();
+  const titleCase = (s) => String(s).toLowerCase().replace(/\b([a-z])/g, c => c.toUpperCase());
+  const dirsIn = (rel) => { try { return fs.readdirSync(ctx.lm.abs(rel), { withFileTypes: true }).filter(d => d.isDirectory() && !d.name.startsWith('.')).map(d => d.name); } catch { return []; } };
+  // Follows a path through LM, using each folder's existing spelling when one
+  // matches regardless of case, so notes join the folders already there.
+  // A folder that is the same name, or the only one sharing whole words with
+  // it ("English Language" finds ENGLISH, "Integrated Science" finds SCIENCE).
+  function matchDir(have, p) {
+    const exact = have.find(d => norm(d) === norm(p));
+    if (exact) return exact;
+    const w = ` ${norm(p)} `;
+    const near = have.filter(d => { const n = norm(d); return n && (w.includes(` ${n} `) || ` ${n} `.includes(w)); });
+    return near.length === 1 ? near[0] : null;
+  }
+  function resolveDir(parts, { loose = [] } = {}) {
+    const out = [];
+    parts.map(safePart).forEach((p, i) => {
+      if (!p) return;
+      const have = dirsIn(out.join('/'));
+      out.push((loose.includes(i) ? matchDir(have, p) : have.find(d => norm(d) === norm(p))) || p);
+    });
+    return out.join('/');
+  }
+  // Subject folder names already in LM, and the programmes under elective textbooks.
+  function lmNames() {
+    const subjects = new Set(), programmes = new Set();
+    for (const lv of dirsIn('WASSCE')) {
+      for (const kind of dirsIn(`WASSCE/${lv}`)) {
+        const base = `WASSCE/${lv}/${kind}`;
+        for (const t of dirsIn(base)) {
+          if (/^core/i.test(kind)) dirsIn(`${base}/${t}`).forEach(x => subjects.add(x));
+          else dirsIn(`${base}/${t}`).forEach(pr => { programmes.add(pr); dirsIn(`${base}/${t}/${pr}`).forEach(x => subjects.add(x)); });
+        }
+      }
+    }
+    const core = dirsIn('CTVET').find(d => /^core/i.test(d));
+    if (core) for (const lv of dirsIn(`CTVET/${core}`)) dirsIn(`CTVET/${core}/${lv}`).forEach(x => subjects.add(x));
+    const clean = (set) => [...set].filter(x => !/^(NCI|NCII|VIDEOS?|TEXTBOOKS|PICTURES|TEACHER NOTES)$/i.test(x)).sort(byNum);
+    return { subjects: clean(subjects), programmes: clean(programmes), trades: clean(new Set(dirsIn('CTVET/ELECTIVES'))) };
+  }
+  function folderFor(subject, known) {
+    const alias = ALIASES[String(subject).toUpperCase().trim()];
+    const want = [subject, alias].filter(Boolean);
+    for (const w of want) { const hit = known.find(k => norm(k) === norm(w)); if (hit) return hit; }
+    return alias || titleCase(subject);
+  }
   function guessClass(cls) {
     const m = String(cls).match(/^\s*([1-3])/);
-    return m ? { programme: 'WASSCE', level: `FORM ${m[1]}` } : { programme: '', level: '' };
+    return m ? { programme: 'WASSCE', level: `FORM ${m[1]}`, stream: '' } : { programme: '', level: '', stream: '' };
   }
   function lmLayout() {
     const saved = JSON.parse(meta('lm_layout') || '{}');
+    const names = lmNames();
     const classNames = [...new Set([
       ...all('SELECT DISTINCT class_name FROM students').map(r => r.class_name),
       ...all('SELECT DISTINCT class_name FROM assignments').map(r => r.class_name),
     ].filter(Boolean))].sort(byNum);
     const subjects = [...new Set(all('SELECT DISTINCT subject FROM assignments').map(r => r.subject).filter(Boolean))].sort(byNum);
     const core = Array.isArray(saved.core) ? new Set(saved.core) : new Set(subjects.filter(s => DEFAULT_CORE.test(s)));
+    const folders = saved.folders || {};
     return {
       saved: !!saved.classes,
-      classes: classNames.map(c => ({ class_name: c, ...(saved.classes?.[c] || guessClass(c)) })),
-      subjects: subjects.map(s => ({ name: s, core: core.has(s) })),
+      classes: classNames.map(c => ({ class_name: c, stream: '', ...guessClass(c), ...(saved.classes?.[c] || {}) })),
+      subjects: subjects.map(s => ({ name: s, core: core.has(s), folder: folders[s] || folderFor(s, names.subjects) })),
+      known: names,
     };
   }
   function saveLmLayout(body) {
@@ -144,10 +197,12 @@ module.exports = function createLms(ctx) {
       const programme = ['WASSCE', 'CTVET'].includes(c.programme) ? c.programme : '';
       const level = programme === 'WASSCE' ? (WASSCE_LEVELS.includes(c.level) ? c.level : '')
         : programme === 'CTVET' ? (CTVET_LEVELS.includes(c.level) ? c.level : '') : '';
-      if (c.class_name) classes[String(c.class_name)] = { programme: level ? programme : '', level };
+      if (c.class_name) classes[String(c.class_name)] = { programme: level ? programme : '', level, stream: level ? safePart(c.stream) : '' };
     }
     const core = (Array.isArray(body.core) ? body.core : []).map(String);
-    setMeta('lm_layout', JSON.stringify({ classes, core }));
+    const folders = {};
+    for (const [k, v] of Object.entries(body.folders || {})) if (safePart(v)) folders[String(k)] = safePart(v);
+    setMeta('lm_layout', JSON.stringify({ classes, core, folders }));
     // Notes follow the new layout.
     for (const n of all('SELECT * FROM lm_notes')) { unplaceNote(n); placeNote(n); }
     return lmLayout();
@@ -156,45 +211,28 @@ module.exports = function createLms(ctx) {
   function noteFolders(subject, classNames) {
     const lay = lmLayout();
     const byClass = new Map(lay.classes.map(c => [c.class_name, c]));
-    const isCore = lay.subjects.find(s => s.name === subject)?.core ?? DEFAULT_CORE.test(subject);
+    const sub = lay.subjects.find(s => s.name === subject);
+    const isCore = sub?.core ?? DEFAULT_CORE.test(subject);
+    const folder = sub?.folder || folderFor(subject, lay.known.subjects);
     const folders = new Set(); const unmapped = [];
     for (const cls of classNames) {
       const c = byClass.get(cls);
       if (!c?.level) { unmapped.push(cls); continue; }
-      if (c.programme === 'WASSCE') folders.add(`WASSCE/${c.level}/${isCore ? 'CORE SUBJECTS' : 'ELECTIVE SUBJECTS'}/TEACHER NOTES`);
-      else folders.add(isCore ? `CTVET/CORE/${c.level}/${safePart(subject)}/TEACHER NOTES` : `CTVET/ELECTIVES/${safePart(subject)}/TEACHER NOTES`);
+      if (c.programme === 'WASSCE') {
+        folders.add(isCore ? resolveDir(['WASSCE', c.level, 'CORE SUBJECTS', 'TEACHER NOTES', folder])
+          : resolveDir(['WASSCE', c.level, 'ELECTIVE SUBJECTS', 'TEACHER NOTES', ...(c.stream ? [c.stream] : []), folder]));
+      } else {
+        const coreDir = dirsIn('CTVET').find(d => /^core/i.test(d)) || 'CORE (GENERIC)';
+        folders.add(isCore ? resolveDir(['CTVET', coreDir, c.level, folder, 'TEACHER NOTES'], { loose: [3] })
+          : c.stream ? resolveDir(['CTVET', 'ELECTIVES', c.stream, c.level, 'TEACHER NOTES', folder])
+          : resolveDir(['CTVET', 'ELECTIVES', folder, c.level, 'TEACHER NOTES'], { loose: [2] }));
+      }
     }
     return { folders: [...folders], unmapped };
   }
-  // Every folder of the standard tree, including CTVET subject folders for
-  // subjects taught in CTVET classes.
-  function standardFolders() {
-    const out = [];
-    for (const lv of WASSCE_LEVELS) for (const kind of ['CORE SUBJECTS', 'ELECTIVE SUBJECTS']) for (const t of LM_TYPES) out.push(`WASSCE/${lv}/${kind}/${t}`);
-    out.push('WASSCE/WAEC PAST QUESTIONS', 'CTVET/CORE/NCI', 'CTVET/CORE/NCII', 'CTVET/ELECTIVES', 'CTVET/PAST QUESTIONS');
-    const lay = lmLayout();
-    const ctvet = new Map(lay.classes.filter(c => c.programme === 'CTVET' && c.level).map(c => [c.class_name, c.level]));
-    const core = new Set(lay.subjects.filter(s => s.core).map(s => s.name));
-    for (const a of all('SELECT DISTINCT subject, class_name FROM assignments')) {
-      const lv = ctvet.get(a.class_name); const name = safePart(a.subject);
-      if (!lv || !name) continue;
-      for (const t of LM_TYPES) out.push(core.has(a.subject) ? `CTVET/CORE/${lv}/${name}/${t}` : `CTVET/ELECTIVES/${name}/${t}`);
-    }
-    return [...new Set(out)];
-  }
-  function setupLmFolders() {
-    let created = 0;
-    for (const rel of standardFolders()) {
-      const abs = ctx.lm.abs(rel);
-      if (!fs.existsSync(abs)) { fs.mkdirSync(abs, { recursive: true }); created++; }
-    }
-    ctx.lm.changed();
-    return { created, folders: standardFolders().length };
-  }
 
   // Teacher notes. The original is kept in data/notes; a copy goes into each
-  // TEACHER NOTES folder its classes use, named "<SUBJECT> - <teacher> - <file>"
-  // (WASSCE folders hold every subject's notes together).
+  // subject's TEACHER NOTES folder its classes use, named "<teacher> - <file>".
   const NOTES_DIR = path.join(DATA, 'notes');
   fs.mkdirSync(NOTES_DIR, { recursive: true });
   const NOTE_MAX = 100 * 1024 * 1024;
@@ -202,7 +240,7 @@ module.exports = function createLms(ctx) {
   function placeNote(n) {
     const teacher = one('SELECT name FROM teachers WHERE id=?', n.teacher_id)?.name || 'Teacher';
     const { folders } = noteFolders(n.subject, classList(n.class_names));
-    const base = safePart(`${n.subject} - ${teacher} - ${n.file_name}`) || `${n.id}`;
+    const base = safePart(`${teacher} - ${n.file_name}`) || `${n.id}`;
     const dot = base.lastIndexOf('.'); const stem = dot > 0 ? base.slice(0, dot) : base; const ext = dot > 0 ? base.slice(dot) : '';
     const paths = [];
     for (const dir of folders) {
@@ -1018,5 +1056,5 @@ module.exports = function createLms(ctx) {
   const allNotes = () => all('SELECT n.*, t.name AS teacher_name FROM lm_notes n LEFT JOIN teachers t ON t.id = n.teacher_id ORDER BY n.created_at DESC')
     .map(n => ({ ...noteView(n), teacher_name: n.teacher_name }));
   const adminRemoveNote = (id) => { const n = one('SELECT * FROM lm_notes WHERE id=?', id); if (n) removeNote(n); return !!n; };
-  return { handle, pair, disconnect, sync, status, start, lmLayout, saveLmLayout, setupLmFolders, allNotes, adminRemoveNote };
+  return { handle, pair, disconnect, sync, status, start, lmLayout, saveLmLayout, allNotes, adminRemoveNote, noteFolders };
 };

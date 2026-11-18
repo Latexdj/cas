@@ -54,6 +54,35 @@ export const fmtBytes = (n: number) =>
 const parentOf = (uri: string) => uri.slice(0, uri.lastIndexOf('/'));
 const nameOf = (uri: string) => uri.slice(uri.lastIndexOf('/') + 1);
 
+// Materials already copied onto the tablet by USB (the shared LM folder, or
+// the older "Learning materials" one when there is no LM): a server file with
+// the same name and size is not downloaded again, wherever it sits.
+const SHARED_BASES = ['file:///storage/emulated/0/LM', 'file:///storage/emulated/0/Learning materials', 'file:///storage/emulated/0/Learning Materials'];
+async function usbCopies(): Promise<Set<string>> {
+  const have = new Set<string>();
+  for (const base of SHARED_BASES) {
+    let top: string[] = [];
+    try { top = (await FileSystem.readDirectoryAsync(base)).filter(n => !n.startsWith('.')); } catch { continue; }
+    if (!top.length) continue;
+    const queue = [base]; let seen = 0;
+    while (queue.length && seen < 20000) {
+      const dir = queue.shift()!;
+      let names: string[] = [];
+      try { names = await FileSystem.readDirectoryAsync(dir); } catch { continue; }
+      for (const n of names) {
+        if (n.startsWith('.')) continue;
+        seen++;
+        const info = await FileSystem.getInfoAsync(`${dir}/${n}`).catch(() => null);
+        if (!info?.exists) continue;
+        if (info.isDirectory) queue.push(`${dir}/${n}`);
+        else have.add(`${n.toLowerCase()}|${(info as { size?: number }).size ?? -1}`);
+      }
+    }
+    break;   // only the first shared folder with content, as Learning Materials shows
+  }
+  return have;
+}
+
 let running = false;
 let pauseRequested = false;
 let currentDownload: FileSystem.DownloadResumable | null = null;
@@ -111,11 +140,16 @@ export async function startLmSync() {
     await writeRecord(rec);
 
     const todo: ServerFile[] = [];
+    let onUsb: Set<string> | null = null;
     for (const f of manifest.files) {
       const had = rec.files[f.path];
       if (had && had.size === f.size && had.mtime === f.mtime) {
         const info = await FileSystem.getInfoAsync(`${APP_LM}/${f.path}`).catch(() => ({ exists: false }));
         if (info.exists) continue;
+      }
+      if (!had) {
+        if (!onUsb) { set({ message: 'Checking the materials already on this tablet…' }); onUsb = await usbCopies(); }
+        if (onUsb.has(`${nameOf(f.path).toLowerCase()}|${f.size}`)) continue;
       }
       todo.push(f);
     }

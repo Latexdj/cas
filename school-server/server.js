@@ -521,15 +521,17 @@ async function copyIntoLm(from, toRel) {
   if (path.resolve(src).startsWith(path.resolve(LM_DIR))) throw new Error('That folder is already inside the learning materials.');
   if (lmCopy.running) throw new Error('A copy is already running.');
   const list = [];
+  const dirs = [];   // empty folders are part of the school's LM layout too
   const walk = (dir, rel) => {
     for (const d of fs.readdirSync(dir, { withFileTypes: true })) {
-      if (d.name.startsWith('.') || /^(desktop\.ini|thumbs\.db)$/i.test(d.name)) continue;
+      if (d.name.startsWith('.') || /^(desktop\.ini|thumbs\.db)$/i.test(d.name) || /\.(crdownload|part|partial|tmp)$/i.test(d.name)) continue;
       const r = rel ? `${rel}/${d.name}` : d.name;
-      if (d.isDirectory()) walk(path.join(dir, d.name), r);
+      if (d.isDirectory()) { if (lmRel(r)) dirs.push(r); walk(path.join(dir, d.name), r); }
       else if (d.isFile() && lmRel(r)) list.push({ abs: path.join(dir, d.name), rel: r });
     }
   };
   walk(src, '');
+  for (const r of dirs) fs.mkdirSync(lmAbs(toRel ? `${toRel}/${r}` : r), { recursive: true });
   Object.assign(lmCopy, { running: true, from: src, copied: 0, total: list.length, bytes: 0, current: null, error: null, finished_at: null });
   (async () => {
     try {
@@ -789,7 +791,6 @@ async function handle(req, res) {
         const body = JSON.parse((await readBody(req, 512 * 1024)).toString('utf8') || '{}');
         return send(res, 200, lms.saveLmLayout(body));
       }
-      if (req.method === 'POST' && p === '/admin/lm/setup') return send(res, 200, lms.setupLmFolders());
       if (req.method === 'POST' && p === '/admin/lm/move') {
         const body = JSON.parse((await readBody(req, 64 * 1024)).toString('utf8') || '{}');
         const from = lmRel(body.from); const toDir = lmRel(body.to_dir);
