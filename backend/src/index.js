@@ -85,6 +85,7 @@ const schoolServerRoutes      = require('./routes/school-server');
 const lmNotesRoutes           = require('./routes/lm-notes').router;
 const lmUploadsRoutes         = require('./routes/lm-uploads').router;
 const serverReleasesRoutes    = require('./routes/server-releases').router;
+const gamesRoutes             = require('./routes/games');
 const appReleasesRoutes       = require('./routes/app-releases');
 const departmentBudgetsRoutes = require('./routes/department-budgets');
 const helpChatRoutes          = require('./routes/help-chat');
@@ -218,6 +219,7 @@ app.use('/api/school-server',         schoolServerRoutes);
 app.use('/api/lm-notes',              lmNotesRoutes);
 app.use('/api/lm-uploads',            lmUploadsRoutes);
 app.use('/api/server-releases',       serverReleasesRoutes);
+app.use('/api/games',                 gamesRoutes);
 app.use('/api/app-releases',          appReleasesRoutes);
 app.use('/api/department-budgets',    departmentBudgetsRoutes);
 app.use('/api/policy-documents',      policyDocumentsRoutes);
@@ -3002,6 +3004,20 @@ async function runMigrations() {
           published_at TIMESTAMPTZ NOT NULL DEFAULT now()
         )`);
       await pool.query(`ALTER TABLE school_servers ADD COLUMN IF NOT EXISTS version TEXT`);
+      // Learning games: one row per play (id made on the device, so a resend is ignored).
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS game_scores (
+          id         UUID PRIMARY KEY,
+          school_id  UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+          student_id UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+          game       TEXT NOT NULL,
+          score      INTEGER NOT NULL,
+          detail     JSONB,
+          played_at  TIMESTAMPTZ NOT NULL,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_game_scores_board ON game_scores(school_id, game, played_at)`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_game_scores_student ON game_scores(student_id, game)`);
     } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] school server link:', e.message); }
 
     // Academic year date range

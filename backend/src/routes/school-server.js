@@ -8,6 +8,7 @@ const { recordQuiz } = require('../services/lms-record.service');
 const supabase = require('../config/supabase');
 const lmUploads = require('./lm-uploads');
 const STORAGE_BUCKET = process.env.STORAGE_BUCKET || 'attendance-photos';
+const games = require('../services/games.service');
 const router = require('express').Router();
 const crypto = require('crypto');
 const pool = require('../config/db');
@@ -124,7 +125,9 @@ router.get('/roster', serverAuth, async (req, res, next) => {
     }
     const { rows: modes } = await pool.query(
       `SELECT id, name, ca_contribution FROM assessment_modes WHERE school_id=$1 ORDER BY sort_order, name`, [req.schoolId]);
-    res.json({ school: school[0], term, students, teachers, courses, assignments, modes, at: new Date().toISOString() });
+    // For learning games on tablets: each class's lessons and the days off.
+    const [lessons, offDays] = await Promise.all([games.lessonsByClass(req.schoolId), games.offDays(req.schoolId)]);
+    res.json({ school: school[0], term, students, teachers, courses, assignments, modes, lessons, off_days: offDays, at: new Date().toISOString() });
   } catch (err) { next(err); }
 });
 
@@ -367,6 +370,19 @@ router.get('/server-release/download', serverAuth, async (req, res, next) => {
     res.set({ 'Content-Type': 'application/json', 'Content-Length': buf.length });
     res.end(buf);
   } catch (err) { next(err); }
+});
+
+// Learning games on tablets: the server sends the plays it collected and gets
+// back this week's scores from the whole school (phones at home included).
+router.post('/games/scores', serverAuth, async (req, res, next) => {
+  try {
+    const list = (Array.isArray(req.body?.scores) ? req.body.scores : []).slice(0, 5000)
+      .filter(r => r && /^[0-9a-f-]{36}$/i.test(String(r.id)) && /^[0-9a-f-]{36}$/i.test(String(r.student_id)));
+    res.json({ saved: await games.saveScores(req.schoolId, list), received: list.length });
+  } catch (err) { next(err); }
+});
+router.get('/games/scores', serverAuth, async (req, res, next) => {
+  try { res.json({ scores: await games.weekScores(req.schoolId) }); } catch (err) { next(err); }
 });
 
 router.post('/summary', serverAuth, async (req, res, next) => {

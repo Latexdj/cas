@@ -62,6 +62,8 @@ module.exports = function createLms(ctx) {
   db.exec(`
     CREATE TABLE IF NOT EXISTS assignments (teacher_id TEXT, subject TEXT, class_name TEXT);
     CREATE TABLE IF NOT EXISTS admin_sessions (token TEXT PRIMARY KEY, user_id TEXT, expires_at INTEGER);
+    CREATE TABLE IF NOT EXISTS game_scores (id TEXT PRIMARY KEY, student_id TEXT, game TEXT, score INTEGER, played_at TEXT, sent INTEGER DEFAULT 0);
+    CREATE INDEX IF NOT EXISTS ix_game_scores ON game_scores(game, played_at);
     CREATE TABLE IF NOT EXISTS lm_notes (id TEXT PRIMARY KEY, teacher_id TEXT, subject TEXT, class_names TEXT, file_name TEXT,
       paths TEXT, source TEXT, cas_id TEXT, size INTEGER, created_at TEXT);
     CREATE INDEX IF NOT EXISTS ix_assignments_teacher ON assignments(teacher_id);
@@ -361,6 +363,41 @@ module.exports = function createLms(ctx) {
     try { fs.rmSync(noteFile(n), { force: true }); } catch { /* gone */ }
     run('DELETE FROM lm_notes WHERE id=?', n.id);
   }
+  // ── Learning games: weekly leaderboards (Monday reset), best score per student ──
+  const GAME_KEYS = new Set(['wassce-arena', 'bece-challenge', 'tool-id', 'right-order']);
+  function weekStart(now = new Date()) {
+    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));   // Accra is UTC
+    d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
+    return d.toISOString();
+  }
+  const shortName = (name) => { const p = String(name || '').trim().split(/\s+/); return p.length > 1 ? `${p[0]} ${p[p.length - 1][0]}.` : p[0] || 'Student'; };
+  function gameBoard(game, me, scope) {
+    const byClass = scope === 'class';
+    const rows = all(`SELECT g.student_id, MAX(g.score) AS score, st.name, st.class_name FROM game_scores g
+        JOIN students st ON st.id = g.student_id
+       WHERE g.game=? AND g.played_at >= ? ${byClass ? 'AND st.class_name = ?' : ''}
+       GROUP BY g.student_id ORDER BY score DESC, st.name LIMIT 500`, ...(byClass ? [game, weekStart(), me.class_name] : [game, weekStart()]));
+    let rank = 0, prev = null;
+    const ranked = rows.map((r, i) => { if (r.score !== prev) { rank = i + 1; prev = r.score; } return { ...r, rank }; });
+    const view = (r) => ({ rank: r.rank, name: shortName(r.name), class_name: r.class_name, score: r.score, me: r.student_id === me.id });
+    const mine = ranked.find(r => r.student_id === me.id);
+    return { scope: byClass ? 'class' : 'school', class_name: me.class_name, week_start: weekStart().slice(0, 10), players: ranked.length,
+      top: ranked.slice(0, 10).map(view), me: mine ? view(mine) : null,
+      personal_best: one('SELECT MAX(score) AS b FROM game_scores WHERE student_id=? AND game=?', me.id, game)?.b ?? null };
+  }
+  async function syncGameScores() {
+    const unsent = all('SELECT * FROM game_scores WHERE sent=0 LIMIT 5000');
+    if (unsent.length) {
+      await casFetch('/games/scores', { method: 'POST', body: { scores: unsent }, timeout: 60000 });
+      tx(() => { for (const r of unsent) run('UPDATE game_scores SET sent=1 WHERE id=?', r.id); });
+    }
+    const got = await casFetch('/games/scores', { timeout: 60000 });
+    const ins = q('INSERT OR IGNORE INTO game_scores(id,student_id,game,score,played_at,sent) VALUES(?,?,?,?,?,1)');
+    tx(() => { for (const r of got.scores || []) ins.run(r.id, r.student_id, r.game, r.score, new Date(r.played_at).toISOString()); });
+    run('DELETE FROM game_scores WHERE sent=1 AND played_at < ?', new Date(Date.now() - 60 * 86400000).toISOString());
+    return unsent.length;
+  }
+
   const noteView = (n) => ({ id: n.id, subject: n.subject, class_names: n.class_names, file_name: n.file_name, size: n.size,
     created_at: n.created_at, source: n.source, folders: parseList(n.paths).map(p => p.slice(0, p.lastIndexOf('/'))) });
 
@@ -438,6 +475,8 @@ module.exports = function createLms(ctx) {
         for (const a of roster.assignments || []) at.run(a.teacher_id, a.subject, a.class_name);
       });
       setMeta('modes', JSON.stringify(roster.modes || []));
+      if (roster.lessons) setMeta('lessons', JSON.stringify(roster.lessons));
+      if (roster.off_days) setMeta('off_days', JSON.stringify(roster.off_days));
       setMeta('roster_at', nowIso()); setMeta('term', JSON.stringify(roster.term));
       // How far this PC's clock is from CAS's, so sign-in passes from CAS are timed right even if the clock is wrong.
       if (roster.at && !Number.isNaN(Date.parse(roster.at))) setMeta('cas_clock_offset', String(Date.parse(roster.at) - Date.now()));
@@ -632,6 +671,9 @@ module.exports = function createLms(ctx) {
         }
       } catch (e) { if (e.code === 'REVOKED') throw e; /* CAS without uploads yet */ }
 
+      let gameScoresSent = 0;
+      try { gameScoresSent = await syncGameScores(); } catch (e) { if (e.code === 'REVOKED') throw e; /* CAS without games yet */ }
+
       const counts = one('SELECT (SELECT COUNT(*) FROM students) AS s, (SELECT COUNT(*) FROM teachers) AS t');
       result.ok = true;
       result.message = `Roster: ${counts.s} students, ${counts.t} teachers. ${quizzes.length} CAS test${quizzes.length === 1 ? '' : 's'}.`
@@ -639,7 +681,8 @@ module.exports = function createLms(ctx) {
         + (sent ? ` Sent ${sent} result${sent === 1 ? '' : 's'}.` : '')
         + (recorded ? ` Recorded ${recorded} test${recorded === 1 ? '' : 's'} in Assessments.` : '')
         + (gotNotes ? ` Got ${gotNotes} teacher note${gotNotes === 1 ? '' : 's'} from CAS.` : '')
-        + (gotFiles ? ` Got ${gotFiles} learning material${gotFiles === 1 ? '' : 's'} from CAS.` : '');
+        + (gotFiles ? ` Got ${gotFiles} learning material${gotFiles === 1 ? '' : 's'} from CAS.` : '')
+        + (gameScoresSent ? ` Sent ${gameScoresSent} game score${gameScoresSent === 1 ? '' : 's'}.` : '');
       // A newer version of this server program, published in CAS.
       if (ctx.offerServerRelease) {
         try {
@@ -864,6 +907,20 @@ module.exports = function createLms(ctx) {
       send(res, r.status, r.status === 200 ? r.body : { error: r.error });
       return true;
     }
+    // ── Learning games: when they are open (outside the class's lessons) ──
+    // Any tablet may ask; without a class, any class's lesson counts.
+    if (req.method === 'GET' && p === '/lms/games/schedule') {
+      const all = JSON.parse(meta('lessons') || '{}');
+      const cls = String(url.searchParams.get('class') || '');
+      let lessons = cls && all[cls];
+      if (!lessons) {
+        lessons = {};
+        for (const days of Object.values(all)) for (const [d, list] of Object.entries(days)) (lessons[d] ??= []).push(...list);
+      }
+      send(res, 200, { class_name: cls && all[cls] ? cls : null, lessons, off: JSON.parse(meta('off_days') || '{"dates":[],"ranges":[]}'),
+        tz: 'Africa/Accra', at: meta('roster_at') });
+      return true;
+    }
     const s = sessionFrom(req);
     if (!s) { send(res, 401, { error: 'Sign in again.' }); return true; }
     if (req.method === 'POST' && p === '/lms/logout') { run('DELETE FROM sessions WHERE token=?', s.token); send(res, 200, { ok: true }); return true; }
@@ -874,6 +931,26 @@ module.exports = function createLms(ctx) {
     if (s.role === 'student') {
       const me = one('SELECT * FROM students WHERE id=?', s.user_id);
       if (!me) { send(res, 401, { error: 'Sign in again.' }); return true; }
+
+      // Learning games: scores from this tablet, and this week's leaderboards.
+      if (req.method === 'POST' && p === '/lms/games/scores') {
+        const list = ((await json(req)).scores || []).slice(0, 500);
+        const ins = q('INSERT OR IGNORE INTO game_scores(id,student_id,game,score,played_at,sent) VALUES(?,?,?,?,?,0)');
+        let saved = 0;
+        for (const r of list) {
+          const score = Math.round(Number(r.score));
+          if (!/^[0-9a-f-]{36}$/i.test(String(r.id)) || !GAME_KEYS.has(r.game) || !(score >= 0 && score <= 100000)) continue;
+          saved += ins.run(r.id, me.id, r.game, score, new Date(r.played_at || Date.now()).toISOString()).changes;
+        }
+        send(res, 200, { saved, received: list.length });
+        return true;
+      }
+      if (req.method === 'GET' && p === '/lms/games/leaderboard') {
+        const game = String(url.searchParams.get('game') || '');
+        if (!GAME_KEYS.has(game)) { send(res, 400, { error: 'Unknown game.' }); return true; }
+        send(res, 200, gameBoard(game, me, url.searchParams.get('scope') === 'school' ? 'school' : 'class'));
+        return true;
+      }
 
       if (req.method === 'GET' && p === '/lms/tests') {
         const tests = all(`SELECT z.*, t.name AS teacher_name FROM quizzes z LEFT JOIN teachers t ON t.id=z.teacher_id

@@ -17,7 +17,7 @@ const zlib = require('zlib');
 const crypto = require('crypto');
 require('dns').setDefaultResultOrder('ipv4first');
 
-const VERSION = '1.1.0';
+const VERSION = '1.2.0';
 const PORT = Number(process.env.CAS_SERVER_PORT) || 8787;
 const ROOT = __dirname;
 const DATA = path.join(ROOT, 'data');

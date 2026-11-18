@@ -80,6 +80,17 @@ export default function WelcomeScreen() {
           </TouchableOpacity>
         )}
 
+        <TouchableOpacity style={s.loginCard} onPress={() => router.push('/games')} activeOpacity={0.82} accessibilityRole="button">
+          <View style={[s.loginIconWrap]}>
+            <Ionicons name="game-controller-outline" size={32} color={tc('#145C44')} />
+          </View>
+          <View style={s.loginText}>
+            <Text style={s.loginTitle}>Games</Text>
+            <Text style={s.loginSub}>Learning games, outside lesson times</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={tc('#8C7E6E')} />
+        </TouchableOpacity>
+
         {/* Login — secondary action */}
         <TouchableOpacity
           style={s.loginCard}
