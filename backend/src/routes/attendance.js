@@ -393,16 +393,19 @@ router.post('/:id/revoke', adminOnly, async (req, res, next) => {
     // Mark teacher absent for each class in the revoked record
     const now     = new Date().toTimeString().slice(0, 5);
     const classes = record.class_names.split(',').map(c => c.trim()).filter(Boolean);
-    for (const className of classes) {
+    // The register's periods (breaks already taken out) go on the first class;
+    // merged classes share one lesson, so the others count 0, as in the daily check.
+    for (const [i, className] of classes.entries()) {
       await pool.query(
         `INSERT INTO absences
            (school_id, date, detected_at, teacher_id, subject, class_name,
-            status, is_auto_generated, reason, academic_year_id)
-         VALUES ($1,$2,$3::time,$4,$5,$6,'Absent',false,$7,$8)
+            status, is_auto_generated, reason, academic_year_id, periods_lost)
+         VALUES ($1,$2,$3::time,$4,$5,$6,'Absent',false,$7,$8,$9)
          ON CONFLICT (date, teacher_id, subject, class_name)
            WHERE is_auto_generated = true
          DO UPDATE SET reason = EXCLUDED.reason, is_auto_generated = false, updated_at = now()`,
-        [req.schoolId, record.date, now, record.teacher_id, record.subject, className, reason, record.academic_year_id]
+        [req.schoolId, record.date, now, record.teacher_id, record.subject, className, reason, record.academic_year_id,
+         i === 0 ? (record.periods || 1) : 0]
       );
     }
 
@@ -464,16 +467,17 @@ router.patch('/:id/reject-pending', adminOnly, async (req, res, next) => {
 
     const now     = new Date().toTimeString().slice(0, 5);
     const classes = record.class_names.split(',').map(c => c.trim()).filter(Boolean);
-    for (const className of classes) {
+    for (const [i, className] of classes.entries()) {
       await pool.query(
         `INSERT INTO absences
            (school_id, date, detected_at, teacher_id, subject, class_name,
-            status, is_auto_generated, reason, academic_year_id)
-         VALUES ($1,$2,$3::time,$4,$5,$6,'Absent',false,$7,$8)
+            status, is_auto_generated, reason, academic_year_id, periods_lost)
+         VALUES ($1,$2,$3::time,$4,$5,$6,'Absent',false,$7,$8,$9)
          ON CONFLICT (date, teacher_id, subject, class_name)
            WHERE is_auto_generated = true
          DO UPDATE SET reason = EXCLUDED.reason, is_auto_generated = false, updated_at = now()`,
-        [req.schoolId, record.date, now, record.teacher_id, record.subject, className, `Pending submission rejected: ${reason}`, record.academic_year_id]
+        [req.schoolId, record.date, now, record.teacher_id, record.subject, className, `Pending submission rejected: ${reason}`, record.academic_year_id,
+         i === 0 ? (record.periods || 1) : 0]
       );
     }
 

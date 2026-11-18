@@ -256,9 +256,11 @@ router.get('/teacher-attendance', async (req, res, next) => {
       abs AS (
         SELECT
           ab.teacher_id,
-          COUNT(*) FILTER (WHERE ab.status NOT IN ('Excused','Made Up','Verified')) AS absent_periods,
-          COUNT(*) FILTER (WHERE ab.status = 'Excused' AND ab.excused_via = 'teacher_excuse') AS excused_periods,
-          COUNT(*) FILTER (WHERE ab.status IN ('Made Up','Verified'))               AS made_up_periods
+          -- Periods, not absences: a long lesson counts its periods, and merged
+          -- classes (one lesson) are counted once (their other rows hold 0).
+          COALESCE(SUM(COALESCE(ab.periods_lost, 1)) FILTER (WHERE ab.status NOT IN ('Excused','Made Up','Verified')), 0) AS absent_periods,
+          COALESCE(SUM(COALESCE(ab.periods_lost, 1)) FILTER (WHERE ab.status = 'Excused' AND ab.excused_via = 'teacher_excuse'), 0) AS excused_periods,
+          COALESCE(SUM(COALESCE(ab.periods_lost, 1)) FILTER (WHERE ab.status IN ('Made Up','Verified')), 0)               AS made_up_periods
         FROM absences ab
         WHERE ab.school_id = $1
           AND ($2::uuid IS NULL OR ab.academic_year_id = $2::uuid)

@@ -3,6 +3,7 @@ const pool = require('../config/db');
 const { randomUUID } = require('crypto');
 const { sendAbsenceNotification, sendDailyAbsenceReport } = require('../services/email.service');
 const { getScopeContext, eventCoversTeacher, eventCoversLesson } = require('../services/eventScope.service');
+const { fetchBreaks, effectivePeriods } = require('../utils/breaks');
 
 // Africa/Accra = UTC+0 (no DST), so new Date() == Accra time.
 // Returns 1=Monday … 7=Sunday to match timetable.day_of_week.
@@ -104,6 +105,8 @@ async function runAbsenceCheck(schoolId) {
     'SELECT period_duration_minutes FROM schools WHERE id = $1', [schoolId]
   );
   const periodMins = schoolSettingRows[0]?.period_duration_minutes ?? 60;
+  // Breaks inside a lesson are not teaching time (same count as the register).
+  const dayBreaks = await fetchBreaks(schoolId, dayOfWeek);
 
   // Skip entirely if today is a whole-school, whole-day event; a scoped event
   // (department/year-batch/classes) or a partial-day event is checked per
@@ -193,8 +196,7 @@ async function runAbsenceCheck(schoolId) {
     );
     if (absentClasses.length === 0) continue;
 
-    const lessonMins  = timeToMinutes(lesson.end_time) - timeToMinutes(lesson.start_time);
-    const periodsLost = Math.max(1, Math.round(lessonMins / periodMins));
+    const periodsLost = effectivePeriods(lesson.start_time, lesson.end_time, dayBreaks, periodMins);
     // Combined lessons share a group UUID so one remedial covers all classes;
     // siblings get periods_lost = 0 to avoid double-counting teacher-time.
     const groupId = absentClasses.length > 1 ? randomUUID() : null;
@@ -267,6 +269,8 @@ async function runPerLessonCheck(schoolId) {
     'SELECT period_duration_minutes FROM schools WHERE id = $1', [schoolId]
   );
   const periodMins = schoolSettingRows[0]?.period_duration_minutes ?? 60;
+  // Breaks inside a lesson are not teaching time (same count as the register).
+  const dayBreaks = await fetchBreaks(schoolId, dayOfWeek);
 
   const { rows: calRows } = await pool.query(
     `SELECT name, start_time::text AS start_time, end_time::text AS end_time,
@@ -323,8 +327,7 @@ async function runPerLessonCheck(schoolId) {
     );
     if (absentClasses.length === 0) continue;
 
-    const lessonMins  = timeToMinutes(lesson.end_time) - timeToMinutes(lesson.start_time);
-    const periodsLost = Math.max(1, Math.round(lessonMins / periodMins));
+    const periodsLost = effectivePeriods(lesson.start_time, lesson.end_time, dayBreaks, periodMins);
     const groupId     = absentClasses.length > 1 ? randomUUID() : null;
 
     for (let i = 0; i < absentClasses.length; i++) {

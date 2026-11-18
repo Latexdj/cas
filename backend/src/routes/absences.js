@@ -1,5 +1,6 @@
 const router = require('express').Router();
 const pool = require('../config/db');
+const { parsePeriodRange, lessonPeriods, isoDayOfWeek } = require('../utils/breaks');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
 const { logAudit } = require('../services/audit.service');
 const { notifyTeacherAbsenceDeleted } = require('../services/notification.service');
@@ -191,19 +192,22 @@ router.post('/manual', adminOnly, async (req, res, next) => {
     );
     const academicYearId = ayRows[0]?.id ?? null;
 
+    const range = parsePeriodRange(scheduledPeriod);
     const inserted = [];
     for (const date of dates) {
       try {
+        // With a lesson time like "09:30-15:00", count its periods (breaks taken out).
+        const periodsLost = range ? await lessonPeriods(req.schoolId, isoDayOfWeek(date), range.start, range.end) : 1;
         const { rows } = await pool.query(
           `INSERT INTO absences
              (school_id, date, teacher_id, subject, class_name, scheduled_period,
-              status, is_auto_generated, reason, academic_year_id)
-           VALUES ($1,$2,$3,$4,$5,$6,'Absent',false,$7,$8)
+              status, is_auto_generated, reason, academic_year_id, periods_lost)
+           VALUES ($1,$2,$3,$4,$5,$6,'Absent',false,$7,$8,$9)
            ON CONFLICT (date, teacher_id, subject, class_name)
              WHERE is_auto_generated = true
            DO NOTHING
            RETURNING id`,
-          [req.schoolId, date, teacherId, subject, className, scheduledPeriod || null, reason || null, academicYearId]
+          [req.schoolId, date, teacherId, subject, className, scheduledPeriod || null, reason || null, academicYearId, periodsLost]
         );
         if (rows.length) inserted.push(rows[0].id);
       } catch {
