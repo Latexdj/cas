@@ -3,7 +3,7 @@
     "name": "CAS Teacher",
     "slug": "cas-teacher",
     "scheme": "cas-teacher",
-    "version": "1.6.0",
+    "version": "1.6.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -36,7 +36,7 @@
         "android.permission.POST_NOTIFICATIONS",
         "android.permission.REQUEST_INSTALL_PACKAGES"
       ],
-      "versionCode": 8
+      "versionCode": 9
     },
     "web": {
       "favicon": "./assets/favicon.png",
