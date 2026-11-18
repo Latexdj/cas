@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Image, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,7 +18,8 @@ export default function WelcomeScreen() {
   useEffect(() => { findSchoolServer().then(sv => setHasServer(!!sv)).catch(() => {}); }, []);
 
   return (
-    <View style={[s.root, { paddingTop: insets.top }]}>
+    // Scrolls once the cards are taller than the screen; centred when they fit.
+    <ScrollView style={s.root} contentContainerStyle={[s.content, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 }]}>
 
       {/* Branding */}
       <View style={s.brand}>
@@ -41,7 +42,7 @@ export default function WelcomeScreen() {
           activeOpacity={0.82}
         >
           <View style={s.materialIconWrap}>
-            <Ionicons name="folder-open" size={38} color={tc('#fff')} />
+            <Ionicons name="folder-open" size={32} color={tc('#fff')} />
           </View>
           <View style={s.materialText}>
             <Text style={s.materialTitle}>Learning Materials</Text>
@@ -58,7 +59,7 @@ export default function WelcomeScreen() {
           accessibilityRole="button"
         >
           <View style={[s.loginIconWrap]}>
-            <Ionicons name="help-circle-outline" size={34} color={tc('#9A6F1E')} />
+            <Ionicons name="help-circle-outline" size={28} color={tc('#9A6F1E')} />
           </View>
           <View style={s.loginText}>
             <Text style={s.loginTitle}>Past Questions</Text>
@@ -70,7 +71,7 @@ export default function WelcomeScreen() {
         {hasServer && (
           <TouchableOpacity style={s.loginCard} onPress={() => router.push('/class-tests')} activeOpacity={0.82} accessibilityRole="button">
             <View style={[s.loginIconWrap]}>
-              <Ionicons name="clipboard-outline" size={32} color={tc('#145C44')} />
+              <Ionicons name="clipboard-outline" size={28} color={tc('#145C44')} />
             </View>
             <View style={s.loginText}>
               <Text style={s.loginTitle}>Offline Assessment</Text>
@@ -82,7 +83,7 @@ export default function WelcomeScreen() {
 
         <TouchableOpacity style={s.loginCard} onPress={() => router.push('/storybooks')} activeOpacity={0.82} accessibilityRole="button">
           <View style={[s.loginIconWrap]}>
-            <Ionicons name="book-outline" size={32} color={tc('#9A6F1E')} />
+            <Ionicons name="book-outline" size={28} color={tc('#9A6F1E')} />
           </View>
           <View style={s.loginText}>
             <Text style={s.loginTitle}>Storybooks</Text>
@@ -93,7 +94,7 @@ export default function WelcomeScreen() {
 
         <TouchableOpacity style={s.loginCard} onPress={() => router.push('/games')} activeOpacity={0.82} accessibilityRole="button">
           <View style={[s.loginIconWrap]}>
-            <Ionicons name="game-controller-outline" size={32} color={tc('#145C44')} />
+            <Ionicons name="game-controller-outline" size={28} color={tc('#145C44')} />
           </View>
           <View style={s.loginText}>
             <Text style={s.loginTitle}>Games</Text>
@@ -109,7 +110,7 @@ export default function WelcomeScreen() {
           activeOpacity={0.82}
         >
           <View style={[s.loginIconWrap]}>
-            <Ionicons name="person-circle-outline" size={34} color={tc('#1C1208')} />
+            <Ionicons name="person-circle-outline" size={28} color={tc('#1C1208')} />
           </View>
           <View style={s.loginText}>
             <Text style={s.loginTitle}>Student Login</Text>
@@ -121,28 +122,29 @@ export default function WelcomeScreen() {
       </View>
 
       <Text style={s.hint}>Learning materials are stored on this device and work without internet.</Text>
-    </View>
+    </ScrollView>
   );
 }
 
 const s = createThemedStyles({
-  root:           { flex: 1, backgroundColor: '#F4EFE6', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 },
-  brand:          { alignItems: 'center', marginBottom: 48 },
-  logo:           { width: 88, height: 88, borderRadius: 20, marginBottom: 16, backgroundColor: '#E2D9CC' },
-  logoMark:       { width: 88, height: 88, borderRadius: 26, backgroundColor: '#0B3D2E', justifyContent: 'center', alignItems: 'center', marginBottom: 16 },
-  logoLetter:     { fontSize: 40, fontWeight: '900', color: '#fff' },
+  root:           { flex: 1, backgroundColor: '#F4EFE6' },
+  content:        { flexGrow: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 },
+  brand:          { alignItems: 'center', marginBottom: 28 },
+  logo:           { width: 72, height: 72, borderRadius: 18, marginBottom: 12, backgroundColor: '#E2D9CC' },
+  logoMark:       { width: 72, height: 72, borderRadius: 22, backgroundColor: '#0B3D2E', justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
+  logoLetter:     { fontSize: 34, fontWeight: '900', color: '#fff' },
   title:          { fontSize: 28, fontWeight: '900', color: '#1C1208', letterSpacing: -0.5 },
   subtitle:       { fontSize: 14, color: '#8C7E6E', marginTop: 4 },
-  cards:          { width: '100%', gap: 12, marginBottom: 32 },
+  cards:          { width: '100%', maxWidth: 560, gap: 10, marginBottom: 24 },
 
-  materialCard:   { backgroundColor: '#0B3D2E', borderRadius: 20, padding: 20, flexDirection: 'row', alignItems: 'center', gap: 16, shadowColor: '#0B3D2E', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.25, shadowRadius: 12, elevation: 6 },
-  materialIconWrap:{ width: 56, height: 56, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center' },
+  materialCard:   { backgroundColor: '#0B3D2E', borderRadius: 20, paddingVertical: 14, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 16, shadowColor: '#0B3D2E', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.25, shadowRadius: 12, elevation: 6 },
+  materialIconWrap:{ width: 48, height: 48, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center' },
   materialText:   { flex: 1 },
   materialTitle:  { fontSize: 17, fontWeight: '800', color: '#fff', marginBottom: 3 },
   materialSub:    { fontSize: 12, color: 'rgba(255,255,255,0.65)', lineHeight: 17 },
 
-  loginCard:      { backgroundColor: '#fff', borderRadius: 20, padding: 20, flexDirection: 'row', alignItems: 'center', gap: 16, borderWidth: 1, borderColor: '#E2D9CC', shadowColor: '#1C1208', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 },
-  loginIconWrap:  { width: 56, height: 56, borderRadius: 16, backgroundColor: '#F4EFE6', justifyContent: 'center', alignItems: 'center' },
+  loginCard:      { backgroundColor: '#fff', borderRadius: 20, paddingVertical: 14, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 16, borderWidth: 1, borderColor: '#E2D9CC', shadowColor: '#1C1208', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 },
+  loginIconWrap:  { width: 48, height: 48, borderRadius: 16, backgroundColor: '#F4EFE6', justifyContent: 'center', alignItems: 'center' },
   loginText:      { flex: 1 },
   loginTitle:     { fontSize: 17, fontWeight: '800', color: '#1C1208', marginBottom: 3 },
   loginSub:       { fontSize: 12, color: '#8C7E6E', lineHeight: 17 },
