@@ -640,7 +640,21 @@ module.exports = function createLms(ctx) {
         + (recorded ? ` Recorded ${recorded} test${recorded === 1 ? '' : 's'} in Assessments.` : '')
         + (gotNotes ? ` Got ${gotNotes} teacher note${gotNotes === 1 ? '' : 's'} from CAS.` : '')
         + (gotFiles ? ` Got ${gotFiles} learning material${gotFiles === 1 ? '' : 's'} from CAS.` : '');
-      await casFetch('/summary', { method: 'POST', body: { summary: result.message, lan: ctx.lanReport ? ctx.lanReport() : [], port: ctx.port,
+      // A newer version of this server program, published in CAS.
+      if (ctx.offerServerRelease) {
+        try {
+          const rel = await casFetch('/server-release', { timeout: 30000 });
+          await ctx.offerServerRelease(rel.release, async () => {
+            const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 300000);
+            try {
+              const r = await fetch(`${cloud()}/api/school-server/server-release/download`, { headers: { Authorization: `Server ${link().token}` }, signal: ctl.signal });
+              if (!r.ok) throw new Error(`CAS answered ${r.status}`);
+              return Buffer.from(await r.arrayBuffer());
+            } finally { clearTimeout(t); }
+          });
+        } catch (e) { if (e.code === 'REVOKED') throw e; log('server update check', e.message); }
+      }
+      await casFetch('/summary', { method: 'POST', body: { summary: result.message, lan: ctx.lanReport ? ctx.lanReport() : [], port: ctx.port, version: ctx.version,
         lm_folders: ctx.lm.folders ? ctx.lm.folders() : undefined } }).catch(() => {});
     } catch (e) {
       result.message = e.code === 'REVOKED' ? 'CAS has disconnected this server. Connect it again with a new pairing code.'
@@ -694,6 +708,11 @@ module.exports = function createLms(ctx) {
     run('INSERT INTO admin_sessions(token,user_id,expires_at) VALUES(?,?,?)', token, String(c.t.t || ''), Date.now() + ADMIN_HOURS * 3600 * 1000);
     return { token, max_age: ADMIN_HOURS * 3600 };
   }
+  // Students in the middle of a test: started, and before the deadline (or,
+  // with no time limit, started in the last 3 hours).
+  const testsUnderway = () => one(`SELECT COUNT(*) AS n FROM attempts WHERE status='in_progress'
+    AND ((deadline_at IS NOT NULL AND deadline_at > ?) OR (deadline_at IS NULL AND started_at > ?))`,
+    new Date().toISOString(), new Date(Date.now() - 3 * 3600 * 1000).toISOString()).n;
   const adminSessionOk = (token) => !!token && !!one('SELECT token FROM admin_sessions WHERE token=? AND expires_at > ?', String(token), Date.now());
   const adminSignOut = (token) => { if (token) run('DELETE FROM admin_sessions WHERE token=?', String(token)); };
 
@@ -1213,5 +1232,5 @@ module.exports = function createLms(ctx) {
   const allNotes = () => all('SELECT n.*, t.name AS teacher_name FROM lm_notes n LEFT JOIN teachers t ON t.id = n.teacher_id ORDER BY n.created_at DESC')
     .map(n => ({ ...noteView(n), teacher_name: n.teacher_name }));
   const adminRemoveNote = (id) => { const n = one('SELECT * FROM lm_notes WHERE id=?', id); if (n) removeNote(n); return !!n; };
-  return { handle, pair, disconnect, sync, status, start, lmLayout, saveLmLayout, allNotes, adminRemoveNote, noteFolders, previewNotes, adminTicketLogin, adminSessionOk, adminSignOut };
+  return { handle, pair, disconnect, sync, status, start, lmLayout, saveLmLayout, allNotes, adminRemoveNote, noteFolders, previewNotes, adminTicketLogin, adminSessionOk, adminSignOut, testsUnderway };
 };

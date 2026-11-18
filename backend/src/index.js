@@ -84,6 +84,7 @@ const pascoBankRoutes         = require('./routes/pasco-bank');
 const schoolServerRoutes      = require('./routes/school-server');
 const lmNotesRoutes           = require('./routes/lm-notes').router;
 const lmUploadsRoutes         = require('./routes/lm-uploads').router;
+const serverReleasesRoutes    = require('./routes/server-releases').router;
 const appReleasesRoutes       = require('./routes/app-releases');
 const departmentBudgetsRoutes = require('./routes/department-budgets');
 const helpChatRoutes          = require('./routes/help-chat');
@@ -216,6 +217,7 @@ app.use('/api/pasco-bank',            pascoBankRoutes);
 app.use('/api/school-server',         schoolServerRoutes);
 app.use('/api/lm-notes',              lmNotesRoutes);
 app.use('/api/lm-uploads',            lmUploadsRoutes);
+app.use('/api/server-releases',       serverReleasesRoutes);
 app.use('/api/app-releases',          appReleasesRoutes);
 app.use('/api/department-budgets',    departmentBudgetsRoutes);
 app.use('/api/policy-documents',      policyDocumentsRoutes);
@@ -2986,6 +2988,20 @@ async function runMigrations() {
           delivered_at    TIMESTAMPTZ
         )`);
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_lm_uploads_school ON lm_uploads(school_id, status)`);
+      // Versions of the school server program itself (routes/server-releases.js).
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS server_releases (
+          id           UUID PRIMARY KEY,
+          version      TEXT NOT NULL,
+          notes        TEXT,
+          size         BIGINT NOT NULL,
+          sha256       TEXT NOT NULL,
+          storage_path TEXT NOT NULL,
+          status       TEXT NOT NULL DEFAULT 'live',
+          published_by UUID,
+          published_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )`);
+      await pool.query(`ALTER TABLE school_servers ADD COLUMN IF NOT EXISTS version TEXT`);
     } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] school server link:', e.message); }
 
     // Academic year date range

@@ -120,7 +120,7 @@
     <li><a href="#questions" data-nav="questions">Past questions <span class="badge" id="b-pack"></span></a></li>
     <li><a href="#apps" data-nav="apps">Apps</a></li>
     <li><a href="#tablets" data-nav="tablets">Tablets <span class="badge" id="b-tab"></span></a></li>
-    <li><a href="#settings" data-nav="settings">Settings</a></li>
+    <li><a href="#settings" data-nav="settings">Settings <span class="badge" id="b-set"></span></a></li>
   </ul>
 </nav>
 <main>
@@ -284,6 +284,13 @@
       <button id="savename">Save</button>
       <span id="namemsg" class="muted" role="status"></span>
     </div>
+    <div style="border-top:1px solid var(--line);padding-top:12px;display:grid;gap:8px">
+      <strong>Server version</strong>
+      <div id="srvver"></div>
+      <div class="row" id="srvinstallrow" hidden><button class="primary" id="srvinstall">Install now</button></div>
+      <div id="srvmsg" role="status"></div>
+      <p class="muted">New versions are published in CAS. This server downloads them when it syncs and installs them outside school hours (weekdays 07:00 to 16:00) when no test is underway. If a new version will not start, the server goes back to the previous one by itself.</p>
+    </div>
   </section>
 </main>
 </div>
@@ -327,6 +334,28 @@ $('menubtn').onclick = () => {
 };
 showPage();
 
+function renderServerUpdate(u) {
+  if (!u) return;
+  const last = u.last;
+  const lastLine = !last ? '' : last.status === 'rolled-back'
+    ? `<p class="msg bad">Version ${esc(last.to)} would not start, so the server went back to ${esc(last.from)} (${when(last.at)}). It will not try that version again.</p>`
+    : last.status === 'ok' && last.to === u.version ? `<p class="muted">Updated from ${esc(last.from)} ${when(last.at)}.</p>`
+    : last.status === 'trial' ? `<p class="muted">Just updated to ${esc(last.to)}; checking it runs well.</p>` : '';
+  $('srvver').innerHTML = `<p>Version <strong>${esc(u.version)}</strong>${u.pending ? '' : ', the newest published in CAS.'}</p>`
+    + (u.pending ? `<p class="msg info">Version ${esc(u.pending.version)} is ready${u.pending.notes ? `: ${esc(u.pending.notes)}` : ''}. It installs ${u.school_hours ? 'after school hours' : 'within 10 minutes'} unless a test is underway.</p>` : '')
+    + lastLine + (u.note ? `<p class="msg bad">${esc(u.note)}</p>` : '');
+  $('srvinstallrow').hidden = !u.pending;
+  badge('b-set', u.pending ? 'Update' : '', u.pending ? 'warn' : '');
+}
+$('srvinstall').onclick = async () => {
+  $('srvinstall').disabled = true;
+  const r = await fetch('/admin/server-update/install', { method: 'POST' });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) { $('srvinstall').disabled = false; return msg($('srvmsg'), d.error || 'It could not be installed.', 'bad'); }
+  msg($('srvmsg'), `Installing version ${d.version}. The server restarts; this page comes back in about 15 seconds.`, 'info');
+  setTimeout(() => location.reload(), 15000);
+};
+
 function badge(id, text, tone) { const b = $(id); b.textContent = text || ''; b.className = `badge${tone ? ` ${tone}` : ''}`; }
 function renderOverview(s) {
   const c = s.cas, p = s.pack;
@@ -358,6 +387,7 @@ async function load() {
   const s = status;
   $('remotebar').hidden = !s.remote;
   try { renderOverview(s); } catch { /* the pages below still fill in */ }
+  try { renderServerUpdate(s.server_update); } catch { /* older server */ }
   if (s.school_name) $('school').textContent = `${s.school_name}: serves past questions and the CAS apps to tablets and phones on the school's Wi-Fi.`;
   if (document.activeElement !== $('schoolname')) $('schoolname').value = s.config.school_name || '';
   $('addrs').innerHTML = s.lan.length

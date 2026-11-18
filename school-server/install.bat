@@ -31,9 +31,11 @@ powershell -NoProfile -Command "Get-CimInstance Win32_Process -Filter \"Name='no
 
 echo  [2/5] Copying files to %TARGET% (your data is kept)...
 if not exist "%TARGET%" mkdir "%TARGET%"
-for %%F in (node.exe server.js lms.js admin.html teacher.html run.bat uninstall.bat README.txt) do copy /y "%~dp0%%F" "%TARGET%\%%F" >nul
+for %%F in (node.exe server.js app.js lms.js admin.html teacher.html run.bat uninstall.bat README.txt) do copy /y "%~dp0%%F" "%TARGET%\%%F" >nul
 if not exist "%TARGET%\vendor" mkdir "%TARGET%\vendor"
 copy /y "%~dp0vendor\*" "%TARGET%\vendor\" >nul
+if not exist "%TARGET%\tools" mkdir "%TARGET%\tools"
+copy /y "%~dp0tools\*" "%TARGET%\tools\" >nul
 
 echo  [3/5] Allowing tablets through the firewall (port 8787)...
 netsh advfirewall firewall delete rule name="CAS School Server" >nul 2>&1

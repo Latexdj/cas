@@ -100,6 +100,118 @@ function Publish({ app, onDone }: { app: (typeof APPS)[number]; onDone: () => vo
   );
 }
 
+// The CAS School Server program: each school's server downloads a newer
+// version when it syncs and installs it outside school hours.
+interface ServerRelease { id: string; version: string; notes: string | null; size: number; status: string; published_at: string }
+interface ServerRow { name: string; school: string; version: string | null; last_seen_at: string | null }
+function ServerSection() {
+  const input = useRef<HTMLInputElement>(null);
+  const [data, setData] = useState<{ releases: ServerRelease[]; latest: string | null; servers: ServerRow[] } | null>(null);
+  const [bundle, setBundle] = useState<{ version: string; files: Record<string, string>; built_at?: string } | null>(null);
+  const [fileName, setFileName] = useState('');
+  const [notes, setNotes] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+  const load = useCallback(() => {
+    saApi.get('/api/server-releases').then(r => setData(r.data)).catch(e => setMsg({ text: errText(e, 'Could not load the server versions.'), ok: false }));
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  async function pick(f: File) {
+    setMsg(null); setFileName(f.name);
+    try {
+      const b = JSON.parse(await f.text());
+      if (!b?.version || !b?.files) throw new Error('x');
+      setBundle(b);
+    } catch { setBundle(null); setMsg({ text: 'That is not a CAS School Server update file (cas-school-server-<version>.json).', ok: false }); }
+  }
+  async function publish() {
+    if (!bundle) return;
+    setBusy(true); setMsg(null);
+    try {
+      await saApi.post('/api/server-releases', { bundle, notes }, { timeout: 120000 });
+      setMsg({ text: `Version ${bundle.version} published. School servers install it outside school hours after their next sync.`, ok: true });
+      setBundle(null); setNotes(''); setFileName(''); load();
+    } catch (e) { setMsg({ text: errText(e, 'It could not be published.'), ok: false }); }
+    setBusy(false);
+  }
+  async function withdraw(id: string) {
+    try { await saApi.delete(`/api/server-releases/${id}`); setConfirmId(null); load(); }
+    catch (e) { setMsg({ text: errText(e, 'It could not be withdrawn.'), ok: false }); }
+  }
+  const current = data?.releases.find(r => r.status === 'live' && r.version === data.latest);
+  const behind = (s: ServerRow) => !!(s.version && data?.latest && s.version !== data.latest);
+  return (
+    <section aria-labelledby="h-server" style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div>
+        <h2 id="h-server" style={{ margin: 0, fontSize: 17, fontWeight: 700, color: C.ink }}>CAS School Server</h2>
+        <p style={{ margin: '4px 0 0', fontSize: 14, color: C.ink2 }}>
+          {!data ? 'Loading…' : current ? <>Latest: version {current.version}, published {when(current.published_at)}.</> : 'No server version published yet.'}
+        </p>
+        {current?.notes && <p style={{ margin: '4px 0 0', fontSize: 13, color: C.muted }}>{current.notes}</p>}
+        <p style={{ margin: '6px 0 0', fontSize: 13, color: C.muted }}>
+          Each school&apos;s server downloads a newer version when it syncs and installs it outside school hours, when no test is underway. If it will not start, the server goes back to its previous version by itself.
+        </p>
+      </div>
+      {!!data?.servers.length && (
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+            <thead><tr>{['School', 'Server', 'Version', 'Last in touch'].map(h => <th key={h} style={{ textAlign: 'left', color: C.muted, fontWeight: 600, padding: '6px 8px' }}>{h}</th>)}</tr></thead>
+            <tbody>
+              {data.servers.map((s, i) => (
+                <tr key={i} style={{ borderTop: `1px solid ${C.border}` }}>
+                  <td style={{ padding: '6px 8px', color: C.ink }}>{s.school}</td>
+                  <td style={{ padding: '6px 8px', color: C.ink2 }}>{s.name}</td>
+                  <td style={{ padding: '6px 8px', color: behind(s) ? C.primary : C.ink2 }}>
+                    {s.version ?? 'not reported yet'}{behind(s) ? ', update waiting' : ''}
+                  </td>
+                  <td style={{ padding: '6px 8px', color: C.muted }}>{s.last_seen_at ? when(s.last_seen_at) : 'never'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <input ref={input} type="file" accept=".json,application/json" hidden
+        onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) pick(f); }} />
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        <button type="button" onClick={() => input.current?.click()} disabled={busy}
+          style={{ minHeight: 44, padding: '0 16px', borderRadius: 10, border: `1px solid ${C.border}`, background: 'transparent', color: C.ink, fontWeight: 600, cursor: 'pointer' }}>
+          {bundle ? 'Choose another file' : 'Choose the server update file'}
+        </button>
+        {fileName && <span style={{ color: C.ink2, fontSize: 14 }}>{fileName}{bundle ? `, version ${bundle.version}, ${Object.keys(bundle.files).length} files` : ''}</span>}
+      </div>
+      {bundle && (
+        <>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, color: C.muted }}>
+            What changed (shown on each server&apos;s Settings page)
+            <input value={notes} onChange={e => setNotes(e.target.value)} maxLength={500}
+              style={{ minHeight: 44, borderRadius: 10, border: `1px solid ${C.border}`, background: '#0B1A0E', color: C.ink, padding: '0 12px', fontSize: 15 }} />
+          </label>
+          <button type="button" onClick={publish} disabled={busy}
+            style={{ alignSelf: 'flex-start', minHeight: 44, padding: '0 20px', borderRadius: 10, border: 'none', background: C.primary, color: C.onPrimary, fontWeight: 700, cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.6 : 1 }}>
+            {busy ? 'Publishing…' : `Publish version ${bundle.version}`}
+          </button>
+        </>
+      )}
+      {msg && <p role="status" style={{ margin: 0, fontSize: 14, color: msg.ok ? C.good : C.bad }}>{msg.text}</p>}
+      {current && (confirmId === current.id ? (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', fontSize: 14, color: C.ink2 }}>
+          Withdraw version {current.version}? Servers that have not installed it yet will not get it.
+          <button type="button" onClick={() => withdraw(current.id)} style={{ minHeight: 40, padding: '0 14px', borderRadius: 10, border: `1px solid ${C.bad}`, background: 'transparent', color: C.bad, fontWeight: 600 }}>Withdraw</button>
+          <button type="button" onClick={() => setConfirmId(null)} style={{ minHeight: 40, padding: '0 14px', borderRadius: 10, border: `1px solid ${C.border}`, background: 'transparent', color: C.ink, fontWeight: 600 }}>Cancel</button>
+        </div>
+      ) : (
+        <button type="button" onClick={() => setConfirmId(current.id)}
+          style={{ alignSelf: 'flex-start', minHeight: 40, padding: '0 14px', borderRadius: 10, border: `1px solid ${C.border}`, background: 'transparent', color: C.bad, fontWeight: 600, cursor: 'pointer' }}>
+          Withdraw version {current.version}
+        </button>
+      ))}
+    </section>
+  );
+}
+
 export default function AppReleasesPage() {
   const [data, setData] = useState<Releases | null>(null);
   const [err, setErr] = useState('');
@@ -141,6 +253,7 @@ export default function AppReleasesPage() {
           </section>
         );
       })}
+      <ServerSection />
     </div>
   );
 }

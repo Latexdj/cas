@@ -349,6 +349,26 @@ router.post('/lm/uploads/:id/result', serverAuth, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// The newest published version of the server program, and its file.
+const serverReleases = require('./server-releases');
+router.get('/server-release', serverAuth, async (req, res, next) => {
+  try {
+    const r = await serverReleases.latest();
+    res.json({ release: r ? { version: r.version, sha256: r.sha256, size: Number(r.size), notes: r.notes } : null });
+  } catch (err) { next(err); }
+});
+router.get('/server-release/download', serverAuth, async (req, res, next) => {
+  try {
+    const r = await serverReleases.latest();
+    if (!r) return res.status(404).json({ error: 'No server update published.' });
+    const { data, error } = await supabase.storage.from(STORAGE_BUCKET).download(r.storage_path);
+    if (error || !data) return res.status(404).json({ error: 'The update file is missing.' });
+    const buf = Buffer.from(await data.arrayBuffer());
+    res.set({ 'Content-Type': 'application/json', 'Content-Length': buf.length });
+    res.end(buf);
+  } catch (err) { next(err); }
+});
+
 router.post('/summary', serverAuth, async (req, res, next) => {
   try {
     // The server's addresses on the school network, busiest first (the one tablets and teachers use).
@@ -362,9 +382,11 @@ router.post('/summary', serverAuth, async (req, res, next) => {
       ? req.body.lm_folders.map(f => String(f).slice(0, 400)).filter(Boolean).slice(0, 5000) : null;
     await pool.query(
       `UPDATE school_servers SET last_sync_summary=$1,
-              lan=COALESCE($3::jsonb, lan), lan_port=COALESCE($4, lan_port), lm_folders=COALESCE($5::jsonb, lm_folders) WHERE id=$2`,
+              lan=COALESCE($3::jsonb, lan), lan_port=COALESCE($4, lan_port), lm_folders=COALESCE($5::jsonb, lm_folders),
+              version=COALESCE($6, version) WHERE id=$2`,
       [String(req.body?.summary || '').slice(0, 300), req.serverId, lan.length ? JSON.stringify(lan) : null,
-       port && port > 0 && port < 65536 ? port : null, folders ? JSON.stringify(folders) : null]);
+       port && port > 0 && port < 65536 ? port : null, folders ? JSON.stringify(folders) : null,
+       /^\d+\.\d+\.\d+$/.test(String(req.body?.version || '')) ? String(req.body.version) : null]);
     res.json({ ok: true });
   } catch (err) { next(err); }
 });
