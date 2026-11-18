@@ -77,14 +77,22 @@ async function scan(packVersion: number | null): Promise<SchoolServer | null> {
   // Low addresses first: servers usually get those.
   const hosts = Array.from({ length: 254 }, (_, i) => i + 1).filter(n => n !== own);
   const signal = { found: false };
-  let hit: SchoolServer | null = null;
-  const BATCH = 48;
-  for (let i = 0; i < hosts.length && !hit; i += BATCH) {
-    const results = await Promise.all(hosts.slice(i, i + BATCH).map(n => probe(`${prefix}.${n}:${SERVER_PORT}`, 900, packVersion, signal)));
-    hit = results.find(Boolean) ?? null;
-    if (hit) signal.found = true;
-  }
-  return hit;
+  // On a busy Wi-Fi (many tablets on one router, far from it) one round trip
+  // can take 300 ms, and reaching the server takes several, so a short wait
+  // misses it. A quick sweep first, then, only if that finds nothing, a
+  // patient one: low addresses (where servers usually are) get 5 s, the rest 3 s.
+  // Fewer requests at a time also keep the sweep from crowding the Wi-Fi.
+  const sweep = async (list: number[], batch: number, ms: number) => {
+    for (let i = 0; i < list.length && !signal.found; i += batch) {
+      const results = await Promise.all(list.slice(i, i + batch).map(n => probe(`${prefix}.${n}:${SERVER_PORT}`, ms, packVersion, signal)));
+      const hit = results.find(Boolean) ?? null;
+      if (hit) { signal.found = true; return hit; }
+    }
+    return null;
+  };
+  return (await sweep(hosts, 32, 1500))
+    ?? (await sweep(hosts.filter(n => n <= 60), 30, 5000))
+    ?? (await sweep(hosts.filter(n => n > 60), 32, 3000));
 }
 
 export async function getManualAddress(): Promise<string | null> {
@@ -111,10 +119,10 @@ export function findSchoolServer(opts: { fresh?: boolean; packVersion?: number |
     const pv = opts.packVersion ?? null;
     let server: SchoolServer | null = null;
     const manual = await getManualAddress();
-    if (manual) server = await probe(manual, 3000, pv);
+    if (manual) server = await probe(manual, 6000, pv);
     if (!server) {
       const saved = await AsyncStorage.getItem(K_SAVED).catch(() => null);
-      if (saved && saved !== manual) server = await probe(saved, 2000, pv);
+      if (saved && saved !== manual) server = await probe(saved, 5000, pv);
     }
     if (!server) server = await scan(pv);
     if (server) await AsyncStorage.setItem(K_SAVED, server.address).catch(() => {});
