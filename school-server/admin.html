@@ -50,6 +50,14 @@
   .tag { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; }
   .tag.ok { background: var(--brand-soft); color: var(--brand); }
   .tag.old { background: var(--gold-soft); color: var(--gold); }
+  select { min-height: 42px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--ink); font: 14px system-ui, sans-serif; }
+  .picker { display: grid; gap: 10px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--sunken); }
+  .picker label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); font-weight: 600; }
+  .dest { font: 600 14px ui-monospace, Consolas, monospace; color: var(--ink); word-break: break-word; }
+  .tag.warn { background: var(--gold-soft); color: var(--gold); }
+  .cores { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 6px 14px; }
+  .cores label { display: flex; gap: 8px; align-items: center; font-size: 14px; }
+  .cores input, td input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--brand); }
   input[type=text] { min-height: 42px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--ink); font: 14px system-ui, sans-serif; min-width: 240px; }
   [hidden] { display: none !important; }
 </style>
@@ -112,10 +120,34 @@
         <p class="muted" id="lmsummary"></p>
       </div>
       <div class="row">
+        <button class="primary" id="lmaddbtn">Add material</button>
+        <button id="lmsetupbtn">Set up standard folders</button>
         <button id="lmnewbtn">New folder</button>
         <label class="filebtn">Upload files<input type="file" id="lmfiles" multiple hidden></label>
         <label class="filebtn">Upload a folder<input type="file" id="lmdir" webkitdirectory multiple hidden></label>
         <button id="lmcopybtn">Copy from this PC</button>
+      </div>
+    </div>
+    <div id="lmadd" class="picker" hidden>
+      <strong id="lmaddtitle">Add material</strong>
+      <div class="row">
+        <label>Programme<select id="pkprog"><option>WASSCE</option><option>CTVET</option></select></label>
+        <label>Section<select id="pksect"></select></label>
+        <label id="pkkindw">Core or elective<select id="pkkind"><option>CORE SUBJECTS</option><option>ELECTIVE SUBJECTS</option></select></label>
+        <label id="pksubjw">Subject or trade<select id="pksubj"></select></label>
+        <label id="pknewsubjw" hidden>New subject name<input type="text" id="pknewsubj" placeholder="WELDING TECH" style="min-width:200px"></label>
+        <label id="pktypew">Type<select id="pktype"><option>TEXTBOOKS</option><option>TEACHER NOTES</option><option>PICTURES</option><option>VIDEO</option></select></label>
+        <label id="pkyearw">Year<input type="text" id="pkyear" inputmode="numeric" maxlength="4" placeholder="2024" style="min-width:90px;width:90px"></label>
+      </div>
+      <div>Goes into <span class="dest" id="pkdest"></span></div>
+      <div class="row" id="pkupload">
+        <label class="filebtn primary">Choose files<input type="file" id="pkfiles" multiple hidden></label>
+        <label class="filebtn">Choose a folder<input type="file" id="pkdir" webkitdirectory multiple hidden></label>
+        <button id="pkcancel">Cancel</button>
+      </div>
+      <div class="row" id="pkmove" hidden>
+        <button class="primary" id="pkmoveok">Move here</button>
+        <button id="pkmoveno">Cancel</button>
       </div>
     </div>
     <div id="lmnew" class="row" hidden>
@@ -133,7 +165,30 @@
       <thead><tr><th>Name</th><th>Size</th><th></th></tr></thead>
       <tbody id="lmrows"></tbody>
     </table></div>
-    <p class="muted">Every tablet on the school Wi-Fi downloads these into its Learning Materials when the app opens.</p>
+    <p class="muted">Every tablet on the school Wi-Fi downloads these, with the same folders, into its Learning Materials when the app opens.</p>
+  </section>
+
+  <section class="card" aria-labelledby="h-lmmap">
+    <div>
+      <h2 id="h-lmmap">Classes and teacher notes</h2>
+      <p class="muted">Which LM folder each class uses, and which subjects are core. Teacher notes go into the TEACHER NOTES folder for the classes a teacher picks, and Set up standard folders makes a subject folder for each CTVET subject.</p>
+    </div>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Class</th><th>Programme</th><th>Form or level</th></tr></thead>
+      <tbody id="maprows"></tbody>
+    </table></div>
+    <div>
+      <strong>Core subjects</strong> <span class="muted">Ticked subjects go in CORE folders; the rest in ELECTIVE folders.</span>
+      <div class="cores" id="corelist" style="margin-top:8px"></div>
+    </div>
+    <div class="row"><button class="primary" id="mapsave">Save</button><span id="mapmsg" role="status"></span></div>
+    <div>
+      <strong>Teacher notes</strong> <span class="muted">Uploaded by teachers on the teacher page or in the CAS teacher portal.</span>
+      <div class="tablewrap" style="margin-top:8px"><table>
+        <thead><tr><th>Teacher</th><th>Subject</th><th>Classes</th><th>File</th><th>Where</th><th></th></tr></thead>
+        <tbody id="noterows"></tbody>
+      </table></div>
+    </div>
   </section>
 
   <section class="card" aria-labelledby="h-dev">
@@ -306,7 +361,8 @@ async function lmLoad() {
     .concat(parts.map((p, i) => `<span class="muted">/</span><button data-go="${esc(parts.slice(0, i + 1).join('/'))}">${esc(p)}</button>`)).join('');
   const rows = [];
   for (const f of d.folders) rows.push(`<tr><td><button class="link" data-go="${esc(f.path)}">${esc(f.name)}</button></td><td>${f.files} file${f.files === 1 ? '' : 's'}, ${size(f.size)}</td><td style="text-align:right">${delBtn(f.path, 'folder')}</td></tr>`);
-  for (const f of d.files) rows.push(`<tr><td>${esc(f.name)}</td><td>${size(f.size)}</td><td style="text-align:right">${delBtn(f.path, 'file')}</td></tr>`);
+  for (const f of d.files) rows.push(`<tr><td>${esc(f.name)}${lmPath ? '' : ' <span class="tag warn">Not in a class folder</span>'}</td><td>${size(f.size)}</td>
+    <td style="text-align:right;white-space:nowrap"><button data-move="${esc(f.path)}">Move</button> ${delBtn(f.path, 'file')}</td></tr>`);
   $('lmrows').innerHTML = rows.join('') || `<tr><td colspan="3" class="muted">${lmPath ? 'This folder is empty. Upload files into it.' : 'No learning materials yet. Upload files or a folder, or copy an existing LM folder from this PC.'}</td></tr>`;
 }
 function delBtn(p, kind) {
@@ -398,6 +454,147 @@ async function pollCopy() {
   }
 }
 lmLoad();
+
+// ── Add material: pick the class folder instead of typing a path ──
+const safePart = (x) => String(x || '').replace(/[<>:"/\\|?*\x00-\x1f]/g, ' ').replace(/\s+/g, ' ').trim().replace(/[. ]+$/, '');
+let layout = { classes: [], subjects: [], notes: [] };
+let moving = null;  // file path being moved
+const SECTIONS = {
+  WASSCE: ['FORM 1', 'FORM 2', 'FORM 3', 'WAEC PAST QUESTIONS'],
+  CTVET: ['CORE NCI', 'CORE NCII', 'ELECTIVES', 'PAST QUESTIONS'],
+};
+function pkSections() {
+  const prog = $('pkprog').value;
+  $('pksect').innerHTML = SECTIONS[prog].map(x => `<option>${x}</option>`).join('');
+  pkSubjects();
+}
+async function pkSubjects() {
+  const prog = $('pkprog').value, sect = $('pksect').value;
+  const past = /PAST QUESTIONS/.test(sect);
+  const ctvetSubj = prog === 'CTVET' && !past;
+  $('pkkindw').hidden = !(prog === 'WASSCE' && !past);
+  $('pksubjw').hidden = !ctvetSubj;
+  $('pktypew').hidden = past;
+  $('pkyearw').hidden = !past;
+  if (ctvetSubj) {
+    const core = sect !== 'ELECTIVES';
+    const dir = core ? `CTVET/CORE/${sect.replace('CORE ', '')}` : 'CTVET/ELECTIVES';
+    let have = [];
+    try { const r = await fetch(`/admin/lm/list?path=${enc(dir)}`); if (r.ok) have = (await r.json()).folders.map(f => f.name); } catch {}
+    const fromCas = layout.subjects.filter(x => x.core === core).map(x => safePart(x.name));
+    const names = [...new Set([...have, ...fromCas])].filter(Boolean).sort((a, b) => a.localeCompare(b));
+    $('pksubj').innerHTML = names.map(n => `<option>${esc(n)}</option>`).join('') + '<option value="__new">New subject…</option>';
+  }
+  pkDest();
+}
+function pkDest() {
+  const prog = $('pkprog').value, sect = $('pksect').value;
+  $('pknewsubjw').hidden = $('pksubjw').hidden || $('pksubj').value !== '__new';
+  const subj = $('pksubj').value === '__new' ? safePart($('pknewsubj').value.toUpperCase()) : $('pksubj').value;
+  const year = $('pkyear').value.trim();
+  let d = '';
+  if (prog === 'WASSCE') d = sect === 'WAEC PAST QUESTIONS' ? (/^\d{4}$/.test(year) ? `WASSCE/WAEC PAST QUESTIONS/${year}` : '') : `WASSCE/${sect}/${$('pkkind').value}/${$('pktype').value}`;
+  else if (sect === 'PAST QUESTIONS') d = /^\d{4}$/.test(year) ? `CTVET/PAST QUESTIONS/${year}` : '';
+  else if (subj) d = sect === 'ELECTIVES' ? `CTVET/ELECTIVES/${subj}/${$('pktype').value}` : `CTVET/CORE/${sect.replace('CORE ', '')}/${subj}/${$('pktype').value}`;
+  $('pkdest').textContent = d ? `LM / ${d.split('/').join(' / ')}` : (/PAST/.test(sect) ? 'Type the year, for example 2024.' : 'Choose or type the subject.');
+  $('pkdest').dataset.path = d;
+  return d;
+}
+['pkprog'].forEach(id => $(id).onchange = pkSections);
+['pksect'].forEach(id => $(id).onchange = pkSubjects);
+['pkkind', 'pksubj', 'pktype'].forEach(id => $(id).onchange = pkDest);
+['pknewsubj', 'pkyear'].forEach(id => $(id).oninput = pkDest);
+function pkOpen(movePath) {
+  moving = movePath || null;
+  $('lmadd').hidden = false;
+  $('lmaddtitle').textContent = moving ? `Move ${moving.split('/').pop()} to` : 'Add material';
+  $('pkupload').hidden = !!moving; $('pkmove').hidden = !moving;
+  if (!$('pksect').options.length) pkSections(); else pkDest();
+  $('lmadd').scrollIntoView({ block: 'nearest' });
+}
+const pkClose = () => { $('lmadd').hidden = true; moving = null; };
+$('lmaddbtn').onclick = () => pkOpen(null);
+$('pkcancel').onclick = pkClose; $('pkmoveno').onclick = pkClose;
+document.addEventListener('click', (e) => { const m = e.target.closest('[data-move]'); if (m) pkOpen(m.getAttribute('data-move')); });
+function pkTarget() {
+  const d = pkDest();
+  if (!d) { msg($('lmmsg'), 'Finish choosing the folder first.', 'bad'); return null; }
+  return d;
+}
+$('pkfiles').onchange = async (e) => {
+  const d = pkTarget(); const files = [...e.target.files]; e.target.value = '';
+  if (!d) return;
+  await uploadAll(files.map(f => ({ file: f, rel: `${d}/${f.name}` })));
+  lmPath = d; pkClose(); lmLoad();
+};
+$('pkdir').onchange = async (e) => {
+  const d = pkTarget();
+  const files = [...e.target.files].filter(f => !/(^|\/)\./.test(f.webkitRelativePath) && !/(desktop\.ini|thumbs\.db)$/i.test(f.name)); e.target.value = '';
+  if (!d) return;
+  await uploadAll(files.map(f => ({ file: f, rel: `${d}/${f.webkitRelativePath}` })));
+  lmPath = d; pkClose(); lmLoad();
+};
+$('pkmoveok').onclick = async () => {
+  const d = pkTarget(); if (!d || !moving) return;
+  const r = await fetch('/admin/lm/move', { method: 'POST', body: JSON.stringify({ from: moving, to_dir: d }) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) return msg($('lmmsg'), j.error || 'Could not move it.', 'bad');
+  msg($('lmmsg'), `Moved to ${d}.`, 'ok'); lmPath = d; pkClose(); lmLoad(); load();
+};
+$('lmsetupbtn').onclick = async () => {
+  const r = await fetch('/admin/lm/setup', { method: 'POST' });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) return msg($('lmmsg'), j.error || 'Could not set up the folders.', 'bad');
+  msg($('lmmsg'), j.created ? `Made ${j.created} folder${j.created === 1 ? '' : 's'}. The standard LM folders are ready.` : 'The standard LM folders are already set up.', 'ok');
+  lmLoad(); load();
+};
+
+// ── Classes and teacher notes ──
+const LEVELS = { WASSCE: ['FORM 1', 'FORM 2', 'FORM 3'], CTVET: ['NCI', 'NCII'] };
+function levelOptions(prog, cur) {
+  return `<option value="">Not set</option>` + (LEVELS[prog] || []).map(l => `<option ${l === cur ? 'selected' : ''}>${l}</option>`).join('');
+}
+async function mapLoad() {
+  const r = await fetch('/admin/lm/layout');
+  if (!r.ok) return;
+  layout = await r.json();
+  $('maprows').innerHTML = layout.classes.map(c => `<tr data-cls="${esc(c.class_name)}"><td>${esc(c.class_name)}</td>
+    <td><select data-prog aria-label="Programme for ${esc(c.class_name)}"><option value="">Not set</option><option ${c.programme === 'WASSCE' ? 'selected' : ''}>WASSCE</option><option ${c.programme === 'CTVET' ? 'selected' : ''}>CTVET</option></select></td>
+    <td><select data-level aria-label="Form or level for ${esc(c.class_name)}">${levelOptions(c.programme, c.level)}</select></td></tr>`).join('')
+    || '<tr><td colspan="3" class="muted">No classes yet. Connect this server to CAS and sync.</td></tr>';
+  $('corelist').innerHTML = layout.subjects.map(x => `<label><input type="checkbox" data-core="${esc(x.name)}" ${x.core ? 'checked' : ''}>${esc(x.name)}</label>`).join('')
+    || '<span class="muted">No subjects yet.</span>';
+  $('noterows').innerHTML = (layout.notes || []).map(n => `<tr><td>${esc(n.teacher_name || '')}</td><td>${esc(n.subject)}</td><td>${esc(n.class_names)}</td>
+    <td>${esc(n.file_name)}${n.source === 'cas' ? ' <span class="tag ok">CAS</span>' : ''}</td>
+    <td>${n.folders.length ? n.folders.map(f => esc(f)).join('<br>') : '<span class="tag warn">Classes not placed</span>'}</td>
+    <td style="text-align:right"><span data-delnote="${esc(n.id)}"><button class="danger">Remove</button></span></td></tr>`).join('')
+    || '<tr><td colspan="6" class="muted">No teacher notes yet.</td></tr>';
+}
+document.addEventListener('change', (e) => {
+  const prog = e.target.closest('[data-prog]');
+  if (prog) { const row = prog.closest('tr'); row.querySelector('[data-level]').innerHTML = levelOptions(prog.value, ''); }
+});
+document.addEventListener('click', async (e) => {
+  const dn = e.target.closest('[data-delnote]');
+  if (!dn) return;
+  if (!dn.dataset.confirm) {
+    dn.dataset.confirm = '1';
+    dn.innerHTML = '<span class="muted">Remove it from every tablet?</span> <button class="danger" data-noteyes>Remove</button> <button data-noteno>Cancel</button>';
+    return;
+  }
+  if (e.target.matches('[data-noteno]')) return mapLoad();
+  if (e.target.matches('[data-noteyes]')) { await fetch(`/admin/lm/notes/${dn.getAttribute('data-delnote')}`, { method: 'DELETE' }); mapLoad(); lmLoad(); load(); }
+});
+$('mapsave').onclick = async () => {
+  const classes = [...document.querySelectorAll('#maprows tr[data-cls]')].map(tr => ({
+    class_name: tr.dataset.cls, programme: tr.querySelector('[data-prog]').value, level: tr.querySelector('[data-level]').value }));
+  const core = [...document.querySelectorAll('[data-core]:checked')].map(x => x.dataset.core);
+  const r = await fetch('/admin/lm/layout', { method: 'POST', body: JSON.stringify({ classes, core }) });
+  if (!r.ok) return msg($('mapmsg'), 'Could not save.', 'bad');
+  msg($('mapmsg'), 'Saved. Teacher notes were moved to match.', 'ok');
+  mapLoad(); lmLoad();
+};
+mapLoad();
 load(); setInterval(load, 10000);
 </script>
 </body>

@@ -82,6 +82,7 @@ const lessonObservationRoutes = require('./routes/lesson-observation');
 const teacherResourcesRoutes  = require('./routes/teacher-resources');
 const pascoBankRoutes         = require('./routes/pasco-bank');
 const schoolServerRoutes      = require('./routes/school-server');
+const lmNotesRoutes           = require('./routes/lm-notes').router;
 const appReleasesRoutes       = require('./routes/app-releases');
 const departmentBudgetsRoutes = require('./routes/department-budgets');
 const helpChatRoutes          = require('./routes/help-chat');
@@ -212,6 +213,7 @@ app.use('/api/lesson-observation',    lessonObservationRoutes);
 app.use('/api/teacher-resources',     teacherResourcesRoutes);
 app.use('/api/pasco-bank',            pascoBankRoutes);
 app.use('/api/school-server',         schoolServerRoutes);
+app.use('/api/lm-notes',              lmNotesRoutes);
 app.use('/api/app-releases',          appReleasesRoutes);
 app.use('/api/department-budgets',    departmentBudgetsRoutes);
 app.use('/api/policy-documents',      policyDocumentsRoutes);
@@ -2947,6 +2949,22 @@ async function runMigrations() {
       // Where the server answers on the school network, so the teacher portal can open it without typing an address.
       await pool.query(`ALTER TABLE school_servers ADD COLUMN IF NOT EXISTS lan JSONB`);
       await pool.query(`ALTER TABLE school_servers ADD COLUMN IF NOT EXISTS lan_port INTEGER`);
+      // Teacher notes for the tablets' TEACHER NOTES folders (see routes/lm-notes.js).
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS lm_teacher_notes (
+          id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          school_id    UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+          teacher_id   UUID NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
+          subject      TEXT NOT NULL,
+          class_names  TEXT NOT NULL,
+          file_name    TEXT NOT NULL,
+          storage_path TEXT NOT NULL,
+          url          TEXT NOT NULL,
+          size         INTEGER NOT NULL DEFAULT 0,
+          created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+          deleted_at   TIMESTAMPTZ
+        )`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_lm_teacher_notes_school ON lm_teacher_notes(school_id) WHERE deleted_at IS NULL`);
     } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] school server link:', e.message); }
 
     // Academic year date range

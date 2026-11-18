@@ -49,6 +49,7 @@ export const MENU: { label: string; items: MenuItem[] }[] = [
       { route: '/(tabs)/results', label: 'Results', sub: 'Class results and report cards', icon: 'bar-chart-outline', module: 'assessments' },
       { route: '/lms', label: 'My Courses', sub: 'Lessons, assignments and quizzes', icon: 'school-outline', module: 'lms' },
       { route: '/offline-assessment', label: 'Offline Assessment', sub: 'Tests and exams on the school Wi-Fi, no internet', icon: 'wifi-outline', module: 'lms' },
+      { route: '/tablet-notes', label: 'Notes for Tablets', sub: 'Teacher notes for your classes on the student tablets', icon: 'tablet-portrait-outline', module: 'lms' },
       { route: '/resources', label: 'Resources', sub: 'Subject apps and teaching websites', icon: 'apps-outline', module: 'teacher_resources' },
     ],
   },

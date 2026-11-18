@@ -31,6 +31,9 @@
   .between { justify-content: space-between; }
   button, .btn { min-height: 44px; padding: 0 16px; border-radius: 10px; font: 600 14px system-ui, sans-serif; cursor: pointer; border: 1px solid var(--line); background: var(--card); color: var(--ink); }
   button.primary { background: var(--brand); border-color: var(--brand); color: var(--brand-ink); }
+  .filebtn { min-height: 44px; padding: 0 16px; border-radius: 10px; font: 600 14px system-ui, sans-serif; cursor: pointer; border: 1px solid var(--line); background: var(--card); color: var(--ink); display: inline-flex; align-items: center; }
+  .filebtn.primary { background: var(--brand); border-color: var(--brand); color: var(--brand-ink); }
+  .filebtn:focus-within { outline: 2px solid var(--brand); outline-offset: 2px; }
   button.danger { color: var(--bad); }
   button.link { border: none; background: none; padding: 0; min-height: 0; color: var(--brand); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
   button:disabled { opacity: .5; cursor: default; }
@@ -84,7 +87,7 @@
   <!-- Header -->
   <header id="top" class="row between" hidden>
     <div><h1>Offline Assessment</h1><p class="muted" id="whoami"></p></div>
-    <div class="row"><button id="newtest" class="primary">New test</button><button id="signout">Sign out</button></div>
+    <div class="row"><button id="newtest" class="primary">New test</button><button id="notesbtn">Notes for tablets</button><button id="signout">Sign out</button></div>
   </header>
 
   <!-- My tests -->
@@ -131,6 +134,22 @@
   </section>
 
   <!-- Results -->
+  <!-- Teacher notes for the tablets -->
+  <section id="v-notes" hidden style="display:grid;gap:16px">
+    <div class="row between"><div><h2>Notes for tablets</h2>
+      <p class="muted">Your notes go into the TEACHER NOTES folder for the classes you tick, on every student tablet on the school Wi-Fi.</p></div>
+      <button class="link" id="nback">Back to my tests</button></div>
+    <div class="card" style="display:grid;gap:12px">
+      <label>Subject<select id="nsubject"></select></label>
+      <div><strong>Classes</strong> <span class="muted">Tick every class that should get them.</span><div class="ticks" id="nclasses" style="margin-top:8px"></div></div>
+      <div class="row"><label class="filebtn primary" style="display:inline-flex">Choose files to upload<input type="file" id="nfile" multiple hidden></label>
+        <span class="muted">PDF, Word, PowerPoint, pictures or video. 100 MB each at most.</span></div>
+      <div id="nmsg" role="status"></div>
+    </div>
+    <div class="card"><h2>My notes</h2>
+      <div class="tablewrap"><table><thead><tr><th>File</th><th>Subject</th><th>Classes</th><th>Added</th><th></th></tr></thead><tbody id="nrows"></tbody></table></div></div>
+  </section>
+
   <section id="v-res" hidden style="display:grid;gap:16px">
     <div class="row between"><div><h2 id="rtitle"></h2><p class="muted" id="rsub"></p></div>
       <div class="row"><button class="link" id="rback">Back to my tests</button></div></div>
@@ -157,7 +176,7 @@ async function api(path, opts = {}) {
   return d;
 }
 function msg(el, text, tone) { el.innerHTML = text ? `<div class="msg ${tone}">${esc(text)}</div>` : ''; }
-function show(view) { for (const v of ['v-login', 'v-list', 'v-edit', 'v-res']) $(v).hidden = v !== view; $('top').hidden = view === 'v-login'; if (view !== 'v-res') { clearInterval(resTimer); resTimer = null; } }
+function show(view) { for (const v of ['v-login', 'v-list', 'v-edit', 'v-res', 'v-notes']) $(v).hidden = v !== view; $('top').hidden = view === 'v-login'; if (view !== 'v-res') { clearInterval(resTimer); resTimer = null; } }
 
 // ── Sign in ──
 $('loginform').onsubmit = async (e) => {
@@ -192,6 +211,65 @@ async function start() {
 }
 
 // ── My tests ──
+// ── Notes for tablets ──
+let notesData = { notes: [], subjects: [] };
+async function loadNotes() {
+  try { notesData = await api('/lms/teacher/notes'); } catch (err) { msg($('nmsg'), err.message, 'bad'); return; }
+  const cur = $('nsubject').value;
+  $('nsubject').innerHTML = notesData.subjects.length
+    ? notesData.subjects.map(x => `<option ${x.subject === cur ? 'selected' : ''}>${esc(x.subject)}</option>`).join('')
+    : '<option value="">No lessons on your timetable yet</option>';
+  noteClasses();
+  $('nrows').innerHTML = notesData.notes.map(n => `<tr><td>${esc(n.file_name)}${n.folders.length ? '' : ' <span class="muted">(classes not placed yet)</span>'}</td>
+    <td>${esc(n.subject)}</td><td>${esc(n.class_names)}</td><td>${esc(new Date(n.created_at).toLocaleDateString())}</td>
+    <td style="text-align:right">${n.source === 'cas' ? '<span class="muted">Added in CAS</span>' : `<span data-delnote="${esc(n.id)}"><button class="link danger">Remove</button></span>`}</td></tr>`).join('')
+    || '<tr><td colspan="5" class="muted">No notes yet.</td></tr>';
+}
+function noteClasses() {
+  const subj = notesData.subjects.find(x => x.subject === $('nsubject').value);
+  $('nclasses').innerHTML = (subj?.classes || []).map(c => `<label><input type="checkbox" data-ncls="${esc(c)}" checked> ${esc(c)}</label>`).join('')
+    || '<span class="muted">No classes.</span>';
+}
+$('nsubject').onchange = noteClasses;
+$('notesbtn').onclick = () => { show('v-notes'); msg($('nmsg'), '', ''); loadNotes(); };
+$('nback').onclick = () => { show('v-list'); listTests(); };
+$('nfile').onchange = async (e) => {
+  const files = [...e.target.files]; e.target.value = '';
+  const subject = $('nsubject').value;
+  const classes = [...document.querySelectorAll('[data-ncls]:checked')].map(x => x.dataset.ncls);
+  if (!subject) return msg($('nmsg'), 'Choose a subject.', 'bad');
+  if (!classes.length) return msg($('nmsg'), 'Tick at least one class.', 'bad');
+  let ok = 0;
+  for (const [i, f] of files.entries()) {
+    msg($('nmsg'), `Uploading ${i + 1} of ${files.length}: ${f.name}…`, 'info');
+    try {
+      const q = `subject=${encodeURIComponent(subject)}&classes=${encodeURIComponent(classes.join(','))}&name=${encodeURIComponent(f.name)}`;
+      const r = await fetch(`/lms/teacher/notes?${q}`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/octet-stream' }, body: f });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || 'The upload failed.');
+      ok++;
+      if (d.unmapped?.length) msg($('nmsg'), `${f.name} added, but ${d.unmapped.join(', ')} ${d.unmapped.length === 1 ? 'has' : 'have'} no LM folder yet, so ${d.unmapped.length === 1 ? 'it does' : 'they do'} not get it. Ask the admin.`, 'info');
+    } catch (err) { msg($('nmsg'), `${f.name}: ${err.message}`, 'bad'); await loadNotes(); return; }
+  }
+  if (ok) msg($('nmsg'), `Added ${ok} file${ok === 1 ? '' : 's'}. Tablets get ${ok === 1 ? 'it' : 'them'} the next time they open Learning Materials on the school Wi-Fi.`, 'ok');
+  loadNotes();
+};
+document.addEventListener('click', async (e) => {
+  const dn = e.target.closest('[data-delnote]');
+  if (!dn) return;
+  if (!dn.dataset.confirm) {
+    dn.dataset.confirm = '1';
+    dn.innerHTML = '<span class="muted">Remove from the tablets?</span> <button class="link danger" data-nyes>Remove</button> <button class="link" data-nno>Cancel</button>';
+    return;
+  }
+  if (e.target.matches('[data-nno]')) return loadNotes();
+  if (e.target.matches('[data-nyes]')) {
+    try { await api(`/lms/teacher/notes/${dn.getAttribute('data-delnote')}`, { method: 'DELETE' }); msg($('nmsg'), 'Removed.', 'ok'); }
+    catch (err) { msg($('nmsg'), err.message, 'bad'); }
+    loadNotes();
+  }
+});
+
 async function listTests() {
   show('v-list');
   const tests = await api('/lms/teacher/tests');

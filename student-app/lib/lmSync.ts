@@ -18,7 +18,7 @@ const RECORD = `${FileSystem.documentDirectory}lm-sync.json`;
 const RESERVE = 300 * 1024 * 1024;   // leave this much space free on the tablet
 
 interface ServerFile { path: string; size: number; mtime: number }
-interface SyncRecord { version: string | null; files: Record<string, { size: number; mtime: number }> }
+interface SyncRecord { version: string | null; files: Record<string, { size: number; mtime: number }>; folders?: string[] }
 
 export interface LmSyncState {
   phase: 'idle' | 'checking' | 'syncing' | 'paused' | 'done' | 'no-server' | 'error' | 'unsupported';
@@ -75,7 +75,7 @@ export async function startLmSync() {
     const server = await findSchoolServer();
     if (!server) { set({ phase: 'no-server', message: '' }); return; }
 
-    let manifest: { version: string; files: ServerFile[] };
+    let manifest: { version: string; files: ServerFile[]; folders?: string[] };
     try {
       const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 20000);
       const r = await fetch(`${server.base}/lm/manifest`, { signal: ctl.signal }).finally(() => clearTimeout(t));
@@ -94,6 +94,20 @@ export async function startLmSync() {
         delete rec.files[p];
       }
     }
+    await writeRecord(rec);
+
+    // The server's folders, empty ones too, so every tablet shows the same LM
+    // tree. Folders the server dropped go when they are empty (deepest first).
+    const serverFolders = manifest.folders || [];
+    for (const f of serverFolders) mkdirs(`${APP_LM}/${f}`);
+    const keep = new Set(serverFolders);
+    for (const f of [...(rec.folders || [])].filter(x => !keep.has(x)).sort((a, b) => b.length - a.length)) {
+      try {
+        const inside = await FileSystem.readDirectoryAsync(`${APP_LM}/${f}`);
+        if (!inside.length) await FileSystem.deleteAsync(`${APP_LM}/${f}`, { idempotent: true });
+      } catch { /* already gone */ }
+    }
+    rec.folders = serverFolders;
     await writeRecord(rec);
 
     const todo: ServerFile[] = [];

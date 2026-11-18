@@ -426,17 +426,18 @@ function lmRel(raw) {
 const lmAbs = (rel) => path.join(LM_DIR, ...rel.split('/').filter(Boolean));
 const isTempName = (n) => n.startsWith('.') || n.endsWith('.uploading');
 
-let lmCache = null;           // { version, files, total, at }
+let lmCache = null;           // { version, files, folders, total, at }
 function lmScan() {
   if (lmCache && Date.now() - lmCache.at < 60 * 1000) return lmCache;
   const files = [];
+  const folders = [];
   const walk = (dir, rel) => {
     let names = [];
     try { names = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
     for (const d of names) {
       if (isTempName(d.name)) continue;
       const r = rel ? `${rel}/${d.name}` : d.name;
-      if (d.isDirectory()) walk(path.join(dir, d.name), r);
+      if (d.isDirectory()) { folders.push(r); walk(path.join(dir, d.name), r); }
       else if (d.isFile()) {
         try { const st = fs.statSync(path.join(dir, d.name)); files.push({ path: r, size: st.size, mtime: Math.floor(st.mtimeMs) }); } catch { /* vanished */ }
       }
@@ -444,8 +445,9 @@ function lmScan() {
   };
   walk(LM_DIR, '');
   files.sort((a, b) => a.path.localeCompare(b.path));
-  const version = crypto.createHash('sha1').update(files.map(f => `${f.path}|${f.size}|${f.mtime}`).join('\n')).digest('hex').slice(0, 16);
-  lmCache = { version, files, total: files.reduce((n, f) => n + f.size, 0), at: Date.now() };
+  folders.sort();
+  const version = crypto.createHash('sha1').update(files.map(f => `${f.path}|${f.size}|${f.mtime}`).concat(folders).join('\n')).digest('hex').slice(0, 16);
+  lmCache = { version, files, folders, total: files.reduce((n, f) => n + f.size, 0), at: Date.now() };
   return lmCache;
 }
 const lmChanged = () => { lmCache = null; };
@@ -712,7 +714,7 @@ async function handle(req, res) {
 
   if (req.method === 'GET' && p === '/lm/manifest') {
     const m = lmScan();
-    return send(res, 200, { version: m.version, total: m.total, files: m.files });
+    return send(res, 200, { version: m.version, total: m.total, files: m.files, folders: m.folders });
   }
   if (req.method === 'GET' && p === '/lm/file') {
     const rel = lmRel(url.searchParams.get('path'));
@@ -757,6 +759,7 @@ async function handle(req, res) {
     if (req.method === 'PUT' && p === '/admin/lm/file') {
       const rel = lmRel(url.searchParams.get('path'));
       if (!rel) return send(res, 400, { error: 'That file name is not allowed.' });
+      if (!rel.includes('/')) return send(res, 400, { error: 'Files cannot go at the top of LM. Use Add material to choose the class folder.' });
       return receiveLmFile(req, res, rel);
     }
     try {
@@ -781,6 +784,28 @@ async function handle(req, res) {
         lmChanged();
         return send(res, 200, { ok: true });
       }
+      if (req.method === 'GET' && p === '/admin/lm/layout') return send(res, 200, { ...lms.lmLayout(), notes: lms.allNotes() });
+      if (req.method === 'POST' && p === '/admin/lm/layout') {
+        const body = JSON.parse((await readBody(req, 512 * 1024)).toString('utf8') || '{}');
+        return send(res, 200, lms.saveLmLayout(body));
+      }
+      if (req.method === 'POST' && p === '/admin/lm/setup') return send(res, 200, lms.setupLmFolders());
+      if (req.method === 'POST' && p === '/admin/lm/move') {
+        const body = JSON.parse((await readBody(req, 64 * 1024)).toString('utf8') || '{}');
+        const from = lmRel(body.from); const toDir = lmRel(body.to_dir);
+        if (!from || !toDir) return send(res, 400, { error: 'Choose a folder inside LM.' });
+        const src = lmAbs(from);
+        if (!fs.existsSync(src) || !fs.statSync(src).isFile()) return send(res, 404, { error: 'That file no longer exists.' });
+        const name = path.basename(src);
+        const dest = lmAbs(`${toDir}/${name}`);
+        if (fs.existsSync(dest)) return send(res, 409, { error: `${name} is already in that folder.` });
+        fs.mkdirSync(path.dirname(dest), { recursive: true });
+        fs.renameSync(src, dest);
+        lmChanged();
+        return send(res, 200, { ok: true, path: `${toDir}/${name}` });
+      }
+      const nm = p.match(/^\/admin\/lm\/notes\/([a-f0-9-]+)$/);
+      if (req.method === 'DELETE' && nm) return send(res, lms.adminRemoveNote(nm[1]) ? 200 : 404, { ok: true });
       if (req.method === 'POST' && p === '/admin/lm/copy') {
         const body = JSON.parse((await readBody(req, 64 * 1024)).toString('utf8') || '{}');
         const to = body.to ? lmRel(body.to) : '';
@@ -830,7 +855,8 @@ const packImagePath = (name) => {
   const d = packDir(); const f = d && path.join(d, 'images', name);
   return f && fs.existsSync(f) ? f : null;
 };
-lms = require('./lms.js')({ DATA, log, send, readBody, config, pascoForTeachers, packImagePath, lanReport, port: PORT });
+lms = require('./lms.js')({ DATA, log, send, readBody, config, pascoForTeachers, packImagePath, lanReport, port: PORT,
+  lm: { abs: lmAbs, changed: lmChanged } });
 lms.start();
 const server = http.createServer((req, res) => {
   handle(req, res).catch(e => { log('request failed', req.url, e.message); try { send(res, 500, { error: 'Server error' }); } catch { /* already sent */ } });

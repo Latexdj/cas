@@ -61,6 +61,8 @@ module.exports = function createLms(ctx) {
   }
   db.exec(`
     CREATE TABLE IF NOT EXISTS assignments (teacher_id TEXT, subject TEXT, class_name TEXT);
+    CREATE TABLE IF NOT EXISTS lm_notes (id TEXT PRIMARY KEY, teacher_id TEXT, subject TEXT, class_names TEXT, file_name TEXT,
+      paths TEXT, source TEXT, cas_id TEXT, size INTEGER, created_at TEXT);
     CREATE INDEX IF NOT EXISTS ix_assignments_teacher ON assignments(teacher_id);
     CREATE TABLE IF NOT EXISTS quiz_cloud (quiz_id TEXT NOT NULL, class_key TEXT NOT NULL, class_name TEXT, cloud_id TEXT, PRIMARY KEY (quiz_id, class_key));
     CREATE TABLE IF NOT EXISTS question_cloud (question_id TEXT NOT NULL, class_key TEXT NOT NULL, cloud_id TEXT, PRIMARY KEY (question_id, class_key));
@@ -100,6 +102,144 @@ module.exports = function createLms(ctx) {
     return null;
   }
   const parseList = (v) => { try { const a = JSON.parse(v || '[]'); return Array.isArray(a) ? a : []; } catch { return []; } };
+
+  // ── Learning materials: the standard LM folders and teacher notes ──────────
+  // Every tablet gets the same LM tree:
+  //   WASSCE/FORM n/(CORE|ELECTIVE) SUBJECTS/(PICTURES|TEACHER NOTES|TEXTBOOKS|VIDEO)
+  //   WASSCE/WAEC PAST QUESTIONS/<year>
+  //   CTVET/CORE/(NCI|NCII)/<SUBJECT>/(the four content folders)
+  //   CTVET/ELECTIVES/<SUBJECT>/(the four content folders)
+  //   CTVET/PAST QUESTIONS/<year>
+  // The admin says which programme and level each class is in, and which
+  // subjects are core; teacher notes are placed from that.
+  const LM_TYPES = ['PICTURES', 'TEACHER NOTES', 'TEXTBOOKS', 'VIDEO'];
+  const WASSCE_LEVELS = ['FORM 1', 'FORM 2', 'FORM 3'];
+  const CTVET_LEVELS = ['NCI', 'NCII'];
+  const DEFAULT_CORE = /^(ENGLISH LANGUAGE|MATHEMATICS|CORE MATHEMATICS|INTEGRATED SCIENCE|GENERAL SCIENCE|SOCIAL STUDIES|ICT|INTER\. ?MATH.*|INTER\. ?ENGLISH.*|ENG\. .*|ENGLISH .*)$/i;
+  // A folder or file name that is safe on Windows and Android.
+  const safePart = (s) => String(s || '').replace(/[<>:"/\\|?*\x00-\x1f]/g, ' ').replace(/\s+/g, ' ').trim().replace(/[. ]+$/, '');
+  const byNum = (a, b) => String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' });
+
+  function guessClass(cls) {
+    const m = String(cls).match(/^\s*([1-3])/);
+    return m ? { programme: 'WASSCE', level: `FORM ${m[1]}` } : { programme: '', level: '' };
+  }
+  function lmLayout() {
+    const saved = JSON.parse(meta('lm_layout') || '{}');
+    const classNames = [...new Set([
+      ...all('SELECT DISTINCT class_name FROM students').map(r => r.class_name),
+      ...all('SELECT DISTINCT class_name FROM assignments').map(r => r.class_name),
+    ].filter(Boolean))].sort(byNum);
+    const subjects = [...new Set(all('SELECT DISTINCT subject FROM assignments').map(r => r.subject).filter(Boolean))].sort(byNum);
+    const core = Array.isArray(saved.core) ? new Set(saved.core) : new Set(subjects.filter(s => DEFAULT_CORE.test(s)));
+    return {
+      saved: !!saved.classes,
+      classes: classNames.map(c => ({ class_name: c, ...(saved.classes?.[c] || guessClass(c)) })),
+      subjects: subjects.map(s => ({ name: s, core: core.has(s) })),
+    };
+  }
+  function saveLmLayout(body) {
+    const classes = {};
+    for (const c of Array.isArray(body.classes) ? body.classes : []) {
+      const programme = ['WASSCE', 'CTVET'].includes(c.programme) ? c.programme : '';
+      const level = programme === 'WASSCE' ? (WASSCE_LEVELS.includes(c.level) ? c.level : '')
+        : programme === 'CTVET' ? (CTVET_LEVELS.includes(c.level) ? c.level : '') : '';
+      if (c.class_name) classes[String(c.class_name)] = { programme: level ? programme : '', level };
+    }
+    const core = (Array.isArray(body.core) ? body.core : []).map(String);
+    setMeta('lm_layout', JSON.stringify({ classes, core }));
+    // Notes follow the new layout.
+    for (const n of all('SELECT * FROM lm_notes')) { unplaceNote(n); placeNote(n); }
+    return lmLayout();
+  }
+  // Where a subject's teacher notes go for some classes.
+  function noteFolders(subject, classNames) {
+    const lay = lmLayout();
+    const byClass = new Map(lay.classes.map(c => [c.class_name, c]));
+    const isCore = lay.subjects.find(s => s.name === subject)?.core ?? DEFAULT_CORE.test(subject);
+    const folders = new Set(); const unmapped = [];
+    for (const cls of classNames) {
+      const c = byClass.get(cls);
+      if (!c?.level) { unmapped.push(cls); continue; }
+      if (c.programme === 'WASSCE') folders.add(`WASSCE/${c.level}/${isCore ? 'CORE SUBJECTS' : 'ELECTIVE SUBJECTS'}/TEACHER NOTES`);
+      else folders.add(isCore ? `CTVET/CORE/${c.level}/${safePart(subject)}/TEACHER NOTES` : `CTVET/ELECTIVES/${safePart(subject)}/TEACHER NOTES`);
+    }
+    return { folders: [...folders], unmapped };
+  }
+  // Every folder of the standard tree, including CTVET subject folders for
+  // subjects taught in CTVET classes.
+  function standardFolders() {
+    const out = [];
+    for (const lv of WASSCE_LEVELS) for (const kind of ['CORE SUBJECTS', 'ELECTIVE SUBJECTS']) for (const t of LM_TYPES) out.push(`WASSCE/${lv}/${kind}/${t}`);
+    out.push('WASSCE/WAEC PAST QUESTIONS', 'CTVET/CORE/NCI', 'CTVET/CORE/NCII', 'CTVET/ELECTIVES', 'CTVET/PAST QUESTIONS');
+    const lay = lmLayout();
+    const ctvet = new Map(lay.classes.filter(c => c.programme === 'CTVET' && c.level).map(c => [c.class_name, c.level]));
+    const core = new Set(lay.subjects.filter(s => s.core).map(s => s.name));
+    for (const a of all('SELECT DISTINCT subject, class_name FROM assignments')) {
+      const lv = ctvet.get(a.class_name); const name = safePart(a.subject);
+      if (!lv || !name) continue;
+      for (const t of LM_TYPES) out.push(core.has(a.subject) ? `CTVET/CORE/${lv}/${name}/${t}` : `CTVET/ELECTIVES/${name}/${t}`);
+    }
+    return [...new Set(out)];
+  }
+  function setupLmFolders() {
+    let created = 0;
+    for (const rel of standardFolders()) {
+      const abs = ctx.lm.abs(rel);
+      if (!fs.existsSync(abs)) { fs.mkdirSync(abs, { recursive: true }); created++; }
+    }
+    ctx.lm.changed();
+    return { created, folders: standardFolders().length };
+  }
+
+  // Teacher notes. The original is kept in data/notes; a copy goes into each
+  // TEACHER NOTES folder its classes use, named "<SUBJECT> - <teacher> - <file>"
+  // (WASSCE folders hold every subject's notes together).
+  const NOTES_DIR = path.join(DATA, 'notes');
+  fs.mkdirSync(NOTES_DIR, { recursive: true });
+  const NOTE_MAX = 100 * 1024 * 1024;
+  const noteFile = (n) => path.join(NOTES_DIR, `${n.id}-${safePart(n.file_name) || 'file'}`);
+  function placeNote(n) {
+    const teacher = one('SELECT name FROM teachers WHERE id=?', n.teacher_id)?.name || 'Teacher';
+    const { folders } = noteFolders(n.subject, classList(n.class_names));
+    const base = safePart(`${n.subject} - ${teacher} - ${n.file_name}`) || `${n.id}`;
+    const dot = base.lastIndexOf('.'); const stem = dot > 0 ? base.slice(0, dot) : base; const ext = dot > 0 ? base.slice(dot) : '';
+    const paths = [];
+    for (const dir of folders) {
+      const dirAbs = ctx.lm.abs(dir);
+      fs.mkdirSync(dirAbs, { recursive: true });
+      let name = base; let k = 2;
+      // Another note already has this name here: number this one.
+      while (fs.existsSync(path.join(dirAbs, name))) name = `${stem} (${k++})${ext}`;
+      fs.copyFileSync(noteFile(n), path.join(dirAbs, name));
+      paths.push(`${dir}/${name}`);
+    }
+    run('UPDATE lm_notes SET paths=? WHERE id=?', JSON.stringify(paths), n.id);
+    ctx.lm.changed();
+    return paths;
+  }
+  function unplaceNote(n) {
+    for (const rel of parseList(n.paths)) { try { fs.rmSync(ctx.lm.abs(rel), { force: true }); } catch { /* already gone */ } }
+    run('UPDATE lm_notes SET paths=? WHERE id=?', '[]', n.id);
+    ctx.lm.changed();
+  }
+  function addNote({ teacher_id, subject, class_names, file_name, data, source = 'server', cas_id = null }) {
+    const id = uuid();
+    const n = { id, teacher_id, subject, class_names: classList(class_names).join(', '), file_name: safePart(file_name) || 'notes', source, cas_id };
+    fs.writeFileSync(noteFile(n), data);
+    run('INSERT INTO lm_notes(id,teacher_id,subject,class_names,file_name,paths,source,cas_id,size,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)',
+      id, teacher_id, subject, n.class_names, n.file_name, '[]', source, cas_id, data.length, nowIso());
+    placeNote(n);
+    return one('SELECT * FROM lm_notes WHERE id=?', id);
+  }
+  function removeNote(n) {
+    unplaceNote(n);
+    try { fs.rmSync(noteFile(n), { force: true }); } catch { /* gone */ }
+    run('DELETE FROM lm_notes WHERE id=?', n.id);
+  }
+  const noteView = (n) => ({ id: n.id, subject: n.subject, class_names: n.class_names, file_name: n.file_name, size: n.size,
+    created_at: n.created_at, source: n.source, folders: parseList(n.paths).map(p => p.slice(0, p.lastIndexOf('/'))) });
+
   const setMeta = (k, v) => run('INSERT INTO meta(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value', k, v == null ? null : String(v));
   const nowIso = () => new Date().toISOString();
   const key = (s) => String(s || '').trim().toUpperCase();
@@ -297,12 +437,38 @@ module.exports = function createLms(ctx) {
         });
       }
 
+      // Teacher notes uploaded in the CAS teacher portal: download new ones,
+      // drop removed ones (a changed subject or classes is placed again).
+      let gotNotes = 0;
+      try {
+        const cn = await casFetch('/lm/notes', { timeout: 60000 });
+        const want = new Map((cn.notes || []).map(x => [x.id, x]));
+        for (const n of all("SELECT * FROM lm_notes WHERE source='cas'")) {
+          const w = want.get(n.cas_id);
+          if (w && w.subject === n.subject && classList(w.class_names).join(', ') === n.class_names) { want.delete(n.cas_id); continue; }
+          removeNote(n);
+        }
+        for (const w of want.values()) {
+          if (!one('SELECT id FROM teachers WHERE id=?', w.teacher_id)) continue;
+          const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 120000);
+          try {
+            const r = await fetch(w.url, { signal: ctl.signal });
+            if (!r.ok) continue;
+            const data = Buffer.from(await r.arrayBuffer());
+            if (!data.length || data.length > NOTE_MAX) continue;
+            addNote({ teacher_id: w.teacher_id, subject: w.subject, class_names: w.class_names, file_name: w.file_name, data, source: 'cas', cas_id: w.id });
+            gotNotes++;
+          } catch { /* next sync */ } finally { clearTimeout(t); }
+        }
+      } catch (e) { if (e.code === 'REVOKED') throw e; /* CAS without notes yet */ }
+
       const counts = one('SELECT (SELECT COUNT(*) FROM students) AS s, (SELECT COUNT(*) FROM teachers) AS t');
       result.ok = true;
       result.message = `Roster: ${counts.s} students, ${counts.t} teachers. ${quizzes.length} CAS test${quizzes.length === 1 ? '' : 's'}.`
         + (pushedQuizzes ? ` Sent ${pushedQuizzes} test${pushedQuizzes === 1 ? '' : 's'} made here.` : '')
         + (sent ? ` Sent ${sent} result${sent === 1 ? '' : 's'}.` : '')
-        + (recorded ? ` Recorded ${recorded} test${recorded === 1 ? '' : 's'} in Assessments.` : '');
+        + (recorded ? ` Recorded ${recorded} test${recorded === 1 ? '' : 's'} in Assessments.` : '')
+        + (gotNotes ? ` Got ${gotNotes} teacher note${gotNotes === 1 ? '' : 's'} from CAS.` : '');
       await casFetch('/summary', { method: 'POST', body: { summary: result.message, lan: ctx.lanReport ? ctx.lanReport() : [], port: ctx.port } }).catch(() => {});
     } catch (e) {
       result.message = e.code === 'REVOKED' ? 'CAS has disconnected this server. Connect it again with a new pairing code.'
@@ -607,6 +773,40 @@ module.exports = function createLms(ctx) {
       send(res, 201, { url: `/lms/img/${name}` });
       return true;
     }
+    // ── Teacher notes for the tablets' TEACHER NOTES folders ──
+    if (req.method === 'GET' && p === '/lms/teacher/notes') {
+      send(res, 200, { notes: all('SELECT * FROM lm_notes WHERE teacher_id=? ORDER BY created_at DESC', me.id).map(noteView), subjects: mySubjects() });
+      return true;
+    }
+    if (req.method === 'POST' && p === '/lms/teacher/notes') {
+      const subject = String(url.searchParams.get('subject') || '');
+      const mine = mySubjects().find(x => x.subject === subject);
+      if (!mine) { send(res, 400, { error: 'Choose one of your subjects.' }); return true; }
+      const classes = classList(url.searchParams.get('classes')).filter(c => mine.classes.includes(c));
+      if (!classes.length) { send(res, 400, { error: 'Tick at least one of your classes.' }); return true; }
+      const name = safePart(url.searchParams.get('name'));
+      if (!name) { send(res, 400, { error: 'The file has no name.' }); return true; }
+      const where = noteFolders(subject, classes);
+      if (!where.folders.length) {
+        send(res, 400, { error: `The admin has not placed ${classes.join(', ')} in the LM folders yet, so the notes have nowhere to go. Ask the admin to set the classes on the school server.` });
+        return true;
+      }
+      let data;
+      try { data = await readBody(req, NOTE_MAX); } catch { send(res, 413, { error: 'That file is too large (100 MB at most).' }); return true; }
+      if (!data.length) { send(res, 400, { error: 'The file was empty.' }); return true; }
+      const n = addNote({ teacher_id: me.id, subject, class_names: classes, file_name: name, data });
+      send(res, 201, { note: noteView(n), unmapped: where.unmapped });
+      return true;
+    }
+    const nm = p.match(/^\/lms\/teacher\/notes\/([a-f0-9-]+)$/);
+    if (req.method === 'DELETE' && nm) {
+      const n = one('SELECT * FROM lm_notes WHERE id=? AND teacher_id=?', nm[1], me.id);
+      if (!n) { send(res, 404, { error: 'Not found' }); return true; }
+      if (n.source === 'cas') { send(res, 400, { error: 'This was uploaded in the CAS teacher portal. Remove it there.' }); return true; }
+      removeNote(n);
+      send(res, 200, { ok: true });
+      return true;
+    }
     if (req.method === 'GET' && p === '/lms/teacher/me') {
       send(res, 200, { name: me.name, subjects: mySubjects(), modes: modes(), online: JSON.parse(meta('last_sync') || 'null') });
       return true;
@@ -815,5 +1015,8 @@ module.exports = function createLms(ctx) {
     setInterval(() => { try { finishExpired(); } catch { /* next time */ } }, 30 * 1000).unref();
   }
 
-  return { handle, pair, disconnect, sync, status, start };
+  const allNotes = () => all('SELECT n.*, t.name AS teacher_name FROM lm_notes n LEFT JOIN teachers t ON t.id = n.teacher_id ORDER BY n.created_at DESC')
+    .map(n => ({ ...noteView(n), teacher_name: n.teacher_name }));
+  const adminRemoveNote = (id) => { const n = one('SELECT * FROM lm_notes WHERE id=?', id); if (n) removeNote(n); return !!n; };
+  return { handle, pair, disconnect, sync, status, start, lmLayout, saveLmLayout, setupLmFolders, allNotes, adminRemoveNote };
 };

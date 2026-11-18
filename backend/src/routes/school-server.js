@@ -300,6 +300,17 @@ router.post('/lms/results', serverAuth, async (req, res, next) => {
 // Private network addresses only (10.x, 172.16-31.x, 192.168.x).
 const isPrivateIp = (a) => /^(10\.\d{1,3}|172\.(1[6-9]|2\d|3[01])|192\.168)\.\d{1,3}\.\d{1,3}$/.test(String(a || ''));
 
+// Teacher notes uploaded in the CAS teacher portal, for the server to place
+// in its LM folders. Removed notes are simply missing from the list.
+router.get('/lm/notes', serverAuth, async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT id, teacher_id, subject, class_names, file_name, url, size, created_at
+         FROM lm_teacher_notes WHERE school_id=$1 AND deleted_at IS NULL ORDER BY created_at`, [req.schoolId]);
+    res.json({ notes: rows });
+  } catch (err) { next(err); }
+});
+
 router.post('/summary', serverAuth, async (req, res, next) => {
   try {
     // The server's addresses on the school network, busiest first (the one tablets and teachers use).
