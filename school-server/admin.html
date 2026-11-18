@@ -55,6 +55,12 @@
   .picker label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); font-weight: 600; }
   .dest { font: 600 14px ui-monospace, Consolas, monospace; color: var(--ink); word-break: break-word; }
   .tag.warn { background: var(--gold-soft); color: var(--gold); }
+  code { font: 13px ui-monospace, Consolas, monospace; background: var(--sunken); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
+  .exam { display: grid; gap: 10px; grid-template-columns: minmax(120px, 1fr) minmax(200px, 3fr) auto; align-items: end; }
+  .exam label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); font-weight: 600; }
+  .exam input[type=text] { min-width: 0; width: 100%; box-sizing: border-box; font-family: ui-monospace, Consolas, monospace; }
+  .exam .wide { grid-column: 1 / -1; }
+  @media (max-width: 640px) { .exam { grid-template-columns: 1fr; } }
   .cores { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 6px 14px; }
   .cores label { display: flex; gap: 8px; align-items: center; font-size: 14px; }
   .cores input, td input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--brand); }
@@ -163,19 +169,31 @@
   <section class="card" aria-labelledby="h-lmmap">
     <div>
       <h2 id="h-lmmap">Classes and teacher notes</h2>
-      <p class="muted">Where each class's teacher notes go. They are filed like textbooks: core subjects in TEACHER NOTES, then the subject; electives in TEACHER NOTES, then the class's programme, then the subject. For CTVET classes, core notes go in the subject's folder for the class's level, and elective notes in the class's trade folder for its level.</p>
+      <p class="muted">Where teachers' notes go in LM, so they land beside the school's own folders. Set where notes go for each exam, then each class's exam, level and programme, then the subjects.</p>
     </div>
-    <div class="tablewrap"><table>
-      <thead><tr><th>Class</th><th>Exam</th><th>Form or level</th><th>Programme or trade (for electives)</th></tr></thead>
-      <tbody id="maprows"></tbody>
-    </table></div>
+
+    <div>
+      <strong>Where notes go</strong>
+      <span class="muted">For each exam: its levels, and the folders for core and elective notes. Write the folders with / between them and use the blocks <code>{level}</code>, <code>{programme}</code> and <code>{subject}</code>. Existing folders with the same name are used.</span>
+      <div id="examrows" style="display:grid;gap:10px;margin-top:8px"></div>
+      <div class="row" style="margin-top:8px"><button id="examadd">Add exam</button></div>
+      <div id="preview" class="picker" style="margin-top:8px" aria-live="polite"></div>
+    </div>
+
+    <div>
+      <strong>Classes</strong> <span class="muted">The programme (or trade) is the class's folder for elective notes, for example General Arts.</span>
+      <div class="tablewrap" style="margin-top:8px"><table>
+        <thead><tr><th>Class</th><th>Exam</th><th>Level</th><th>Programme or trade</th></tr></thead>
+        <tbody id="maprows"></tbody>
+      </table></div>
+    </div>
     <div>
       <strong>Subjects</strong> <span class="muted">Tick the core subjects. The folder name is the subject's folder in LM; match it to the one already there.</span>
       <div class="tablewrap" style="margin-top:8px"><table>
         <thead><tr><th>Subject on the timetable</th><th>Core</th><th>Folder in LM</th></tr></thead>
         <tbody id="corelist"></tbody>
       </table></div>
-      <datalist id="dlsubjects"></datalist><datalist id="dlprogrammes"></datalist><datalist id="dltrades"></datalist>
+      <datalist id="dlsubjects"></datalist><datalist id="dlprogrammes"></datalist>
     </div>
     <div class="row"><button class="primary" id="mapsave">Save</button><span id="mapmsg" role="status"></span></div>
     <div>
@@ -542,36 +560,96 @@ $('pkmoveok').onclick = async () => {
 };
 
 // ── Classes and teacher notes ──
-const LEVELS = { WASSCE: ['FORM 1', 'FORM 2', 'FORM 3'], CTVET: ['NCI', 'NCII'] };
-function levelOptions(prog, cur) {
-  return `<option value="">Not set</option>` + (LEVELS[prog] || []).map(l => `<option ${l === cur ? 'selected' : ''}>${l}</option>`).join('');
+let exams = [];   // [{ name, levels: [], core, elective }] as being edited
+function examRow(e, i) {
+  return `<div class="picker exam" data-ex="${i}">
+    <label>Exam<input type="text" data-exname value="${esc(e.name)}" placeholder="WASSCE"></label>
+    <label>Levels, separated by commas<input type="text" data-exlevels value="${esc(e.levels.join(', '))}" placeholder="FORM 1, FORM 2, FORM 3"></label>
+    <div>${exams.length > 1 ? `<button class="danger" data-exdel="${i}" aria-label="Remove ${esc(e.name || 'this exam')}">Remove</button>` : ''}</div>
+    <label class="wide">Core subject notes go in<input type="text" data-excore value="${esc(e.core)}" placeholder="WASSCE/{level}/CORE SUBJECTS/TEACHER NOTES/{subject}"></label>
+    <label class="wide">Elective subject notes go in<input type="text" data-exelec value="${esc(e.elective)}" placeholder="WASSCE/{level}/ELECTIVE SUBJECTS/TEACHER NOTES/{programme}/{subject}"></label>
+  </div>`;
+}
+function renderExams() { $('examrows').innerHTML = exams.map(examRow).join(''); }
+function readExams() {
+  exams = [...document.querySelectorAll('#examrows [data-ex]')].map(tr => ({
+    name: tr.querySelector('[data-exname]').value.trim(),
+    levels: tr.querySelector('[data-exlevels]').value.split(',').map(x => x.trim()).filter(Boolean),
+    core: tr.querySelector('[data-excore]').value.trim(),
+    elective: tr.querySelector('[data-exelec]').value.trim(),
+  }));
+  return exams;
+}
+function examOptions(cur) {
+  return `<option value="">Not set</option>` + exams.filter(e => e.name).map(e => `<option ${e.name === cur ? 'selected' : ''}>${esc(e.name)}</option>`).join('');
+}
+function levelOptions(exam, cur) {
+  const e = exams.find(x => x.name === exam);
+  return `<option value="">Not set</option>` + (e ? e.levels : []).map(l => `<option ${l === cur ? 'selected' : ''}>${esc(l)}</option>`).join('');
+}
+// When exams or levels change, the class rows keep their choices where still valid.
+function refreshClassSelects() {
+  for (const tr of document.querySelectorAll('#maprows tr[data-cls]')) {
+    const ex = tr.querySelector('[data-prog]'); const lv = tr.querySelector('[data-level]');
+    const curEx = ex.value, curLv = lv.value;
+    ex.innerHTML = examOptions(curEx);
+    lv.innerHTML = levelOptions(ex.value, curLv);
+  }
+}
+function readForm() {
+  const classes = [...document.querySelectorAll('#maprows tr[data-cls]')].map(tr => ({
+    class_name: tr.dataset.cls, programme: tr.querySelector('[data-prog]').value, level: tr.querySelector('[data-level]').value,
+    stream: tr.querySelector('[data-stream]').value }));
+  const rows = [...document.querySelectorAll('#corelist tr[data-subj]')];
+  const core = rows.filter(tr => tr.querySelector('[data-core]').checked).map(tr => tr.dataset.subj);
+  const folders = Object.fromEntries(rows.map(tr => [tr.dataset.subj, tr.querySelector('[data-folder]').value]));
+  return { exams: readExams(), classes, core, folders };
+}
+let previewTimer = null;
+function schedulePreview() { clearTimeout(previewTimer); previewTimer = setTimeout(showPreview, 350); }
+async function showPreview() {
+  let list = [];
+  try { const r = await fetch('/admin/lm/preview', { method: 'POST', body: JSON.stringify(readForm()) }); if (r.ok) list = await r.json(); } catch {}
+  const line = (x, kind) => x ? `<div>${esc(x.class_name)} ${esc(x.subject)} (${kind}): <span class="dest">${x.folder ? esc(`LM / ${x.folder.split('/').join(' / ')}`) : 'nowhere yet'}</span></div>` : '';
+  $('preview').innerHTML = '<strong>Example</strong>' + (list.map(e => line(e.core, 'core') + line(e.elective, 'elective')).join('')
+    || '<span class="muted">Set at least one class to an exam and level to see where its notes would go.</span>');
 }
 async function mapLoad() {
   const r = await fetch('/admin/lm/layout');
   if (!r.ok) return;
   layout = await r.json();
+  exams = layout.exams.map(e => ({ ...e, levels: [...e.levels] }));
+  renderExams();
   $('maprows').innerHTML = layout.classes.map(c => `<tr data-cls="${esc(c.class_name)}"><td>${esc(c.class_name)}</td>
-    <td><select data-prog aria-label="Programme for ${esc(c.class_name)}"><option value="">Not set</option><option ${c.programme === 'WASSCE' ? 'selected' : ''}>WASSCE</option><option ${c.programme === 'CTVET' ? 'selected' : ''}>CTVET</option></select></td>
-    <td><select data-level aria-label="Form or level for ${esc(c.class_name)}">${levelOptions(c.programme, c.level)}</select></td>
-    <td><input type="text" data-stream list="${c.programme === 'CTVET' ? 'dltrades' : 'dlprogrammes'}" value="${esc(c.stream || '')}" placeholder="${c.programme === 'CTVET' ? 'WELDING FABRICATION TECH' : 'General Arts'}" aria-label="Programme or trade for ${esc(c.class_name)}" style="min-width:220px"></td></tr>`).join('')
+    <td><select data-prog aria-label="Exam for ${esc(c.class_name)}">${examOptions(c.programme)}</select></td>
+    <td><select data-level aria-label="Level for ${esc(c.class_name)}">${levelOptions(c.programme, c.level)}</select></td>
+    <td><input type="text" data-stream list="dlprogrammes" value="${esc(c.stream || '')}" placeholder="General Arts" aria-label="Programme or trade for ${esc(c.class_name)}" style="min-width:220px"></td></tr>`).join('')
     || '<tr><td colspan="4" class="muted">No classes yet. Connect this server to CAS and sync.</td></tr>';
   $('corelist').innerHTML = layout.subjects.map(x => `<tr data-subj="${esc(x.name)}"><td>${esc(x.name)}</td>
     <td><input type="checkbox" data-core aria-label="${esc(x.name)} is core" ${x.core ? 'checked' : ''}></td>
     <td><input type="text" data-folder list="dlsubjects" value="${esc(x.folder || '')}" aria-label="LM folder for ${esc(x.name)}" style="min-width:240px"></td></tr>`).join('')
     || '<tr><td colspan="3" class="muted">No subjects yet.</td></tr>';
   $('dlsubjects').innerHTML = (layout.known?.subjects || []).map(n => `<option value="${esc(n)}">`).join('');
-  $('dlprogrammes').innerHTML = (layout.known?.programmes || []).map(n => `<option value="${esc(n)}">`).join('');
-  $('dltrades').innerHTML = (layout.known?.trades || []).map(n => `<option value="${esc(n)}">`).join('');
+  $('dlprogrammes').innerHTML = [...(layout.known?.programmes || []), ...(layout.known?.trades || [])].map(n => `<option value="${esc(n)}">`).join('');
   $('noterows').innerHTML = (layout.notes || []).map(n => `<tr><td>${esc(n.teacher_name || '')}</td><td>${esc(n.subject)}</td><td>${esc(n.class_names)}</td>
     <td>${esc(n.file_name)}${n.source === 'cas' ? ' <span class="tag ok">CAS</span>' : ''}</td>
     <td>${n.folders.length ? n.folders.map(f => esc(f)).join('<br>') : '<span class="tag warn">Classes not placed</span>'}</td>
     <td style="text-align:right"><span data-delnote="${esc(n.id)}"><button class="danger">Remove</button></span></td></tr>`).join('')
     || '<tr><td colspan="6" class="muted">No teacher notes yet.</td></tr>';
+  showPreview();
 }
+$('examadd').onclick = () => { readExams(); exams.push({ name: '', levels: [], core: '', elective: '' }); renderExams(); refreshClassSelects(); };
+$('examrows').addEventListener('click', (e) => {
+  const d = e.target.closest('[data-exdel]'); if (!d) return;
+  readExams(); exams.splice(Number(d.dataset.exdel), 1); renderExams(); refreshClassSelects(); schedulePreview();
+});
+$('examrows').addEventListener('input', () => { readExams(); refreshClassSelects(); schedulePreview(); });
 document.addEventListener('change', (e) => {
   const prog = e.target.closest('[data-prog]');
-  if (prog) { const row = prog.closest('tr'); row.querySelector('[data-level]').innerHTML = levelOptions(prog.value, ''); const st = row.querySelector('[data-stream]'); st.setAttribute('list', prog.value === 'CTVET' ? 'dltrades' : 'dlprogrammes'); st.placeholder = prog.value === 'CTVET' ? 'WELDING FABRICATION TECH' : 'General Arts'; }
+  if (prog) prog.closest('tr').querySelector('[data-level]').innerHTML = levelOptions(prog.value, '');
+  if (e.target.closest('#maprows, #corelist')) schedulePreview();
 });
+document.addEventListener('input', (e) => { if (e.target.closest('#maprows, #corelist')) schedulePreview(); });
 document.addEventListener('click', async (e) => {
   const dn = e.target.closest('[data-delnote]');
   if (!dn) return;
@@ -584,14 +662,9 @@ document.addEventListener('click', async (e) => {
   if (e.target.matches('[data-noteyes]')) { await fetch(`/admin/lm/notes/${dn.getAttribute('data-delnote')}`, { method: 'DELETE' }); mapLoad(); lmLoad(); load(); }
 });
 $('mapsave').onclick = async () => {
-  const classes = [...document.querySelectorAll('#maprows tr[data-cls]')].map(tr => ({
-    class_name: tr.dataset.cls, programme: tr.querySelector('[data-prog]').value, level: tr.querySelector('[data-level]').value,
-    stream: tr.querySelector('[data-stream]').value }));
-  const rows = [...document.querySelectorAll('#corelist tr[data-subj]')];
-  const core = rows.filter(tr => tr.querySelector('[data-core]').checked).map(tr => tr.dataset.subj);
-  const folders = Object.fromEntries(rows.map(tr => [tr.dataset.subj, tr.querySelector('[data-folder]').value]));
-  const r = await fetch('/admin/lm/layout', { method: 'POST', body: JSON.stringify({ classes, core, folders }) });
-  if (!r.ok) return msg($('mapmsg'), 'Could not save.', 'bad');
+  const r = await fetch('/admin/lm/layout', { method: 'POST', body: JSON.stringify(readForm()) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) return msg($('mapmsg'), j.error || 'Could not save.', 'bad');
   msg($('mapmsg'), 'Saved. Teacher notes were moved to match.', 'ok');
   mapLoad(); lmLoad();
 };

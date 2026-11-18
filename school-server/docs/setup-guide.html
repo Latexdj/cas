@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>CAS Offline Setup Guide</title>
+<style>
+  @page { size: A4; margin: 11mm 13mm 11mm; }
+  :root { --brand: #145C44; --ink: #1C1208; --ink2: #4A3F32; --muted: #6E6253; --line: #E2D9CC; --soft: #F4EFE6; --gold: #C8973A; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 9.8pt/1.42 "Segoe UI", system-ui, sans-serif; color: var(--ink); }
+  .eyebrow { font-weight: 800; letter-spacing: .08em; color: var(--brand); font-size: 9pt; }
+  header { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 3px solid var(--brand); padding-bottom: 6px; margin-bottom: 10px; }
+  h1 { font-size: 22pt; margin: 2px 0 0; color: #0B3D2E; line-height: 1.1; }
+  .sub { color: var(--muted); margin: 2px 0 0; }
+  .builds { text-align: right; color: var(--muted); font-size: 9pt; }
+  .intro { background: var(--soft); border-left: 4px solid var(--gold); padding: 8px 12px; border-radius: 4px; margin: 0 0 10px; }
+  h2 { background: var(--brand); color: #fff; font-size: 11.5pt; padding: 4px 12px; border-radius: 4px; margin: 9px 0 5px; break-after: avoid; }
+  h2 small { font-weight: 400; font-size: 9pt; opacity: .9; margin-left: 6px; }
+  ol, ul { margin: 0 0 4px; padding-left: 22px; }
+  li { margin: 2px 0; }
+  .two { columns: 2; column-gap: 24px; }
+  code { font: 9pt Consolas, monospace; background: var(--soft); padding: 1px 4px; border-radius: 3px; }
+  .path { font: 9pt Consolas, monospace; background: var(--soft); padding: 4px 8px; border-radius: 4px; display: block; margin: 3px 0; }
+  table { width: 100%; border-collapse: collapse; }
+  td { border-bottom: 1px solid var(--line); padding: 5px 6px; vertical-align: top; }
+  td:first-child { font-weight: 700; color: #0B3D2E; width: 38%; }
+  .check li { list-style: none; position: relative; padding: 3px 0 3px 4px; border-bottom: 1px solid var(--line); }
+  .check li::before { content: ""; position: absolute; left: -18px; top: 7px; width: 10px; height: 10px; border: 1px solid var(--ink2); border-radius: 2px; }
+  .section { break-inside: auto; }
+  li, tr { break-inside: avoid; }
+  footer { color: var(--muted); font-size: 8.5pt; margin-top: 10px; }
+  b { color: #0B3D2E; }
+</style>
+</head>
+<body>
+<div class="eyebrow">CAS</div>
+<header>
+  <div><h1>Setting up CAS offline at a new school</h1><p class="sub">School Server, offline tablets, learning materials and Offline Assessment</p></div>
+  <div class="builds">Teacher app build 8 or later<br>Student app build 15 or later</div>
+</header>
+
+<p class="intro">The CAS School Server is one Windows PC at the school. Over the school's own Wi-Fi, with no internet, it gives tablets past questions, learning materials and app updates, and runs <b>Offline Assessment</b>: tests, exercises, quizzes and exams that students take on the tablets. When the PC has internet it syncs with CAS by itself.</p>
+
+<div class="section">
+<h2>What the school needs</h2>
+<ul class="two">
+  <li><b>One Windows PC</b> that stays on at school (Windows 10 or 11; an ordinary desktop is enough).</li>
+  <li>A <b>cable</b> from that PC to the main router.</li>
+  <li>The school's <b>Wi-Fi</b>: a router, with access points if needed.</li>
+  <li><b>Internet on the PC now and then</b> (a mobile router is fine) for syncing with CAS.</li>
+  <li>The school's <b>LM folder</b> of learning materials, if it has one.</li>
+</ul>
+</div>
+
+<div class="section">
+<h2>1. In CAS <small>Super admin, once</small></h2>
+<ol>
+  <li>Make sure the school has the <b>LMS module</b> switched on. The School Server page, Offline Assessment and Notes for Tablets only appear when it is.</li>
+  <li>In <b>Super Admin › App Releases</b>, check that the latest CAS Student and CAS Teacher apps are published. Every school server then copies them by itself.</li>
+</ol>
+</div>
+
+<div class="section">
+<h2>2. On the school's PC <small>About 20 minutes</small></h2>
+<ol>
+  <li>Copy <b>CAS-School-Server.zip</b> to the PC and unzip it.</li>
+  <li>Give the PC a <b>fixed address</b> on the router (DHCP reservation), so phones and tablets always find it. The guide in the folder shows how.</li>
+  <li>Right-click <b>install.bat</b> › <b>Run as administrator</b>. The server then starts with Windows, the firewall lets it through, and the PC is kept from sleeping.</li>
+  <li>On that PC, open <code>http://localhost:8787</code> and type the school's name.</li>
+  <li><b>Past questions:</b> click <b>Check online now</b>. <b>Apps:</b> they arrive from CAS on their own; otherwise click <b>Load app from file</b>.</li>
+  <li><b>Connect to CAS:</b> in the admin portal, signed in as the school's admin, open <b>LMS › School Server › Make a pairing code</b> (it works once, for 15 minutes). On the server page, under <b>Connect to CAS</b>, type the school code and the pairing code and click <b>Connect</b>. The students and teachers copy across in a minute or two.</li>
+</ol>
+</div>
+
+<div class="section">
+<h2>3. Learning materials and teacher notes <small>About 15 minutes</small></h2>
+<ol>
+  <li><b>Tidy the school's LM folder first</b>, on the PC where it is: one name for each kind of folder (VIDEO or VIDEOS, not both), the same layout in every form, and no app files or half-finished downloads.</li>
+  <li>On the server page, under <b>Learning materials</b>, click <b>Copy from this PC</b> and type where the LM folder is, for example <code>D:\LM</code>. Its folders and files are copied as they are. Every tablet then gets exactly this tree.</li>
+  <li>From now on, add files with <b>Add material</b>: choose the folder one level at a time (for example WASSCE, FORM 1, ELECTIVE SUBJECTS, TEXTBOOKS, General Arts, Economics). Files left at the top of LM are marked; use <b>Move</b>.</li>
+  <li>Under <b>Classes and teacher notes › Where notes go</b>, set for each exam its levels and the folders for core and elective notes, using <code>{level}</code>, <code>{programme}</code> and <code>{subject}</code>. The defaults are:
+    <span class="path">WASSCE/{level}/CORE SUBJECTS/TEACHER NOTES/{subject}</span>
+    <span class="path">WASSCE/{level}/ELECTIVE SUBJECTS/TEACHER NOTES/{programme}/{subject}</span>
+    Change the words to match the school's own folders. The <b>Example</b> box shows where a real class's notes would go.</li>
+  <li>Under <b>Classes</b>, give each class its exam, level and programme or trade (for example General Arts). Under <b>Subjects</b>, tick the core subjects and check each subject's folder name matches its folder in LM. Click <b>Save</b>.</li>
+</ol>
+<p style="margin:2px 0 0">Teachers then add notes on the server's teacher page (<b>Notes for tablets</b>) or in CAS (<b>Academics › Notes for Tablets</b>, web or app). They reach every tablet on the school Wi-Fi.</p>
+</div>
+
+<div class="section">
+<h2>4. Student tablets <small>Once each</small></h2>
+<ol>
+  <li>Install the CAS Student app from the .apk file (USB cable or file share). This is the only install by hand.</li>
+  <li>Connect the tablet to the <b>school Wi-Fi</b> and open the app. It finds the server, downloads past questions and learning materials, and from now on <b>updates itself</b>. Materials already copied onto the tablet by USB are not downloaded again.</li>
+</ol>
+</div>
+
+<div class="section">
+<h2>5. Teachers <small>Once each</small></h2>
+<ol>
+  <li><b>Android phones:</b> install CAS Teacher, build 8 or later. On the school Wi-Fi, open <b>More › Offline Assessment › Open Offline Assessment</b>. It opens signed in.</li>
+  <li><b>Laptops and iPhones:</b> in the CAS teacher portal, open <b>Academics › Offline Assessment › Open Offline Assessment</b> while on the school Wi-Fi. It opens the server's teacher page signed in. If the school Wi-Fi has no internet, bookmark that page and sign in there with the teacher code and password.</li>
+  <li>App updates arrive by themselves, from the school server or over the internet.</li>
+</ol>
+</div>
+
+<div class="section">
+<h2>Check it works</h2>
+<ul class="check">
+  <li>The server page shows the school name, the past questions, both apps, and <b>Connected to CAS</b> with the number of students and teachers.</li>
+  <li>Learning materials shows the school's folders, and the <b>Example</b> box shows sensible folders for notes.</li>
+  <li>A tablet on the Wi-Fi shows past questions and the same LM folders, and appears in the server's list of tablets.</li>
+  <li>A teacher adds a note and creates a short test; a student sees the note and takes the test, and it shows under <b>Results</b>.</li>
+</ul>
+</div>
+
+<div class="section">
+<h2>If something doesn't work</h2>
+<table>
+  <tr><td>A tablet or phone can't find the server</td><td>It is probably on mobile data, not the school Wi-Fi. Or type the address shown on the server page using <b>Enter address</b> in the app.</td></tr>
+  <tr><td>Students or teachers can't sign in to Offline Assessment</td><td>The server isn't connected to CAS yet (step 2.6), or the PC hasn't been online since a new student was added.</td></tr>
+  <tr><td>A teacher's notes say "classes not placed"</td><td>Those classes have no exam and level yet under <b>Classes and teacher notes</b>.</td></tr>
+  <tr><td>Notes made a second set of folders</td><td>The words in <b>Where notes go</b> or a subject's folder name don't match the school's folders. Correct them and click <b>Save</b>; notes move to match.</td></tr>
+  <tr><td>The server page doesn't open</td><td>Restart the PC; the server starts by itself. Or open Task Scheduler, right-click <b>CAS School Server</b> › <b>Run</b>.</td></tr>
+  <tr><td>A new app version isn't offered</td><td>Publish it in App Releases (or load it on the server page). Close and reopen the app on the Wi-Fi.</td></tr>
+</table>
+</div>
+
+<footer>CAS offline setup guide, November 2026</footer>
+</body>
+</html>

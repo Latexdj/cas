@@ -791,6 +791,10 @@ async function handle(req, res) {
         const body = JSON.parse((await readBody(req, 512 * 1024)).toString('utf8') || '{}');
         return send(res, 200, lms.saveLmLayout(body));
       }
+      if (req.method === 'POST' && p === '/admin/lm/preview') {
+        const body = JSON.parse((await readBody(req, 512 * 1024)).toString('utf8') || '{}');
+        return send(res, 200, lms.previewNotes(body));
+      }
       if (req.method === 'POST' && p === '/admin/lm/move') {
         const body = JSON.parse((await readBody(req, 64 * 1024)).toString('utf8') || '{}');
         const from = lmRel(body.from); const toDir = lmRel(body.to_dir);

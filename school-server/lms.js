@@ -105,17 +105,42 @@ module.exports = function createLms(ctx) {
 
   // ── Learning materials: class folders and teacher notes ──────────────────
   // The LM tree is the school's own (copied in by the admin, e.g. their LM
-  // folder). Teacher notes follow it, like textbooks:
-  //   WASSCE/FORM n/CORE SUBJECTS/TEACHER NOTES/<subject>
-  //   WASSCE/FORM n/ELECTIVE SUBJECTS/TEACHER NOTES/<programme>/<subject>
-  //   CTVET/CORE (GENERIC)/(NCI|NCII)/<subject>/TEACHER NOTES
-  //   CTVET/ELECTIVES/<trade>/(NCI|NCII)/TEACHER NOTES/<subject>
-  // The admin says, per class, its exam (WASSCE/CTVET), form or level and
-  // programme (General Arts...) or, for CTVET, trade (WELDING FABRICATION
-  // TECH...), and per subject whether it is core and the
-  // name of its folder in LM.
-  const WASSCE_LEVELS = ['FORM 1', 'FORM 2', 'FORM 3'];
-  const CTVET_LEVELS = ['NCI', 'NCII'];
+  // folder). Where teacher notes go is set per exam with two patterns, one for
+  // core subjects and one for electives, built from {level}, {programme} and
+  // {subject}. The defaults follow St. Augustine's LM:
+  //   WASSCE/{level}/CORE SUBJECTS/TEACHER NOTES/{subject}
+  //   WASSCE/{level}/ELECTIVE SUBJECTS/TEACHER NOTES/{programme}/{subject}
+  //   CTVET/CORE (GENERIC)/{level}/{subject}/TEACHER NOTES
+  //   CTVET/ELECTIVES/{programme}/{level}/TEACHER NOTES/{subject}
+  // Each class has an exam, a level and a programme (or trade); each subject
+  // is core or elective and has a folder name. A folder that already exists
+  // with a matching name is reused, so notes join the school's folders.
+  // (Stored per class as { programme: <exam>, level, stream: <programme> }.)
+  const DEFAULT_EXAMS = [
+    { name: 'WASSCE', levels: ['FORM 1', 'FORM 2', 'FORM 3'],
+      core: 'WASSCE/{level}/CORE SUBJECTS/TEACHER NOTES/{subject}',
+      elective: 'WASSCE/{level}/ELECTIVE SUBJECTS/TEACHER NOTES/{programme}/{subject}' },
+    { name: 'CTVET', levels: ['NCI', 'NCII'],
+      core: 'CTVET/CORE (GENERIC)/{level}/{subject}/TEACHER NOTES',
+      elective: 'CTVET/ELECTIVES/{programme}/{level}/TEACHER NOTES/{subject}' },
+  ];
+  function cleanExams(list) {
+    const out = [];
+    for (const e of Array.isArray(list) ? list : []) {
+      const name = safePart(e?.name).slice(0, 40);
+      if (!name || out.some(x => x.name.toLowerCase() === name.toLowerCase())) continue;
+      const levels = [...new Set((Array.isArray(e.levels) ? e.levels : String(e.levels || '').split(','))
+        .map(x => safePart(x).slice(0, 40)).filter(Boolean))].slice(0, 20);
+      const pat = (v) => String(v || '').split('/').map(x => x.trim()).filter(Boolean).join('/').slice(0, 300);
+      out.push({ name, levels, core: pat(e.core), elective: pat(e.elective) });
+    }
+    return out;
+  }
+  const examsNow = () => {
+    const saved = JSON.parse(meta('lm_layout') || '{}');
+    const ex = cleanExams(saved.exams);
+    return ex.length ? ex : DEFAULT_EXAMS;
+  };
   const DEFAULT_CORE = /^(ENGLISH LANGUAGE|MATHEMATICS|CORE MATHEMATICS|INTEGRATED SCIENCE|GENERAL SCIENCE|SOCIAL STUDIES|INTER\. ?MATH.*|INTER\. ?ENGLISH.*|ENG\. .*|ENGLISH .*)$/i;
   // Timetable short names for subjects whose LM folder has the full name.
   const ALIASES = { 'ICT': 'Information & Communication Technology', 'ELECTIVE ICT': 'Information & Communication Technology',
@@ -170,12 +195,15 @@ module.exports = function createLms(ctx) {
     for (const w of want) { const hit = known.find(k => norm(k) === norm(w)); if (hit) return hit; }
     return alias || titleCase(subject);
   }
-  function guessClass(cls) {
-    const m = String(cls).match(/^\s*([1-3])/);
-    return m ? { programme: 'WASSCE', level: `FORM ${m[1]}`, stream: '' } : { programme: '', level: '', stream: '' };
+  function guessClass(cls, exams) {
+    // "1A", "2 Arts A": the number picks the first exam's level of that number.
+    const m = String(cls).match(/^\s*(\d)/);
+    const e = exams[0]; const lv = m && e?.levels[Number(m[1]) - 1];
+    return lv ? { programme: e.name, level: lv, stream: '' } : { programme: '', level: '', stream: '' };
   }
-  function lmLayout() {
+  function lmLayout(examsArg) {
     const saved = JSON.parse(meta('lm_layout') || '{}');
+    const exams = examsArg || examsNow();
     const names = lmNames();
     const classNames = [...new Set([
       ...all('SELECT DISTINCT class_name FROM students').map(r => r.class_name),
@@ -186,30 +214,62 @@ module.exports = function createLms(ctx) {
     const folders = saved.folders || {};
     return {
       saved: !!saved.classes,
-      classes: classNames.map(c => ({ class_name: c, stream: '', ...guessClass(c), ...(saved.classes?.[c] || {}) })),
+      exams,
+      classes: classNames.map(c => {
+        const x = { class_name: c, stream: '', ...guessClass(c, exams), ...(saved.classes?.[c] || {}) };
+        // A level the exam no longer has is cleared, so the admin sees it needs setting.
+        const e = exams.find(e => e.name === x.programme);
+        return e && e.levels.includes(x.level) ? x : { ...x, programme: e ? x.programme : '', level: '' };
+      }),
       subjects: subjects.map(s => ({ name: s, core: core.has(s), folder: folders[s] || folderFor(s, names.subjects) })),
       known: names,
     };
   }
-  function saveLmLayout(body) {
+  function cleanClasses(list, exams) {
     const classes = {};
-    for (const c of Array.isArray(body.classes) ? body.classes : []) {
-      const programme = ['WASSCE', 'CTVET'].includes(c.programme) ? c.programme : '';
-      const level = programme === 'WASSCE' ? (WASSCE_LEVELS.includes(c.level) ? c.level : '')
-        : programme === 'CTVET' ? (CTVET_LEVELS.includes(c.level) ? c.level : '') : '';
-      if (c.class_name) classes[String(c.class_name)] = { programme: level ? programme : '', level, stream: level ? safePart(c.stream) : '' };
+    for (const c of Array.isArray(list) ? list : []) {
+      const e = exams.find(x => x.name === c.programme);
+      const level = e && e.levels.includes(c.level) ? c.level : '';
+      if (c.class_name) classes[String(c.class_name)] = { programme: level ? e.name : '', level, stream: level ? safePart(c.stream) : '' };
     }
-    const core = (Array.isArray(body.core) ? body.core : []).map(String);
+    return classes;
+  }
+  function saveLmLayout(body) {
+    const exams = cleanExams(body.exams);
+    if (body.exams && !exams.length) throw new Error('Keep at least one exam.');
+    for (const e of exams) {
+      if (!e.levels.length) throw new Error(`Give ${e.name} at least one level.`);
+      if (!e.core || !e.elective) throw new Error(`Fill in both note locations for ${e.name}.`);
+    }
+    const prev = JSON.parse(meta('lm_layout') || '{}');
+    const useExams = exams.length ? exams : examsNow();
+    const classes = body.classes ? cleanClasses(body.classes, useExams) : (prev.classes || {});
+    const core = Array.isArray(body.core) ? body.core.map(String) : (prev.core || []);
     const folders = {};
-    for (const [k, v] of Object.entries(body.folders || {})) if (safePart(v)) folders[String(k)] = safePart(v);
-    setMeta('lm_layout', JSON.stringify({ classes, core, folders }));
+    for (const [k, v] of Object.entries(body.folders || prev.folders || {})) if (safePart(v)) folders[String(k)] = safePart(v);
+    setMeta('lm_layout', JSON.stringify({ classes, core, folders, exams: exams.length ? exams : prev.exams }));
     // Notes follow the new layout.
     for (const n of all('SELECT * FROM lm_notes')) { unplaceNote(n); placeNote(n); }
     return lmLayout();
   }
-  // Where a subject's teacher notes go for some classes.
-  function noteFolders(subject, classNames) {
-    const lay = lmLayout();
+  // Fills a pattern for one class and subject. A {programme} the class has
+  // not got is left out with its folder; {subject} and {programme} folders
+  // match existing ones loosely, the rest exactly.
+  function fillPattern(pattern, { level, programme, subject }) {
+    const parts = []; const loose = [];
+    for (const seg of String(pattern || '').split('/')) {
+      const hasLoose = /\{(subject|programme)\}/i.test(seg);
+      const v = seg.replace(/\{level\}/gi, level || '').replace(/\{programme\}/gi, programme || '').replace(/\{subject\}/gi, subject || '');
+      if (!safePart(v)) continue;
+      if (hasLoose) loose.push(parts.length);
+      parts.push(v);
+    }
+    return parts.length ? resolveDir(parts, { loose }) : '';
+  }
+  // Where a subject's teacher notes go for some classes. Pass a layout to
+  // preview unsaved settings.
+  function noteFolders(subject, classNames, layArg) {
+    const lay = layArg || lmLayout();
     const byClass = new Map(lay.classes.map(c => [c.class_name, c]));
     const sub = lay.subjects.find(s => s.name === subject);
     const isCore = sub?.core ?? DEFAULT_CORE.test(subject);
@@ -217,18 +277,43 @@ module.exports = function createLms(ctx) {
     const folders = new Set(); const unmapped = [];
     for (const cls of classNames) {
       const c = byClass.get(cls);
-      if (!c?.level) { unmapped.push(cls); continue; }
-      if (c.programme === 'WASSCE') {
-        folders.add(isCore ? resolveDir(['WASSCE', c.level, 'CORE SUBJECTS', 'TEACHER NOTES', folder])
-          : resolveDir(['WASSCE', c.level, 'ELECTIVE SUBJECTS', 'TEACHER NOTES', ...(c.stream ? [c.stream] : []), folder]));
-      } else {
-        const coreDir = dirsIn('CTVET').find(d => /^core/i.test(d)) || 'CORE (GENERIC)';
-        folders.add(isCore ? resolveDir(['CTVET', coreDir, c.level, folder, 'TEACHER NOTES'], { loose: [3] })
-          : c.stream ? resolveDir(['CTVET', 'ELECTIVES', c.stream, c.level, 'TEACHER NOTES', folder])
-          : resolveDir(['CTVET', 'ELECTIVES', folder, c.level, 'TEACHER NOTES'], { loose: [2] }));
-      }
+      const e = c && lay.exams.find(x => x.name === c.programme);
+      if (!c?.level || !e) { unmapped.push(cls); continue; }
+      const dir = fillPattern(isCore ? e.core : e.elective, { level: c.level, programme: c.stream, subject: folder });
+      if (dir) folders.add(dir); else unmapped.push(cls);
     }
     return { folders: [...folders], unmapped };
+  }
+  // Examples for the admin page: per exam, one core and one elective lesson
+  // from the timetable and where its notes would go with these settings.
+  function previewNotes(body) {
+    const exams = cleanExams(body.exams);
+    const base = lmLayout(exams.length ? exams : undefined);
+    const core = new Set(Array.isArray(body.core) ? body.core : base.subjects.filter(s => s.core).map(s => s.name));
+    const lay = {
+      ...base,
+      classes: body.classes ? base.classes.map(c => { const b = body.classes.find(x => x.class_name === c.class_name); return b ? { ...c, programme: b.programme, level: b.level, stream: safePart(b.stream) } : c; }) : base.classes,
+      subjects: base.subjects.map(s => ({ ...s, core: core.has(s.name), folder: safePart(body.folders?.[s.name]) || s.folder })),
+    };
+    const lessons = all('SELECT DISTINCT subject, class_name FROM assignments ORDER BY class_name, subject');
+    const out = [];
+    for (const e of lay.exams) {
+      const ex = { exam: e.name };
+      for (const kind of ['core', 'elective']) {
+        const hit = lessons.find(l => {
+          const c = lay.classes.find(x => x.class_name === l.class_name);
+          const isCore = lay.subjects.find(x => x.name === l.subject)?.core;
+          return c?.programme === e.name && c.level && (kind === 'core' ? isCore : !isCore) && (kind === 'core' || c.stream);
+        }) || lessons.find(l => {
+          const c = lay.classes.find(x => x.class_name === l.class_name);
+          const isCore = lay.subjects.find(x => x.name === l.subject)?.core;
+          return c?.programme === e.name && c.level && (kind === 'core' ? isCore : !isCore);
+        });
+        if (hit) ex[kind] = { class_name: hit.class_name, subject: hit.subject, folder: noteFolders(hit.subject, [hit.class_name], lay).folders[0] || '' };
+      }
+      out.push(ex);
+    }
+    return out;
   }
 
   // Teacher notes. The original is kept in data/notes; a copy goes into each
@@ -1056,5 +1141,5 @@ module.exports = function createLms(ctx) {
   const allNotes = () => all('SELECT n.*, t.name AS teacher_name FROM lm_notes n LEFT JOIN teachers t ON t.id = n.teacher_id ORDER BY n.created_at DESC')
     .map(n => ({ ...noteView(n), teacher_name: n.teacher_name }));
   const adminRemoveNote = (id) => { const n = one('SELECT * FROM lm_notes WHERE id=?', id); if (n) removeNote(n); return !!n; };
-  return { handle, pair, disconnect, sync, status, start, lmLayout, saveLmLayout, allNotes, adminRemoveNote, noteFolders };
+  return { handle, pair, disconnect, sync, status, start, lmLayout, saveLmLayout, allNotes, adminRemoveNote, noteFolders, previewNotes };
 };
