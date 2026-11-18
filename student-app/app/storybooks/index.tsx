@@ -21,7 +21,9 @@ export default function StorybooksScreen() {
   const [query, setQuery] = useState('');
   const [saved, setSaved] = useState<Set<string>>(new Set());
   const [progress, setProgress] = useState<Record<string, Progress>>({});
-  const [coverBase, setCoverBase] = useState<string | null>(Platform.OS === 'web' ? library().image_base : null);
+  // Where covers of stories not saved yet come from, tried in order: the
+  // school server (no data cost) when on its Wi-Fi, then online.
+  const [coverBases, setCoverBases] = useState<string[]>([library().image_base]);
   const [bulk, setBulk] = useState<{ done: number; total: number; failed: number } | null>(null);
   const [bulkNote, setBulkNote] = useState('');
   const stop = useRef(false);
@@ -33,8 +35,7 @@ export default function StorybooksScreen() {
   useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
   useEffect(() => {
     AsyncStorage.getItem(K_LEVEL).then(v => { const n = Number(v); if (n >= 1 && n <= 4) setLevel(n as Filter); }).catch(() => {});
-    // Covers of stories not saved yet come from the school server, which costs no data.
-    if (Platform.OS !== 'web') findSchoolServer().then(sv => { if (sv) setCoverBase(`${sv.base}/storybooks`); }).catch(() => {});
+    if (Platform.OS !== 'web') findSchoolServer().then(sv => { if (sv) setCoverBases([`${sv.base}/storybooks`, library().image_base]); }).catch(() => {});
   }, []);
 
   const pick = (l: Filter) => { setLevel(l); AsyncStorage.setItem(K_LEVEL, String(l)).catch(() => {}); };
@@ -68,13 +69,12 @@ export default function StorybooksScreen() {
   const row = ({ item: st }: { item: Story }) => {
     const p = progress[st.id];
     const isSaved = saved.has(st.id);
-    const cover = isSaved && Platform.OS !== 'web' ? null : coverBase ? `${coverBase}/${st.id}/01.jpg` : null;
     const status = p?.finished ? 'Read' : p && p.page > 0 ? `Page ${Math.min(p.page, st.pages.length)} of ${st.pages.length}` : null;
     return (
       <TouchableOpacity onPress={() => router.push({ pathname: '/storybooks/[id]', params: { id: st.id } })} accessibilityRole="button"
         accessibilityLabel={`${st.title}, level ${st.level}, ${st.pages.length} pages${status ? `, ${status}` : ''}`}
         style={[s.row, { backgroundColor: C.surface, borderColor: C.border }]}>
-        <Cover story={st} saved={isSaved} remote={cover} />
+        <Cover story={st} saved={isSaved} remotes={coverBases.map(b => `${b}/${st.id}/01.jpg`)} />
         <View style={{ flex: 1, gap: 3 }}>
           <Text style={[s.title, { color: C.text }]} numberOfLines={2}>{st.title}</Text>
           <Text style={[s.meta, { color: C.textSoft }]} numberOfLines={1}>Level {st.level}, {st.pages.length} pages, {byline(st.author)}</Text>
@@ -185,18 +185,20 @@ export default function StorybooksScreen() {
   );
 }
 
-function Cover({ story, saved, remote }: { story: Story; saved: boolean; remote: string | null }) {
+function Cover({ story, saved, remotes }: { story: Story; saved: boolean; remotes: string[] }) {
   const C = useTheme();
-  const [failed, setFailed] = useState(false);
-  const uri = (saved ? pictureUri(story, 1, true) : null) ?? remote;
-  if (!uri || failed) {
+  // The saved cover, else each remote address in turn until one loads.
+  const uris = [...(saved ? [pictureUri(story, 1, true)] : []), ...remotes].filter((u): u is string => !!u);
+  const [attempt, setAttempt] = useState(0);
+  const uri = uris[attempt];
+  if (!uri) {
     return (
       <View style={[s.cover, s.coverEmpty, { backgroundColor: C.primaryLight }]}>
         <Ionicons name="book-outline" size={24} color={C.primaryText} />
       </View>
     );
   }
-  return <Image source={{ uri }} style={[s.cover, { backgroundColor: C.border }]} onError={() => setFailed(true)} accessibilityIgnoresInvertColors />;
+  return <Image key={uri} source={{ uri }} style={[s.cover, { backgroundColor: C.border }]} onError={() => setAttempt(a => a + 1)} accessibilityIgnoresInvertColors />;
 }
 
 const s = createThemedStyles({
