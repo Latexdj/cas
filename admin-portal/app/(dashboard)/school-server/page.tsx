@@ -5,6 +5,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '@/lib/api';
+import LmUploads from '@/components/school-server/LmUploads';
 
 interface Server { id: string; name: string; last_seen_at: string | null; last_sync_summary: string | null; created_at: string }
 // Addresses on the school network and a 5-minute sign-in pass, per server.
@@ -147,6 +148,8 @@ export default function SchoolServerPage() {
             </ul>
           )}
       </section>
+
+      <LmUploads />
     </div>
   );
 }

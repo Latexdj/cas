@@ -903,7 +903,7 @@ const packImagePath = (name) => {
   return f && fs.existsSync(f) ? f : null;
 };
 lms = require('./lms.js')({ DATA, log, send, readBody, config, pascoForTeachers, packImagePath, lanReport, port: PORT,
-  lm: { abs: lmAbs, changed: lmChanged } });
+  lm: { abs: lmAbs, changed: lmChanged, folders: () => lmScan().folders } });
 lms.start();
 const server = http.createServer((req, res) => {
   handle(req, res).catch(e => { log('request failed', req.url, e.message); try { send(res, 500, { error: 'Server error' }); } catch { /* already sent */ } });

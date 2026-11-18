@@ -5,6 +5,9 @@
 // quizzes and to send back tests made and taken offline.
 
 const { recordQuiz } = require('../services/lms-record.service');
+const supabase = require('../config/supabase');
+const lmUploads = require('./lm-uploads');
+const STORAGE_BUCKET = process.env.STORAGE_BUCKET || 'attendance-photos';
 const router = require('express').Router();
 const crypto = require('crypto');
 const pool = require('../config/db');
@@ -311,6 +314,41 @@ router.get('/lm/notes', serverAuth, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// Learning materials the admin sent from CAS (routes/lm-uploads.js): the
+// server lists the ready ones, downloads each part, then reports it delivered
+// (CAS then deletes its copy) or failed.
+router.get('/lm/uploads', serverAuth, async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT id, folder, file_name, size, parts FROM lm_uploads WHERE school_id=$1 AND status='ready' ORDER BY created_at`, [req.schoolId]);
+    res.json({ uploads: rows.map(r => ({ ...r, size: Number(r.size) })) });
+  } catch (err) { next(err); }
+});
+router.get('/lm/uploads/:id/parts/:n', serverAuth, async (req, res, next) => {
+  try {
+    const { rows: [u] } = await pool.query(`SELECT * FROM lm_uploads WHERE id=$1 AND school_id=$2 AND status='ready'`, [req.params.id, req.schoolId]);
+    if (!u) return res.status(404).json({ error: 'Not found' });
+    const n = Number(req.params.n);
+    if (!Number.isInteger(n) || n < 0 || n >= u.parts) return res.status(400).json({ error: 'Bad part number.' });
+    const { data, error } = await supabase.storage.from(STORAGE_BUCKET).download(lmUploads.partPath(u, n));
+    if (error || !data) return res.status(404).json({ error: 'Part missing' });
+    const buf = Buffer.from(await data.arrayBuffer());
+    res.set({ 'Content-Type': 'application/octet-stream', 'Content-Length': buf.length });
+    res.end(buf);
+  } catch (err) { next(err); }
+});
+router.post('/lm/uploads/:id/result', serverAuth, async (req, res, next) => {
+  try {
+    const ok = !!req.body?.ok;
+    const { rows: [u] } = await pool.query(
+      `UPDATE lm_uploads SET status=$3, error=$4, delivered_at=CASE WHEN $3='delivered' THEN now() ELSE delivered_at END
+        WHERE id=$1 AND school_id=$2 AND status='ready' RETURNING *`,
+      [req.params.id, req.schoolId, ok ? 'delivered' : 'failed', ok ? null : String(req.body?.error || 'The school server could not save it.').slice(0, 300)]);
+    if (u && ok) lmUploads.removeParts(u);
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
 router.post('/summary', serverAuth, async (req, res, next) => {
   try {
     // The server's addresses on the school network, busiest first (the one tablets and teachers use).
@@ -319,11 +357,14 @@ router.post('/summary', serverAuth, async (req, res, next) => {
       .map(x => ({ address: x.address, hits: Math.max(0, parseInt(x.hits) || 0) }))
       .sort((a, b) => b.hits - a.hits);
     const port = parseInt(req.body?.port) || null;
+    // Its LM folders, so the admin can send materials to one of them from CAS.
+    const folders = Array.isArray(req.body?.lm_folders)
+      ? req.body.lm_folders.map(f => String(f).slice(0, 400)).filter(Boolean).slice(0, 5000) : null;
     await pool.query(
       `UPDATE school_servers SET last_sync_summary=$1,
-              lan=COALESCE($3::jsonb, lan), lan_port=COALESCE($4, lan_port) WHERE id=$2`,
+              lan=COALESCE($3::jsonb, lan), lan_port=COALESCE($4, lan_port), lm_folders=COALESCE($5::jsonb, lm_folders) WHERE id=$2`,
       [String(req.body?.summary || '').slice(0, 300), req.serverId, lan.length ? JSON.stringify(lan) : null,
-       port && port > 0 && port < 65536 ? port : null]);
+       port && port > 0 && port < 65536 ? port : null, folders ? JSON.stringify(folders) : null]);
     res.json({ ok: true });
   } catch (err) { next(err); }
 });

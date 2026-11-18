@@ -83,6 +83,7 @@ const teacherResourcesRoutes  = require('./routes/teacher-resources');
 const pascoBankRoutes         = require('./routes/pasco-bank');
 const schoolServerRoutes      = require('./routes/school-server');
 const lmNotesRoutes           = require('./routes/lm-notes').router;
+const lmUploadsRoutes         = require('./routes/lm-uploads').router;
 const appReleasesRoutes       = require('./routes/app-releases');
 const departmentBudgetsRoutes = require('./routes/department-budgets');
 const helpChatRoutes          = require('./routes/help-chat');
@@ -214,6 +215,7 @@ app.use('/api/teacher-resources',     teacherResourcesRoutes);
 app.use('/api/pasco-bank',            pascoBankRoutes);
 app.use('/api/school-server',         schoolServerRoutes);
 app.use('/api/lm-notes',              lmNotesRoutes);
+app.use('/api/lm-uploads',            lmUploadsRoutes);
 app.use('/api/app-releases',          appReleasesRoutes);
 app.use('/api/department-budgets',    departmentBudgetsRoutes);
 app.use('/api/policy-documents',      policyDocumentsRoutes);
@@ -2965,6 +2967,25 @@ async function runMigrations() {
           deleted_at   TIMESTAMPTZ
         )`);
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_lm_teacher_notes_school ON lm_teacher_notes(school_id) WHERE deleted_at IS NULL`);
+      // Learning materials the admin sends from CAS to the school server (routes/lm-uploads.js),
+      // and the server's LM folders, reported at each sync so the admin can pick one.
+      await pool.query(`ALTER TABLE school_servers ADD COLUMN IF NOT EXISTS lm_folders JSONB`);
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS lm_uploads (
+          id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          school_id       UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+          folder          TEXT NOT NULL,
+          file_name       TEXT NOT NULL,
+          size            BIGINT NOT NULL,
+          parts           INTEGER NOT NULL,
+          status          TEXT NOT NULL DEFAULT 'uploading',
+          error           TEXT,
+          created_by      UUID,
+          created_by_name TEXT,
+          created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+          delivered_at    TIMESTAMPTZ
+        )`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_lm_uploads_school ON lm_uploads(school_id, status)`);
     } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] school server link:', e.message); }
 
     // Academic year date range

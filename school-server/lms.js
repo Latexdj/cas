@@ -586,14 +586,62 @@ module.exports = function createLms(ctx) {
         }
       } catch (e) { if (e.code === 'REVOKED') throw e; /* CAS without notes yet */ }
 
+      // Learning materials the admin sent from CAS: download each file's parts
+      // into a hidden file in its folder, then put it in place and tell CAS.
+      let gotFiles = 0;
+      try {
+        const up = await casFetch('/lm/uploads', { timeout: 60000 });
+        const root = ctx.lm.abs('');
+        for (const u of up.uploads || []) {
+          const folder = String(u.folder || '').split('/').map(safePart).filter(Boolean).join('/');
+          const name = safePart(u.file_name);
+          const dir = ctx.lm.abs(folder);
+          if (!folder || !name || !path.resolve(dir).startsWith(path.resolve(root) + path.sep)) {
+            await casFetch(`/lm/uploads/${u.id}/result`, { method: 'POST', body: { ok: false, error: 'That folder name is not allowed.' } }).catch(() => {});
+            continue;
+          }
+          const tmp = path.join(dir, `.${u.id}.part`);
+          try {
+            fs.mkdirSync(dir, { recursive: true });
+            fs.rmSync(tmp, { force: true });
+            for (let n = 0; n < u.parts; n++) {
+              const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 180000);
+              try {
+                const r = await fetch(`${cloud()}/api/school-server/lm/uploads/${u.id}/parts/${n}`, { headers: { Authorization: `Server ${link().token}` }, signal: ctl.signal });
+                if (!r.ok) throw new Error(`part ${n + 1} could not be downloaded`);
+                fs.appendFileSync(tmp, Buffer.from(await r.arrayBuffer()));
+              } finally { clearTimeout(t); }
+            }
+            if (fs.statSync(tmp).size !== Number(u.size)) throw new Error('the download was incomplete');
+            const dest = path.join(dir, name);
+            fs.rmSync(dest, { force: true });   // a newer copy replaces the old one
+            fs.renameSync(tmp, dest);
+            ctx.lm.changed();
+            await casFetch(`/lm/uploads/${u.id}/result`, { method: 'POST', body: { ok: true } });
+            log(`learning material from CAS: ${folder}/${name}`);
+            gotFiles++;
+          } catch (e) {
+            fs.rmSync(tmp, { force: true });
+            if (e.code === 'REVOKED') throw e;
+            // A network problem is tried again next sync; a disk problem is reported.
+            if (/ENOSPC|EACCES|EPERM/.test(e.code || '')) {
+              await casFetch(`/lm/uploads/${u.id}/result`, { method: 'POST', body: { ok: false, error: e.code === 'ENOSPC' ? 'The school server PC is out of disk space.' : 'The school server could not write to that folder.' } }).catch(() => {});
+            }
+            log('learning material from CAS failed', u.file_name, e.message);
+          }
+        }
+      } catch (e) { if (e.code === 'REVOKED') throw e; /* CAS without uploads yet */ }
+
       const counts = one('SELECT (SELECT COUNT(*) FROM students) AS s, (SELECT COUNT(*) FROM teachers) AS t');
       result.ok = true;
       result.message = `Roster: ${counts.s} students, ${counts.t} teachers. ${quizzes.length} CAS test${quizzes.length === 1 ? '' : 's'}.`
         + (pushedQuizzes ? ` Sent ${pushedQuizzes} test${pushedQuizzes === 1 ? '' : 's'} made here.` : '')
         + (sent ? ` Sent ${sent} result${sent === 1 ? '' : 's'}.` : '')
         + (recorded ? ` Recorded ${recorded} test${recorded === 1 ? '' : 's'} in Assessments.` : '')
-        + (gotNotes ? ` Got ${gotNotes} teacher note${gotNotes === 1 ? '' : 's'} from CAS.` : '');
-      await casFetch('/summary', { method: 'POST', body: { summary: result.message, lan: ctx.lanReport ? ctx.lanReport() : [], port: ctx.port } }).catch(() => {});
+        + (gotNotes ? ` Got ${gotNotes} teacher note${gotNotes === 1 ? '' : 's'} from CAS.` : '')
+        + (gotFiles ? ` Got ${gotFiles} learning material${gotFiles === 1 ? '' : 's'} from CAS.` : '');
+      await casFetch('/summary', { method: 'POST', body: { summary: result.message, lan: ctx.lanReport ? ctx.lanReport() : [], port: ctx.port,
+        lm_folders: ctx.lm.folders ? ctx.lm.folders() : undefined } }).catch(() => {});
     } catch (e) {
       result.message = e.code === 'REVOKED' ? 'CAS has disconnected this server. Connect it again with a new pairing code.'
         : e.name === 'AbortError' || /fetch failed|ENOTFOUND|ECONN|EAI_AGAIN/i.test(String(e.message) + String(e.cause?.code))
