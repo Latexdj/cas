@@ -19,17 +19,34 @@ import { BASE_URL } from './api';
 
 export interface Story {
   id: string; title: string; author: string; illustrator: string;
-  licence: string; url: string; level: 1 | 2 | 3 | 4; words: number; pictures: number; pages: string[];
+  licence: string; url: string; level: Level; words: number; pictures: number; pages: string[];
   /** Stories added in Super Admin: picture n's online address is images[n - 1] (null: no picture). */
   custom?: boolean; images?: (string | null)[]; updated_at?: string;
 }
 interface Library { source: string; image_base: string; built_at: string; stories: Story[] }
 
-export const LEVELS: { level: Story['level']; name: string; hint: string }[] = [
+export type Level = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
+// Levels 1-4 follow the African Storybook (all built-in stories); 5-10 are
+// for longer stories added in Super Admin, up to SHS.
+export const LEVELS: { level: Level; name: string; hint: string }[] = [
   { level: 1, name: 'Level 1', hint: 'First words' },
   { level: 2, name: 'Level 2', hint: 'First sentences' },
   { level: 3, name: 'Level 3', hint: 'First paragraphs' },
   { level: 4, name: 'Level 4', hint: 'Longer stories' },
+  { level: 5, name: 'Level 5', hint: 'Chapter stories' },
+  { level: 6, name: 'Level 6', hint: 'JHS 1' },
+  { level: 7, name: 'Level 7', hint: 'JHS 2 and 3' },
+  { level: 8, name: 'Level 8', hint: 'SHS 1' },
+  { level: 9, name: 'Level 9', hint: 'SHS 2' },
+  { level: 10, name: 'Level 10', hint: 'SHS 3 and beyond' },
+];
+/** The list's filter: levels grouped by school stage. */
+export const STAGES: { key: string; name: string; levels: Level[] }[] = [
+  { key: 'all', name: 'All levels', levels: [] },
+  { key: 'early', name: 'Early readers (1-3)', levels: [1, 2, 3] },
+  { key: 'primary', name: 'Upper primary (4-5)', levels: [4, 5] },
+  { key: 'jhs', name: 'JHS (6-7)', levels: [6, 7] },
+  { key: 'shs', name: 'SHS (8-10)', levels: [8, 9, 10] },
 ];
 
 let lib: Library | null = null;
@@ -60,7 +77,7 @@ let custom: Story[] = [];
 let customVersion = -1;
 const toStory = (m: CustomManifest['stories'][number]): Story => ({
   id: m.id, title: m.title, author: m.author || '', illustrator: m.illustrator || '',
-  licence: m.licence, url: '', level: (Math.min(4, Math.max(1, m.level)) as Story['level']),
+  licence: m.licence, url: '', level: (Math.min(10, Math.max(1, Math.round(m.level) || 1)) as Level),
   words: m.pages.reduce((n, p) => n + p.split(/\s+/).filter(Boolean).length, 0),
   pictures: m.images.length, pages: m.pages, custom: true, images: m.images, updated_at: m.updated_at,
 });

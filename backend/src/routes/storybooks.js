@@ -11,7 +11,8 @@ const { authenticate, superAdminOnly } = require('../middleware/auth');
 const { uploadFile } = require('../services/storage.service');
 
 const LICENCES = ['CC BY 4.0', 'CC BY 3.0', 'Own work'];
-const MAX_PAGES = 40;
+const MAX_PAGES = 80;
+const MAX_PAGE_TEXT = 5000;   // longer stories (levels 5-10) have long pages
 
 const text = (v, max) => { const s = String(v ?? '').trim(); return s.length <= max ? s : s.slice(0, max); };
 const pagesOf = (row) => (Array.isArray(row.pages) ? row.pages : []).map(p => ({ text: String(p?.text ?? ''), image: p?.image || null }));
@@ -86,14 +87,14 @@ router.put('/admin/:id', async (req, res, next) => {
     const title = text(b.title ?? cur.title, 120);
     if (!title) return res.status(400).json({ error: 'Give the story a title.' });
     const level = Number(b.level ?? cur.level);
-    if (![1, 2, 3, 4].includes(level)) return res.status(400).json({ error: 'Choose a level from 1 to 4.' });
+    if (!(Number.isInteger(level) && level >= 1 && level <= 10)) return res.status(400).json({ error: 'Choose a level from 1 to 10.' });
     const licence = b.licence ?? cur.licence;
     if (!LICENCES.includes(licence)) return res.status(400).json({ error: 'Choose one of the listed licences.' });
     const known = new Set([cur.cover_url, ...pagesOf(cur).map(p => p.image)].filter(Boolean));
     let pages = pagesOf(cur);
     if (Array.isArray(b.pages)) {
       if (b.pages.length > MAX_PAGES) return res.status(400).json({ error: `A story can have up to ${MAX_PAGES} pages.` });
-      pages = b.pages.map(p => ({ text: text(p?.text, 2000), image: p?.image && known.has(p.image) ? p.image : null }));
+      pages = b.pages.map(p => ({ text: text(p?.text, MAX_PAGE_TEXT), image: p?.image && known.has(p.image) ? p.image : null }));
     }
     const status = b.status === 'published' || b.status === 'draft' ? b.status : cur.status;
     if (status === 'published') {

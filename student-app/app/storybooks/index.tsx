@@ -7,15 +7,14 @@ import { router, useFocusEffect } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '@/context/ThemeContext';
 import { createThemedStyles } from '@/lib/themedStyles';
-import { LEVELS, allStories, byline, loadCustom, loadProgress, pictureSources, pictureUri, refreshCustom, remoteUrls, saveStory, savedIds, type Progress, type Sources, type Story } from '@/lib/storybooks';
+import { STAGES, allStories, byline, loadCustom, loadProgress, pictureSources, pictureUri, refreshCustom, remoteUrls, saveStory, savedIds, type Progress, type Sources, type Story } from '@/lib/storybooks';
 
-const K_LEVEL = 'cas_storybooks_level';
-type Filter = 0 | Story['level'];
+const K_STAGE = 'cas_storybooks_stage';
 
 export default function StorybooksScreen() {
   const C = useTheme();
   const [stories, setStories] = useState<Story[]>(allStories);
-  const [level, setLevel] = useState<Filter>(0);
+  const [stage, setStage] = useState('all');
   const [mine, setMine] = useState(false);
   const [query, setQuery] = useState('');
   const [saved, setSaved] = useState<Set<string>>(new Set());
@@ -36,17 +35,18 @@ export default function StorybooksScreen() {
   }, []);
   useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
   useEffect(() => {
-    AsyncStorage.getItem(K_LEVEL).then(v => { const n = Number(v); if (n >= 1 && n <= 4) setLevel(n as Filter); }).catch(() => {});
+    AsyncStorage.getItem(K_STAGE).then(v => { if (v && STAGES.some(x => x.key === v)) setStage(v); }).catch(() => {});
     pictureSources().then(setSrc).catch(() => {});
   }, []);
 
-  const pick = (l: Filter) => { setLevel(l); AsyncStorage.setItem(K_LEVEL, String(l)).catch(() => {}); };
+  const pick = (k: string) => { setStage(k); AsyncStorage.setItem(K_STAGE, k).catch(() => {}); };
 
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return stories.filter(st => (!level || st.level === level) && (!mine || saved.has(st.id))
+    const levels = STAGES.find(x => x.key === stage)?.levels ?? [];
+    return stories.filter(st => (!levels.length || levels.includes(st.level)) && (!mine || saved.has(st.id))
       && (!q || st.title.toLowerCase().includes(q) || st.author.toLowerCase().includes(q)));
-  }, [stories, level, mine, saved, query]);
+  }, [stories, stage, mine, saved, query]);
 
   async function saveAll() {
     const todo = stories.filter(st => !saved.has(st.id));
@@ -105,13 +105,12 @@ export default function StorybooksScreen() {
         )}
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.chips}>
-        {([0, 1, 2, 3, 4] as Filter[]).map(l => {
-          const on = level === l;
-          const info = LEVELS.find(x => x.level === l);
+        {STAGES.map(st => {
+          const on = stage === st.key;
           return (
-            <TouchableOpacity key={l} onPress={() => pick(l)} accessibilityRole="radio" accessibilityState={{ checked: on }}
+            <TouchableOpacity key={st.key} onPress={() => pick(st.key)} accessibilityRole="radio" accessibilityState={{ checked: on }}
               style={[s.chip, { borderColor: on ? C.primaryText : C.border, backgroundColor: on ? C.primaryLight : C.surface }]}>
-              <Text style={[s.chipText, { color: on ? C.primaryText : C.text }]}>{info ? `${info.name}: ${info.hint}` : 'All levels'}</Text>
+              <Text style={[s.chipText, { color: on ? C.primaryText : C.text }]}>{st.name}</Text>
             </TouchableOpacity>
           );
         })}
@@ -176,7 +175,9 @@ export default function StorybooksScreen() {
       ListFooterComponent={footer}
       ListEmptyComponent={
         <Text style={[s.meta, { color: C.text }]}>
-          {mine ? 'No stories at this level are on this device yet. Open a story to save it, or turn off "On this device".' : 'No story matches that search. Try part of the title or the writer\'s name.'}
+          {mine ? 'No stories at this level are on this device yet. Open a story to save it, or turn off "On this device".'
+            : query.trim() ? 'No story matches that search. Try part of the title or the writer\'s name.'
+            : 'No stories at this level yet. New stories are added by CAS and appear here when you are online or on the school Wi-Fi.'}
         </Text>
       }
       ItemSeparatorComponent={() => <View style={{ height: 8 }} />}

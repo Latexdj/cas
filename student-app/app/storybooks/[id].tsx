@@ -11,7 +11,8 @@ import { useTheme } from '@/context/ThemeContext';
 import { createThemedStyles } from '@/lib/themedStyles';
 import { LEVELS, hasPicture, isSaved, writtenBy, loadCustom, loadProgress, pictureSources, pictureUri, saveProgress, saveStory, storyById } from '@/lib/storybooks';
 
-const TEXT_SIZE = { 1: 28, 2: 24, 3: 20, 4: 19 } as const;
+// Bigger type for early readers; longer stories (5-10) read like a book page.
+const TEXT_SIZE: Record<number, number> = { 1: 28, 2: 24, 3: 20, 4: 19 };
 
 export default function StoryReader() {
   const C = useTheme();
@@ -89,7 +90,7 @@ export default function StoryReader() {
     return <View style={[s.center, { backgroundColor: C.bg }]}><Text style={{ color: C.text, fontSize: 16 }}>That story was not found.</Text></View>;
   }
 
-  const size = TEXT_SIZE[story.level];
+  const size = TEXT_SIZE[story.level] ?? 18;
   const picWidth = Math.min(width - 32, 560);
   const slot = page === 0 ? 1 : page + 1;
   const showFrame = page !== end && hasPicture(story, slot);   // pages of added stories may have no picture

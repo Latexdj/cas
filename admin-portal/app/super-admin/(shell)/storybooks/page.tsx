@@ -14,12 +14,20 @@ const P = {
   good: '#7DD3A8', goodBg: 'rgba(125,211,168,0.14)', warn: '#E2C07A', warnBg: 'rgba(200,151,58,0.15)', bad: '#F87171',
 };
 
+// 1-4 follow the African Storybook (the built-in stories); 5-10 go up to SHS.
 const LEVELS = [
-  { level: 1, label: 'Level 1: First words', hint: 'up to about 12 words a page' },
-  { level: 2, label: 'Level 2: First sentences', hint: 'up to about 30 words a page' },
-  { level: 3, label: 'Level 3: First paragraphs', hint: 'up to about 55 words a page' },
-  { level: 4, label: 'Level 4: Longer stories', hint: 'more than 55 words a page' },
+  { level: 1, label: 'Level 1: First words (KG to P1)', hint: 'up to about 12 words a page' },
+  { level: 2, label: 'Level 2: First sentences (P1 to P2)', hint: 'up to about 30 words a page' },
+  { level: 3, label: 'Level 3: First paragraphs (P2 to P3)', hint: 'up to about 55 words a page' },
+  { level: 4, label: 'Level 4: Longer stories (P3 to P4)', hint: 'more than 55 words a page' },
+  { level: 5, label: 'Level 5: Chapter stories (P5 to P6)', hint: 'short chapters, a few paragraphs a page' },
+  { level: 6, label: 'Level 6: JHS 1', hint: 'short stories and fables for JHS' },
+  { level: 7, label: 'Level 7: JHS 2 and 3', hint: 'longer stories for JHS' },
+  { level: 8, label: 'Level 8: SHS 1', hint: 'short stories and novellas for SHS' },
+  { level: 9, label: 'Level 9: SHS 2', hint: 'longer fiction for SHS' },
+  { level: 10, label: 'Level 10: SHS 3 and beyond', hint: 'literature-length reading' },
 ];
+const MAX_PAGES = 80;
 const LICENCES = [
   { key: 'Own work', label: 'Own work, with permission' },
   { key: 'CC BY 4.0', label: 'Creative Commons CC BY 4.0' },
@@ -216,7 +224,8 @@ function StoryEditor({ id, onBack }: { id: string; onBack: () => void }) {
   if (error) return <div style={{ color: P.bad }}>{error} <button style={btn()} onClick={onBack}>Back</button></div>;
   if (!story) return <p style={{ color: P.muted }}>Loading…</p>;
 
-  const perPage = story.pages.length ? Math.round(story.pages.reduce((n, p) => n + words(p.text), 0) / story.pages.length) : 0;
+  const totalWords = story.pages.reduce((n, p) => n + words(p.text), 0);
+  const perPage = story.pages.length ? Math.round(totalWords / story.pages.length) : 0;
   const suggested = perPage <= 12 ? 1 : perPage <= 30 ? 2 : perPage <= 55 ? 3 : 4;
   const missingPics = story.pages.filter(p => !p.image).length + (story.cover ? 0 : 1);
 
@@ -251,7 +260,9 @@ function StoryEditor({ id, onBack }: { id: string; onBack: () => void }) {
               {LEVELS.map(l => <option key={l.level} value={l.level}>{l.label}</option>)}
             </select>
             <span style={{ fontSize: 12, color: P.muted }}>
-              {perPage ? `About ${perPage} words a page: ${LEVELS[suggested - 1].label}${suggested === story.level ? ', as chosen.' : ' fits best.'}` : LEVELS[story.level - 1].hint}
+              {story.level >= 5
+                ? `${LEVELS[story.level - 1].hint}. ${totalWords} words in all.`
+                : perPage ? `About ${perPage} words a page: ${LEVELS[suggested - 1].label}${suggested === story.level ? ', as chosen.' : ' fits best (or choose 5 to 10 for older readers).'}` : LEVELS[story.level - 1].hint}
             </span></div>
           <div><label style={label} htmlFor="sb-c">Licence</label>
             <select id="sb-c" style={input} value={story.licence} onChange={e => edit({ licence: e.target.value })}>
@@ -280,16 +291,16 @@ function StoryEditor({ id, onBack }: { id: string; onBack: () => void }) {
                 <button style={btn('danger', story.pages.length === 1)} disabled={story.pages.length === 1} onClick={() => edit({ pages: story.pages.filter((_, k) => k !== i) })}>Remove page</button>
               </div>
             </div>
-            <textarea id={`sb-p${i}`} value={p.text} onChange={e => editPage(i, { text: e.target.value })} rows={5}
+            <textarea id={`sb-p${i}`} value={p.text} onChange={e => editPage(i, { text: e.target.value })} rows={story.level >= 5 ? 12 : 5} maxLength={5000}
               placeholder={i === 0 ? 'Once upon a time, in a village by the river…' : 'What happens next…'}
               style={{ ...input, minHeight: 120, resize: 'vertical', lineHeight: 1.5, fontSize: 15 }} />
-            <span style={{ fontSize: 12, color: P.muted }}>{words(p.text)} words. A blank line starts a new paragraph.</span>
+            <span style={{ fontSize: 12, color: P.muted }}>{words(p.text)} words{p.text.length > 4500 ? `, ${5000 - p.text.length} characters left on this page` : ''}. A blank line starts a new paragraph.</span>
           </div>
         </section>
       ))}
 
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
-        <button style={btn('quiet', story.pages.length >= 40)} disabled={story.pages.length >= 40} onClick={() => edit({ pages: [...story.pages, { text: '', image: null }] })}>Add page</button>
+        <button style={btn('quiet', story.pages.length >= MAX_PAGES)} disabled={story.pages.length >= MAX_PAGES} onClick={() => edit({ pages: [...story.pages, { text: '', image: null }] })}>Add page</button>
         {confirmDelete ? (
           <span style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <span style={{ fontSize: 14, color: P.ink2 }}>Delete &quot;{story.title}&quot; for good?{story.status === 'published' ? ' It leaves the apps when they next update.' : ''}</span>
