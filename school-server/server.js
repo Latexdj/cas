@@ -612,6 +612,31 @@ let lms = null;   // set in start()
 
 // ── HTTP ──────────────────────────────────────────────────────────────────────
 
+const cookie = (req, name) => {
+  for (const part of String(req.headers.cookie || '').split(';')) {
+    const i = part.indexOf('=');
+    if (i > 0 && part.slice(0, i).trim() === name) return part.slice(i + 1).trim() || null;
+  }
+  return null;
+};
+const PAGE_STYLE = '<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font:16px/1.5 system-ui,sans-serif;background:#F4EFE6;color:#1C1208;margin:0;padding:32px 16px}main{max-width:520px;margin:0 auto;background:#fff;border:1px solid #E2D9CC;border-radius:14px;padding:20px}@media (prefers-color-scheme:dark){body{background:#0E1A0C;color:#EEE8DF}main{background:#16241A;border-color:#2E4230}}</style>';
+const ADMIN_LOGIN_PAGE = `<!doctype html><title>CAS School Server</title>${PAGE_STYLE}<main><h1 style="font-size:20px;margin:0 0 8px">CAS School Server</h1><p id="m">Opening the server settings…</p></main>
+<script>
+(async () => {
+  const m = location.hash.match(/ticket=([A-Za-z0-9_.-]+)/);
+  history.replaceState(null, '', '/admin-login');
+  const say = (t) => { document.getElementById('m').textContent = t; };
+  if (!m) return say('Open the school server from the CAS admin portal: LMS, School Server, Open school server.');
+  try {
+    const r = await fetch('/admin-login', { method: 'POST', body: JSON.stringify({ ticket: m[1] }) });
+    const d = await r.json().catch(() => ({}));
+    if (r.ok) return location.replace('/');
+    say(d.error || 'That link did not work. Open the school server again from the CAS admin portal.');
+  } catch { say('The school server did not answer. Check you are on the school Wi-Fi.'); }
+})();
+</script>`;
+const SIGNED_OUT_PAGE = `<!doctype html><title>CAS School Server</title>${PAGE_STYLE}<main><h1 style="font-size:20px;margin:0 0 8px">Signed out</h1><p>This browser can no longer change the school server's settings. Open it again from the CAS admin portal when needed.</p></main>`;
+
 function clientIp(req) { return String(req.socket.remoteAddress || '').replace(/^::ffff:/, ''); }
 const isLocal = (req) => ['127.0.0.1', '::1'].includes(clientIp(req));
 
@@ -739,17 +764,34 @@ async function handle(req, res) {
   }
 
   // Admin page and actions: this PC only.
+  // The school admin signing in from another device on the Wi-Fi, with a pass
+  // from CAS (admin portal: LMS › School Server › Open school server). The pass
+  // travels in the address's #hash; this page sends it here and gets a cookie.
+  if (p === '/admin-login') {
+    if (req.method === 'GET') return send(res, 200, ADMIN_LOGIN_PAGE);
+    if (req.method === 'POST' && lms) {
+      const body = JSON.parse((await readBody(req, 16 * 1024)).toString('utf8') || '{}');
+      const r = lms.adminTicketLogin(body.ticket);
+      if (r.error) return send(res, 401, { error: r.error });
+      log(`admin page opened from ${clientIp(req)} with a CAS pass`);
+      return send(res, 200, { ok: true }, { 'Set-Cookie': `cas_admin=${r.token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${r.max_age}` });
+    }
+  }
+  if (p === '/admin-logout') {
+    if (lms) lms.adminSignOut(cookie(req, 'cas_admin'));
+    return send(res, 200, SIGNED_OUT_PAGE, { 'Set-Cookie': 'cas_admin=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0' });
+  }
   if (p === '/' || p.startsWith('/admin')) {
-    if (!isLocal(req)) {
+    if (!isLocal(req) && !(lms && lms.adminSessionOk(cookie(req, 'cas_admin')))) {
       return send(res, 403, p === '/'
-        ? '<!doctype html><meta charset="utf-8"><title>CAS School Server</title><p style="font-family:sans-serif;padding:24px">The CAS School Server is running. Its settings can only be opened on the server PC itself, at http://localhost:8787.</p>'
-        : { error: 'Only available on the server PC.' });
+        ? '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>CAS School Server</title><p style="font-family:sans-serif;padding:24px;max-width:560px;line-height:1.5">The CAS School Server is running. Its settings open on the server PC itself, at http://localhost:8787. From another laptop or phone on the school Wi-Fi, the school admin opens them from the CAS admin portal: LMS, School Server, Open school server.</p>'
+        : { error: 'Open the school server from the CAS admin portal, or on the server PC.' });
     }
     if (req.method === 'GET' && p === '/') return send(res, 200, fs.readFileSync(path.join(ROOT, 'admin.html'), 'utf8'));
     if (req.method === 'GET' && p === '/admin/status') {
       const m = packManifest();
       return send(res, 200, {
-        ...info(), port: PORT, lan: lanAddresses(), config: config(),
+        ...info(), port: PORT, lan: lanAddresses(), config: config(), remote: !isLocal(req),
         pack: m ? { version: m.version, published_at: m.published_at, source: m.source, loaded_at: m.loaded_at, subjects: m.subjects } : null,
         app_info: appInfo('student'), teacher_app_info: appInfo('teacher'), sync: { ...state, running: syncing },
         lm_copy: lmCopy,

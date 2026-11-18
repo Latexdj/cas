@@ -7,6 +7,9 @@ import { useCallback, useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 
 interface Server { id: string; name: string; last_seen_at: string | null; last_sync_summary: string | null; created_at: string }
+// Addresses on the school network and a 5-minute sign-in pass, per server.
+interface OpenLink { id: string; urls: string[]; ticket: string }
+const hostOf = (u: string) => u.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
 
 function errMsg(e: unknown, fallback: string) {
   return (e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? fallback;
@@ -28,6 +31,7 @@ export default function SchoolServerPage() {
   const [busy, setBusy] = useState(false);
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now());
+  const [opens, setOpens] = useState<Record<string, OpenLink>>({});
 
   const load = useCallback(async () => {
     try { const { data } = await api.get<Server[]>('/api/school-server/servers'); setServers(data); setError(''); }
@@ -35,6 +39,14 @@ export default function SchoolServerPage() {
     finally { setLoading(false); }
   }, []);
   useEffect(() => { load(); }, [load]);
+  // Fresh passes every 4 minutes (each lasts 5).
+  useEffect(() => {
+    const get = () => api.get<{ servers: OpenLink[] }>('/api/school-server/admin-open')
+      .then(r => setOpens(Object.fromEntries(r.data.servers.map(x => [x.id, x])))).catch(() => {});
+    get();
+    const t = setInterval(get, 4 * 60 * 1000);
+    return () => clearInterval(t);
+  }, []);
   // Refresh while a code is showing, so a newly connected server appears.
   useEffect(() => {
     if (!code) return;
@@ -95,6 +107,31 @@ export default function SchoolServerPage() {
                   <div className="flex-1 min-w-[220px]">
                     <p className="font-semibold text-ink">{s.name}</p>
                     <p className="text-sm text-ink-muted">Last in touch {ago(s.last_seen_at)}{s.last_sync_summary ? `. ${s.last_sync_summary}` : ''}</p>
+                    {(() => {
+                      const o = opens[s.id];
+                      if (!o) return null;
+                      if (!o.urls.length) return <p className="text-sm text-ink-muted mt-2">Its school network address arrives with its next sync. Until then, open its settings on the server PC at <span className="font-mono">http://localhost:8787</span>.</p>;
+                      const [main, ...others] = o.urls;
+                      return (
+                        <div className="mt-2 space-y-1.5">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <a href={`${main}#ticket=${o.ticket}`} target="_blank" rel="noopener noreferrer"
+                              className="inline-flex items-center min-h-[44px] px-4 rounded-lg bg-[#145C44] hover:bg-[#0B3D2E] text-white text-sm font-semibold">
+                              Open school server
+                            </a>
+                            {others.map(u => (
+                              <a key={u} href={`${u}#ticket=${o.ticket}`} target="_blank" rel="noopener noreferrer"
+                                className="inline-flex items-center min-h-[44px] px-3 rounded-lg border border-[#E2D9CC] text-sm font-semibold text-[#145C44] font-mono">
+                                {hostOf(u)}
+                              </a>
+                            ))}
+                          </div>
+                          <p className="text-xs text-ink-muted">
+                            Opens its settings in a new tab, on a laptop or phone on the school Wi-Fi; the browser stays signed in there for 12 hours. Not opening? Try the other address. On the server PC itself, use <span className="font-mono">http://localhost:8787</span>.
+                          </p>
+                        </div>
+                      );
+                    })()}
                   </div>
                   {confirmId === s.id ? (
                     <span className="flex items-center gap-2 text-sm text-[#4A3F32]">

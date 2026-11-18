@@ -61,6 +61,7 @@ module.exports = function createLms(ctx) {
   }
   db.exec(`
     CREATE TABLE IF NOT EXISTS assignments (teacher_id TEXT, subject TEXT, class_name TEXT);
+    CREATE TABLE IF NOT EXISTS admin_sessions (token TEXT PRIMARY KEY, user_id TEXT, expires_at INTEGER);
     CREATE TABLE IF NOT EXISTS lm_notes (id TEXT PRIMARY KEY, teacher_id TEXT, subject TEXT, class_names TEXT, file_name TEXT,
       paths TEXT, source TEXT, cas_id TEXT, size INTEGER, created_at TEXT);
     CREATE INDEX IF NOT EXISTS ix_assignments_teacher ON assignments(teacher_id);
@@ -616,22 +617,45 @@ module.exports = function createLms(ctx) {
   }
 
   const usedTickets = new Map(); // nonce -> expiry (seconds)
-  function ticketLogin(ticket) {
+  // Checks a pass from CAS: signed with the hash of this server's token, not
+  // expired (CAS's clock), not used before. Returns its contents or an error.
+  function checkTicket(ticket, what) {
     const l = link();
-    const [payload, sig] = ticket.split('.');
-    if (!l || !payload || !sig) return { status: 400, error: 'Sign in with your teacher code and password.' };
+    const [payload, sig] = String(ticket || '').split('.');
+    if (!l || !payload || !sig) return { error: `Open ${what} from CAS again.` };
     const key = crypto.createHash('sha256').update(l.token).digest('hex');
     const want = crypto.createHmac('sha256', key).update(payload).digest('base64url');
     const a = Buffer.from(sig), b = Buffer.from(want);
-    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return { status: 401, error: 'That link is not for this school server. Sign in with your teacher code and password.' };
-    let t; try { t = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')); } catch { return { status: 400, error: 'Sign in with your teacher code and password.' }; }
+    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return { error: 'That link is not for this school server.' };
+    let t; try { t = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')); } catch { return { error: `Open ${what} from CAS again.` }; }
     const now = Math.floor((Date.now() + (Number(meta('cas_clock_offset')) || 0)) / 1000);
     for (const [n, x] of usedTickets) if (x < now - 600) usedTickets.delete(n);
     // A few minutes either way, in case this PC's clock is off.
-    if (!t.x || t.x < now - 300 || usedTickets.has(t.n)) return { status: 401, error: 'That link has expired. Open Offline Assessment from CAS again, or sign in here.' };
+    if (!t.x || t.x < now - 300 || usedTickets.has(t.n)) return { error: `That link has expired. Open ${what} from CAS again.` };
+    usedTickets.set(t.n, t.x);
+    return { t };
+  }
+  // The school admin, from CAS (LMS › School Server › Open school server).
+  const ADMIN_HOURS = 12;
+  function adminTicketLogin(ticket) {
+    const c = checkTicket(ticket, 'the school server');
+    if (c.error) return { error: c.error };
+    if (c.t.r !== 'admin') return { error: 'That link is not for the admin page.' };
+    run('DELETE FROM admin_sessions WHERE expires_at < ?', Date.now());
+    const token = crypto.randomBytes(24).toString('hex');
+    run('INSERT INTO admin_sessions(token,user_id,expires_at) VALUES(?,?,?)', token, String(c.t.t || ''), Date.now() + ADMIN_HOURS * 3600 * 1000);
+    return { token, max_age: ADMIN_HOURS * 3600 };
+  }
+  const adminSessionOk = (token) => !!token && !!one('SELECT token FROM admin_sessions WHERE token=? AND expires_at > ?', String(token), Date.now());
+  const adminSignOut = (token) => { if (token) run('DELETE FROM admin_sessions WHERE token=?', String(token)); };
+
+  function ticketLogin(ticket) {
+    const c = checkTicket(ticket, 'Offline Assessment');
+    if (c.error) return { status: 401, error: `${c.error} Or sign in with your teacher code and password.` };
+    const t = c.t;
+    if (t.r) return { status: 401, error: 'That link is not for the teacher page.' };
     const user = one('SELECT id, name FROM teachers WHERE id=?', String(t.t || ''));
     if (!user) return { status: 401, error: 'Your teacher account is not on this server yet. Ask the admin to sync it with CAS, or sign in here.' };
-    usedTickets.set(t.n, t.x);
     run('DELETE FROM sessions WHERE expires_at < ?', Date.now());
     const token = crypto.randomBytes(24).toString('hex');
     run('INSERT INTO sessions(token,role,user_id,expires_at) VALUES(?,?,?,?)', token, 'teacher', user.id, Date.now() + SESSION_HOURS * 3600 * 1000);
@@ -1141,5 +1165,5 @@ module.exports = function createLms(ctx) {
   const allNotes = () => all('SELECT n.*, t.name AS teacher_name FROM lm_notes n LEFT JOIN teachers t ON t.id = n.teacher_id ORDER BY n.created_at DESC')
     .map(n => ({ ...noteView(n), teacher_name: n.teacher_name }));
   const adminRemoveNote = (id) => { const n = one('SELECT * FROM lm_notes WHERE id=?', id); if (n) removeNote(n); return !!n; };
-  return { handle, pair, disconnect, sync, status, start, lmLayout, saveLmLayout, allNotes, adminRemoveNote, noteFolders, previewNotes };
+  return { handle, pair, disconnect, sync, status, start, lmLayout, saveLmLayout, allNotes, adminRemoveNote, noteFolders, previewNotes, adminTicketLogin, adminSessionOk, adminSignOut };
 };

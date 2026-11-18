@@ -334,23 +334,36 @@ router.post('/summary', serverAuth, async (req, res, next) => {
 // key (the hash of its token, which the server can work out), so the server
 // can check it with no internet. The browser carries it in the address's #hash,
 // which never leaves the browser except to the school server's page itself.
+// One sign-in pass per server, signed with that server's key; `extra` marks
+// what it opens (an admin pass carries r: 'admin').
+async function serverPasses(schoolId, userId, extra = {}) {
+  const { rows } = await pool.query(
+    `SELECT id, name, token_hash, last_seen_at, lan, lan_port FROM school_servers
+      WHERE school_id=$1 AND revoked_at IS NULL ORDER BY last_seen_at DESC NULLS LAST`, [schoolId]);
+  const exp = Math.floor(Date.now() / 1000) + 5 * 60;
+  return rows.map(s => {
+    const payload = Buffer.from(JSON.stringify({ ...extra, t: userId, x: exp, n: crypto.randomBytes(9).toString('hex') })).toString('base64url');
+    const sig = crypto.createHmac('sha256', s.token_hash).update(payload).digest('base64url');
+    const port = s.lan_port || 8787;
+    return { id: s.id, name: s.name, last_seen_at: s.last_seen_at, bases: (s.lan || []).map(x => `http://${x.address}:${port}`), ticket: `${payload}.${sig}` };
+  });
+}
+
 router.get('/teacher-open', authenticate, async (req, res, next) => {
   try {
     if (req.user.role !== 'teacher') return res.status(403).json({ error: 'For teachers only.' });
-    const { rows } = await pool.query(
-      `SELECT id, name, token_hash, last_seen_at, lan, lan_port FROM school_servers
-        WHERE school_id=$1 AND revoked_at IS NULL ORDER BY last_seen_at DESC NULLS LAST`, [req.schoolId]);
-    const exp = Math.floor(Date.now() / 1000) + 5 * 60;
-    const servers = rows.map(s => {
-      const payload = Buffer.from(JSON.stringify({ t: req.user.id, x: exp, n: crypto.randomBytes(9).toString('hex') })).toString('base64url');
-      const sig = crypto.createHmac('sha256', s.token_hash).update(payload).digest('base64url');
-      const port = s.lan_port || 8787;
-      return {
-        id: s.id, name: s.name, last_seen_at: s.last_seen_at,
-        urls: (s.lan || []).map(x => `http://${x.address}:${port}/teacher`),
-        ticket: `${payload}.${sig}`,
-      };
-    });
+    const servers = (await serverPasses(req.schoolId, req.user.id))
+      .map(({ bases, ...s }) => ({ ...s, urls: bases.map(b => `${b}/teacher`) }));
+    res.json({ servers });
+  } catch (err) { next(err); }
+});
+
+// The school admin opens the server's own admin page from another device on
+// the school Wi-Fi. The pass works once, within 5 minutes, on that server only.
+router.get('/admin-open', admin, async (req, res, next) => {
+  try {
+    const servers = (await serverPasses(req.schoolId, req.user.id, { r: 'admin' }))
+      .map(({ bases, ...s }) => ({ ...s, urls: bases.map(b => `${b}/admin-login`) }));
     res.json({ servers });
   } catch (err) { next(err); }
 });

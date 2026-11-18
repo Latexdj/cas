@@ -42,6 +42,7 @@
   .msg.ok { background: var(--brand-soft); color: var(--brand); }
   .msg.bad { background: var(--bad-soft); color: var(--bad); }
   .msg.info { background: var(--gold-soft); color: var(--gold); }
+  .msg a { color: inherit; font-weight: 700; text-underline-offset: 3px; }
   .addr { font: 700 20px ui-monospace, Consolas, monospace; }
   table { width: 100%; border-collapse: collapse; font-size: 14px; }
   th { text-align: left; color: var(--muted); font-weight: 600; padding: 8px; }
@@ -73,6 +74,7 @@
   <div>
     <h1>CAS School Server</h1>
     <p class="muted" id="school">Serves past questions and the CAS apps to tablets and phones on this school's Wi-Fi.</p>
+    <p class="msg info" id="remotebar" hidden>Opened from CAS on another device. Copy from this PC means the server PC. <a href="/admin-logout">Sign out</a></p>
   </div>
 
   <section class="card" aria-labelledby="h-connect">
@@ -246,10 +248,16 @@ const mb = (n) => `${(n / 1024 / 1024).toFixed(1)} MB`;
 function msg(el, text, tone) { el.innerHTML = text ? `<div class="msg ${tone}">${esc(text)}</div>` : ''; }
 
 let status = null;
+// The 12-hour sign-in from CAS ran out (only when opened on another device).
+function signedOut() {
+  document.querySelector('main').innerHTML = '<div class="card"><h1>CAS School Server</h1><p>Your sign-in from CAS has ended. Open the school server again from the CAS admin portal: LMS, School Server, Open school server.</p></div>';
+}
 async function load() {
   const r = await fetch('/admin/status');
+  if (r.status === 403) return signedOut();
   status = await r.json();
   const s = status;
+  $('remotebar').hidden = !s.remote;
   if (s.school_name) $('school').textContent = `${s.school_name}: serves past questions and the CAS apps to tablets and phones on the school's Wi-Fi.`;
   if (document.activeElement !== $('schoolname')) $('schoolname').value = s.config.school_name || '';
   $('addrs').innerHTML = s.lan.length
@@ -369,7 +377,8 @@ const enc = (p) => encodeURIComponent(p);
 async function lmLoad() {
   const r = await fetch(`/admin/lm/list?path=${enc(lmPath)}`);
   const d = await r.json();
-  if (!r.ok) { lmPath = ''; return lmLoad(); }
+  if (r.status === 403) return signedOut();
+  if (!r.ok) { if (!lmPath) return; lmPath = ''; return lmLoad(); }
   const parts = lmPath ? lmPath.split('/') : [];
   $('lmcrumbs').innerHTML = [`<button data-go="">LM</button>`]
     .concat(parts.map((p, i) => `<span class="muted">/</span><button data-go="${esc(parts.slice(0, i + 1).join('/'))}">${esc(p)}</button>`)).join('');
