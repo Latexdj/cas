@@ -92,8 +92,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <ThemeContext.Provider value={{ colors, isDark, appearance, setAppearance, updateTheme }}>
-      {/* Status bar icons follow the app's appearance, not only the phone's */}
-      <StatusBar style={isDark ? 'light' : 'dark'} />
+      {/* Status bar icons follow the app's appearance, not only the phone's.
+          Not translucent: the app is not edge-to-edge (app.json), so screen
+          headers don't leave room for a status bar drawn over them. */}
+      <StatusBar style={isDark ? 'light' : 'dark'} translucent={false} backgroundColor={colors.surface} />
       {children}
     </ThemeContext.Provider>
   );

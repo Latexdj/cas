@@ -80,6 +80,17 @@ export default function WelcomeScreen() {
           </TouchableOpacity>
         )}
 
+        <TouchableOpacity style={s.loginCard} onPress={() => router.push('/storybooks')} activeOpacity={0.82} accessibilityRole="button">
+          <View style={[s.loginIconWrap]}>
+            <Ionicons name="book-outline" size={32} color={tc('#9A6F1E')} />
+          </View>
+          <View style={s.loginText}>
+            <Text style={s.loginTitle}>Storybooks</Text>
+            <Text style={s.loginSub}>African picture books to read, or to have read aloud</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={tc('#8C7E6E')} />
+        </TouchableOpacity>
+
         <TouchableOpacity style={s.loginCard} onPress={() => router.push('/games')} activeOpacity={0.82} accessibilityRole="button">
           <View style={[s.loginIconWrap]}>
             <Ionicons name="game-controller-outline" size={32} color={tc('#145C44')} />

@@ -17,7 +17,7 @@ const zlib = require('zlib');
 const crypto = require('crypto');
 require('dns').setDefaultResultOrder('ipv4first');
 
-const VERSION = '1.3.0';
+const VERSION = '1.4.0';
 const PORT = Number(process.env.CAS_SERVER_PORT) || 8787;
 const ROOT = __dirname;
 const DATA = path.join(ROOT, 'data');
@@ -669,6 +669,46 @@ function readBody(req, limit) {
   });
 }
 
+// ── Storybooks (African Storybook pictures, for the student app) ──
+// The story text is in the app; the pictures are mirrored here from the
+// Global-ASP image bank so tablets get them over the Wi-Fi. vendor/storybooks.json
+// lists each story's picture count.
+const STORIES = readJson(path.join(ROOT, 'vendor', 'storybooks.json'), null);
+const STORY_DIR = path.join(DATA, 'storybooks');
+const storyFile = (id, n) => path.join(STORY_DIR, id, `${String(n).padStart(2, '0')}.jpg`);
+const storyValid = (id, n) => !!STORIES && /^\d{4}$/.test(id) && n >= 1 && n <= (STORIES.pictures[id] || 0);
+let storySaved = 0;
+if (STORIES) for (const id of Object.keys(STORIES.pictures)) for (let n = 1; n <= STORIES.pictures[id]; n++) if (fs.existsSync(storyFile(id, n))) storySaved++;
+const storyTotal = STORIES ? Object.values(STORIES.pictures).reduce((a, b) => a + b, 0) : 0;
+async function fetchStoryPicture(id, n) {
+  const r = await fetchWithTimeout(`${STORIES.image_base}/${id}/${String(n).padStart(2, '0')}.jpg`, 30000);
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  const buf = Buffer.from(await r.arrayBuffer());
+  const f = storyFile(id, n);
+  fs.mkdirSync(path.dirname(f), { recursive: true });
+  fs.writeFileSync(`${f}.tmp`, buf); fs.renameSync(`${f}.tmp`, f);
+  storySaved++;
+  return buf;
+}
+let storyMirroring = false;
+/** Downloads the pictures not yet on this PC, one at a time. Stops when offline. */
+async function mirrorStorybooks() {
+  if (!STORIES || storyMirroring || storySaved >= storyTotal) return;
+  storyMirroring = true;
+  const before = storySaved;
+  try {
+    for (const id of Object.keys(STORIES.pictures)) {
+      for (let n = 1; n <= STORIES.pictures[id]; n++) {
+        if (fs.existsSync(storyFile(id, n))) continue;
+        try { await fetchStoryPicture(id, n); } catch { return; }   // offline: try again next sync
+      }
+    }
+  } finally {
+    storyMirroring = false;
+    if (storySaved > before) log(`storybooks: ${storySaved - before} pictures saved (${storySaved} of ${storyTotal})`);
+  }
+}
+
 function info() {
   const m = packManifest();
   const short = (a) => (a ? { versionCode: a.versionCode, versionName: a.versionName, size: a.size, sha256: a.sha256 } : null);
@@ -677,6 +717,7 @@ function info() {
     pack_version: m?.version ?? null, pack_published_at: m?.published_at ?? null,
     app: short(appInfo('student')), teacher_app: short(appInfo('teacher')),
     lm: (() => { const m = lmScan(); return { version: m.version, files: m.files.length, size: m.total }; })(),
+    storybooks: STORIES ? { pictures: storyTotal, saved: storySaved } : null,
   };
 }
 
@@ -737,6 +778,16 @@ async function handle(req, res) {
     const f = d && path.join(d, 'images', img[1]);
     if (!f || !fs.existsSync(f)) return send(res, 404, { error: 'Not found' });
     return send(res, 200, fs.readFileSync(f), { 'Content-Type': MIME[extOf(img[1])] || 'application/octet-stream', 'Cache-Control': 'max-age=86400' });
+  }
+
+  const story = p.match(/^\/storybooks\/(\d{4})\/(\d{1,2})\.jpg$/);
+  if (req.method === 'GET' && story) {
+    const [, id, nn] = story; const n = Number(nn);
+    if (!storyValid(id, n)) return send(res, 404, { error: 'Not found' });
+    const f = storyFile(id, n);
+    let buf = fs.existsSync(f) ? fs.readFileSync(f) : null;
+    if (!buf) { try { buf = await fetchStoryPicture(id, n); } catch { return send(res, 404, { error: 'This picture is not on the server yet.' }); } }
+    return send(res, 200, buf, { 'Content-Type': 'image/jpeg', 'Cache-Control': 'max-age=604800' });
   }
 
   if (req.method === 'GET' && p === '/lm/manifest') {
@@ -1037,8 +1088,9 @@ server.listen(PORT, '0.0.0.0', () => {
   log(`CAS School Server ${VERSION} listening on port ${PORT}: ${lanAddresses().map(a => a.address).join(', ') || 'no network'}`);
 });
 
-setTimeout(syncFromCloud, 10 * 1000);
-setInterval(syncFromCloud, SYNC_EVERY_MS);
+const syncAll = () => syncFromCloud().finally(() => mirrorStorybooks().catch(() => {}));
+setTimeout(syncAll, 10 * 1000);
+setInterval(syncAll, SYNC_EVERY_MS);
 }
 
 // Run directly, or through the launcher (server.js), which run.bat starts.
