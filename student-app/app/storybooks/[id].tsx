@@ -9,7 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Speech from 'expo-speech';
 import { useTheme } from '@/context/ThemeContext';
 import { createThemedStyles } from '@/lib/themedStyles';
-import { LEVELS, isSaved, writtenBy, loadProgress, pictureSources, pictureUri, saveProgress, saveStory, storyById } from '@/lib/storybooks';
+import { LEVELS, hasPicture, isSaved, writtenBy, loadCustom, loadProgress, pictureSources, pictureUri, saveProgress, saveStory, storyById } from '@/lib/storybooks';
 
 const TEXT_SIZE = { 1: 28, 2: 24, 3: 20, 4: 19 } as const;
 
@@ -18,7 +18,10 @@ export default function StoryReader() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const story = storyById(String(id));
+  const [story, setStory] = useState(() => storyById(String(id)));
+  const [looked, setLooked] = useState(!!story);
+  // A story added in Super Admin may need the saved list loaded first.
+  useEffect(() => { if (!story) loadCustom().then(() => { setStory(storyById(String(id))); setLooked(true); }); }, [id, story]);
   const [page, setPage] = useState(0);              // 0 cover, 1..n pages, n+1 the end
   const [saved, setSaved] = useState<boolean | null>(null);
   const [saving, setSaving] = useState<{ done: number; total: number } | null>(null);
@@ -48,7 +51,7 @@ export default function StoryReader() {
 
   const textFor = useCallback((p: number) => {
     if (!story) return '';
-    if (p === 0) return `${story.title}. ${writtenBy(story.author)}.`;
+    if (p === 0) return `${story.title}.${story.author ? ` ${writtenBy(story.author)}.` : ''}`;
     if (p === end) return 'The end.';
     return story.pages[p - 1];
   }, [story, end]);
@@ -82,12 +85,15 @@ export default function StoryReader() {
   useEffect(() => () => { readingRef.current = false; Speech.stop(); }, []);
 
   if (!story) {
+    if (!looked) return <View style={[s.center, { backgroundColor: C.bg }]}><ActivityIndicator color={C.primaryText} /></View>;
     return <View style={[s.center, { backgroundColor: C.bg }]}><Text style={{ color: C.text, fontSize: 16 }}>That story was not found.</Text></View>;
   }
 
   const size = TEXT_SIZE[story.level];
   const picWidth = Math.min(width - 32, 560);
-  const picture = page === end ? null : pictureUri(story, page === 0 ? 1 : page + 1, !!saved);
+  const slot = page === 0 ? 1 : page + 1;
+  const showFrame = page !== end && hasPicture(story, slot);   // pages of added stories may have no picture
+  const picture = showFrame ? pictureUri(story, slot, !!saved) : null;
   const levelInfo = LEVELS.find(l => l.level === story.level)!;
 
   return (
@@ -105,7 +111,7 @@ export default function StoryReader() {
       }} />
 
       <ScrollView ref={scroll} contentContainerStyle={[s.page, { paddingBottom: 24 }]}>
-        {page !== end && (
+        {showFrame && (
           <View style={[s.picFrame, { width: picWidth, height: picWidth, backgroundColor: C.surface, borderColor: C.border }]}>
             {picture ? (
               <Image source={{ uri: picture }} style={{ width: picWidth - 2, height: picWidth - 2, borderRadius: 11 }} resizeMode="contain"
@@ -132,22 +138,26 @@ export default function StoryReader() {
         {page === 0 ? (
           <View style={{ gap: 6 }}>
             <Text style={[s.title, { color: C.text }]}>{story.title}</Text>
-            <Text style={[s.byline, { color: C.textSoft }]}>{writtenBy(story.author)}</Text>
-            <Text style={[s.byline, { color: C.textSoft }]}>Illustrated by {story.illustrator}</Text>
+            {!!story.author && <Text style={[s.byline, { color: C.textSoft }]}>{writtenBy(story.author)}</Text>}
+            {!!story.illustrator && <Text style={[s.byline, { color: C.textSoft }]}>Illustrated by {story.illustrator}</Text>}
             <Text style={[s.small, { color: C.textSoft }]}>{levelInfo.name}: {levelInfo.hint}, {n} pages</Text>
           </View>
         ) : page === end ? (
           <View style={{ gap: 14 }}>
             <Text style={[s.title, { color: C.text }]}>The end</Text>
             <Text style={[s.body, { color: C.text, fontSize: 17, lineHeight: 26 }]}>
-              {story.title}: {writtenBy(story.author).replace(/^Written/, 'written')}, illustrated by {story.illustrator}.
+              {[story.title, story.author && writtenBy(story.author).replace(/^Written/, 'written'), story.illustrator && `illustrated by ${story.illustrator}`].filter(Boolean).join(', ')}.
             </Text>
             <Text style={[s.small, { color: C.textSoft }]}>
-              This story is from the African Storybook (africanstorybook.org) and is shared under a Creative Commons Attribution licence ({story.licence}).
+              {story.custom
+                ? `This story was added to CAS for schools${story.licence.startsWith('CC') ? `, shared under a Creative Commons Attribution licence (${story.licence})` : ''}.`
+                : `This story is from the African Storybook (africanstorybook.org) and is shared under a Creative Commons Attribution licence (${story.licence}).`}
             </Text>
-            <TouchableOpacity onPress={() => Linking.openURL(story.url)} accessibilityRole="link" style={{ alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center' }}>
-              <Text style={[s.link, { color: C.primaryText }]}>See this story on africanstorybook.org</Text>
-            </TouchableOpacity>
+            {!!story.url && (
+              <TouchableOpacity onPress={() => Linking.openURL(story.url)} accessibilityRole="link" style={{ alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center' }}>
+                <Text style={[s.link, { color: C.primaryText }]}>See this story on africanstorybook.org</Text>
+              </TouchableOpacity>
+            )}
             <View style={s.endBtns}>
               <TouchableOpacity onPress={() => go(0)} accessibilityRole="button" style={[s.secondary, { borderColor: C.borderStrong }]}>
                 <Ionicons name="refresh" size={18} color={C.text} />

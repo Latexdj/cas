@@ -81,6 +81,7 @@ const boardReportRoutes       = require('./routes/board-report');
 const lessonObservationRoutes = require('./routes/lesson-observation');
 const teacherResourcesRoutes  = require('./routes/teacher-resources');
 const pascoBankRoutes         = require('./routes/pasco-bank');
+const storybookRoutes         = require('./routes/storybooks');
 const schoolServerRoutes      = require('./routes/school-server');
 const lmNotesRoutes           = require('./routes/lm-notes').router;
 const lmUploadsRoutes         = require('./routes/lm-uploads').router;
@@ -215,6 +216,7 @@ app.use('/api/board-report',          boardReportRoutes);
 app.use('/api/lesson-observation',    lessonObservationRoutes);
 app.use('/api/teacher-resources',     teacherResourcesRoutes);
 app.use('/api/pasco-bank',            pascoBankRoutes);
+app.use('/api/storybooks',            storybookRoutes);
 app.use('/api/school-server',         schoolServerRoutes);
 app.use('/api/lm-notes',              lmNotesRoutes);
 app.use('/api/lm-uploads',            lmUploadsRoutes);
@@ -3019,6 +3021,32 @@ async function runMigrations() {
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_game_scores_board ON game_scores(school_id, game, played_at)`);
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_game_scores_student ON game_scores(student_id, game)`);
     } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] school server link:', e.message); }
+
+    // Storybooks added in Super Admin (the African Storybook ones are in the app).
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS storybooks (
+          id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          title        TEXT NOT NULL,
+          author       TEXT NOT NULL DEFAULT '',
+          illustrator  TEXT NOT NULL DEFAULT '',
+          licence      TEXT NOT NULL DEFAULT 'Own work',
+          level        INTEGER NOT NULL DEFAULT 2,
+          cover_url    TEXT,
+          pages        JSONB NOT NULL DEFAULT '[]',
+          status       TEXT NOT NULL DEFAULT 'draft',
+          published_at TIMESTAMPTZ,
+          created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+          updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+        )`);
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS storybook_state (
+          id         BOOLEAN PRIMARY KEY DEFAULT true CHECK (id),
+          version    INTEGER NOT NULL DEFAULT 0,
+          changed_at TIMESTAMPTZ
+        )`);
+      await pool.query('INSERT INTO storybook_state (id) VALUES (true) ON CONFLICT DO NOTHING');
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] storybooks:', e.message); }
 
     // Academic year date range
     try {

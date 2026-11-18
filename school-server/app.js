@@ -17,7 +17,7 @@ const zlib = require('zlib');
 const crypto = require('crypto');
 require('dns').setDefaultResultOrder('ipv4first');
 
-const VERSION = '1.4.0';
+const VERSION = '1.5.0';
 const PORT = Number(process.env.CAS_SERVER_PORT) || 8787;
 const ROOT = __dirname;
 const DATA = path.join(ROOT, 'data');
@@ -709,6 +709,59 @@ async function mirrorStorybooks() {
   }
 }
 
+// Storybooks added in Super Admin: the list from CAS (custom.json) and their
+// pictures, mirrored so tablets read them over the Wi-Fi. A picture is
+// fetched again when its address in CAS changes (it was replaced).
+const CUSTOM_FILE = path.join(STORY_DIR, 'custom.json');
+const customDir = (id) => path.join(STORY_DIR, 'custom', id);
+const customFile = (id, n) => path.join(customDir(id), String(n).padStart(2, '0'));
+const isUuid = (x) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(x);
+const sniff = (buf) => (buf[0] === 0x89 ? 'image/png' : buf[0] === 0xff ? 'image/jpeg' : buf.slice(0, 4).toString() === 'RIFF' ? 'image/webp' : 'application/octet-stream');
+async function fetchCustomPicture(id, n, url) {
+  const r = await fetchWithTimeout(url, 30000);
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  const buf = Buffer.from(await r.arrayBuffer());
+  fs.mkdirSync(customDir(id), { recursive: true });
+  const f = customFile(id, n);
+  fs.writeFileSync(f + '.tmp', buf); fs.renameSync(f + '.tmp', f);
+  fs.writeFileSync(f + '.src', url);
+  return buf;
+}
+let customSyncing = false;
+async function syncCustomStories() {
+  if (customSyncing) return;
+  customSyncing = true;
+  try {
+    const cloud = config().cloud_url.replace(/\/+$/, '');
+    let remote;
+    try {
+      const r = await fetchWithTimeout(`${cloud}/api/storybooks/manifest`, 30000);
+      if (!r.ok) return;
+      remote = await r.json();
+    } catch { return; }   // offline
+    if (!remote || !Array.isArray(remote.stories)) return;
+    fs.mkdirSync(STORY_DIR, { recursive: true });
+    writeJson(CUSTOM_FILE, remote);
+    const keep = new Set(remote.stories.map(st => st.id).filter(isUuid));
+    fs.mkdirSync(path.join(STORY_DIR, 'custom'), { recursive: true });
+    for (const d of fs.readdirSync(path.join(STORY_DIR, 'custom'), { withFileTypes: true }).filter(x => x.isDirectory())) {
+      if (!keep.has(d.name)) fs.rmSync(path.join(STORY_DIR, 'custom', d.name), { recursive: true, force: true });
+    }
+    let got = 0;
+    for (const st of remote.stories) {
+      if (!isUuid(st.id)) continue;
+      for (const [k, url] of (st.images || []).entries()) {
+        const f = customFile(st.id, k + 1);
+        if (!url) { fs.rmSync(f, { force: true }); continue; }
+        let have = ''; try { have = fs.readFileSync(f + '.src', 'utf8'); } catch { /* not yet */ }
+        if (have === url && fs.existsSync(f)) continue;
+        try { await fetchCustomPicture(st.id, k + 1, url); got++; } catch { /* next sync */ }
+      }
+    }
+    if (got) log(`storybooks: ${got} pictures saved for stories added in CAS`);
+  } finally { customSyncing = false; }
+}
+
 function info() {
   const m = packManifest();
   const short = (a) => (a ? { versionCode: a.versionCode, versionName: a.versionName, size: a.size, sha256: a.sha256 } : null);
@@ -780,6 +833,22 @@ async function handle(req, res) {
     return send(res, 200, fs.readFileSync(f), { 'Content-Type': MIME[extOf(img[1])] || 'application/octet-stream', 'Cache-Control': 'max-age=86400' });
   }
 
+  if (req.method === 'GET' && p === '/storybooks/custom/manifest') {
+    const m = readJson(CUSTOM_FILE, null);
+    return send(res, 200, m || { version: 0, stories: [] });
+  }
+  const custom = p.match(/^\/storybooks\/custom\/([0-9a-f-]{36})\/(\d{1,2})\.jpg$/);
+  if (req.method === 'GET' && custom) {
+    const [, id, nn] = custom; const n = Number(nn);
+    const st = isUuid(id) && (readJson(CUSTOM_FILE, null)?.stories || []).find(x => x.id === id);
+    const url = st && st.images && st.images[n - 1];
+    if (!url) return send(res, 404, { error: 'Not found' });
+    const f = customFile(id, n);
+    let have = ''; try { have = fs.readFileSync(f + '.src', 'utf8'); } catch { /* not yet */ }
+    let buf = have === url && fs.existsSync(f) ? fs.readFileSync(f) : null;
+    if (!buf) { try { buf = await fetchCustomPicture(id, n, url); } catch { return send(res, 404, { error: 'This picture is not on the server yet.' }); } }
+    return send(res, 200, buf, { 'Content-Type': sniff(buf), 'Cache-Control': 'max-age=3600' });
+  }
   const story = p.match(/^\/storybooks\/(\d{4})\/(\d{1,2})\.jpg$/);
   if (req.method === 'GET' && story) {
     const [, id, nn] = story; const n = Number(nn);
@@ -1088,7 +1157,7 @@ server.listen(PORT, '0.0.0.0', () => {
   log(`CAS School Server ${VERSION} listening on port ${PORT}: ${lanAddresses().map(a => a.address).join(', ') || 'no network'}`);
 });
 
-const syncAll = () => syncFromCloud().finally(() => mirrorStorybooks().catch(() => {}));
+const syncAll = () => syncFromCloud().finally(() => syncCustomStories().catch(() => {}).finally(() => mirrorStorybooks().catch(() => {})));
 setTimeout(syncAll, 10 * 1000);
 setInterval(syncAll, SYNC_EVERY_MS);
 }

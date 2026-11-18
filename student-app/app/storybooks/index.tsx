@@ -7,15 +7,14 @@ import { router, useFocusEffect } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '@/context/ThemeContext';
 import { createThemedStyles } from '@/lib/themedStyles';
-import { findSchoolServer } from '@/lib/schoolServer';
-import { LEVELS, byline, library, loadProgress, pictureSources, pictureUri, saveStory, savedIds, type Progress, type Story } from '@/lib/storybooks';
+import { LEVELS, allStories, byline, loadCustom, loadProgress, pictureSources, pictureUri, refreshCustom, remoteUrls, saveStory, savedIds, type Progress, type Sources, type Story } from '@/lib/storybooks';
 
 const K_LEVEL = 'cas_storybooks_level';
 type Filter = 0 | Story['level'];
 
 export default function StorybooksScreen() {
   const C = useTheme();
-  const stories = library().stories;
+  const [stories, setStories] = useState<Story[]>(allStories);
   const [level, setLevel] = useState<Filter>(0);
   const [mine, setMine] = useState(false);
   const [query, setQuery] = useState('');
@@ -23,19 +22,22 @@ export default function StorybooksScreen() {
   const [progress, setProgress] = useState<Record<string, Progress>>({});
   // Where covers of stories not saved yet come from, tried in order: the
   // school server (no data cost) when on its Wi-Fi, then online.
-  const [coverBases, setCoverBases] = useState<string[]>([library().image_base]);
+  const [src, setSrc] = useState<Sources>({ school: null });
   const [bulk, setBulk] = useState<{ done: number; total: number; failed: number } | null>(null);
   const [bulkNote, setBulkNote] = useState('');
   const stop = useRef(false);
 
   const refresh = useCallback(async () => {
+    await loadCustom(); setStories(allStories());
     setSaved(await savedIds());
     setProgress(await loadProgress());
+    // Stories added in Super Admin since last time.
+    if (await refreshCustom()) { setStories(allStories()); setSaved(await savedIds()); }
   }, []);
   useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
   useEffect(() => {
     AsyncStorage.getItem(K_LEVEL).then(v => { const n = Number(v); if (n >= 1 && n <= 4) setLevel(n as Filter); }).catch(() => {});
-    if (Platform.OS !== 'web') findSchoolServer().then(sv => { if (sv) setCoverBases([`${sv.base}/storybooks`, library().image_base]); }).catch(() => {});
+    pictureSources().then(setSrc).catch(() => {});
   }, []);
 
   const pick = (l: Filter) => { setLevel(l); AsyncStorage.setItem(K_LEVEL, String(l)).catch(() => {}); };
@@ -74,10 +76,10 @@ export default function StorybooksScreen() {
       <TouchableOpacity onPress={() => router.push({ pathname: '/storybooks/[id]', params: { id: st.id } })} accessibilityRole="button"
         accessibilityLabel={`${st.title}, level ${st.level}, ${st.pages.length} pages${status ? `, ${status}` : ''}`}
         style={[s.row, { backgroundColor: C.surface, borderColor: C.border }]}>
-        <Cover story={st} saved={isSaved} remotes={coverBases.map(b => `${b}/${st.id}/01.jpg`)} />
+        <Cover story={st} saved={isSaved} remotes={remoteUrls(st, 1, src)} />
         <View style={{ flex: 1, gap: 3 }}>
           <Text style={[s.title, { color: C.text }]} numberOfLines={2}>{st.title}</Text>
-          <Text style={[s.meta, { color: C.textSoft }]} numberOfLines={1}>Level {st.level}, {st.pages.length} pages, {byline(st.author)}</Text>
+          <Text style={[s.meta, { color: C.textSoft }]} numberOfLines={1}>{[`Level ${st.level}`, `${st.pages.length} pages`, byline(st.author)].filter(Boolean).join(', ')}</Text>
           {(status || isSaved) && (
             <View style={s.tags}>
               {status && <Text style={[s.tag, { color: p?.finished ? C.success : C.primaryText }]}>{status}</Text>}
@@ -155,7 +157,7 @@ export default function StorybooksScreen() {
         </View>
       )}
       <Text style={[s.credit, { color: C.textSoft }]}>
-        These stories come from the African Storybook (africanstorybook.org), written and illustrated by African authors and artists, and shared under a Creative Commons Attribution licence (CC BY).
+        {stories.some(st => st.custom) ? 'Besides the stories added for CAS schools, these' : 'These'} stories come from the African Storybook (africanstorybook.org), written and illustrated by African authors and artists, and shared under a Creative Commons Attribution licence (CC BY).
       </Text>
       <TouchableOpacity onPress={() => Linking.openURL('https://africanstorybook.org')} accessibilityRole="link" style={{ alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center' }}>
         <Text style={[s.link, { color: C.primaryText }]}>Visit africanstorybook.org</Text>
