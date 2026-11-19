@@ -1,13 +1,34 @@
 import { useEffect } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { AppState, StyleSheet, View } from 'react-native';
+import NetInfo from '@react-native-community/netinfo';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { ThemeProvider, useTheme } from '@/context/ThemeContext';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { Spinner } from '@/components/ui/Spinner';
 import { createThemedStyles } from '@/lib/themedStyles';
+import { primeAutoUpdate, runAutoUpdate } from '@/lib/autoUpdate';
 
+
+// Automatic updates (lib/autoUpdate.ts): when the app starts, comes back to
+// the front, joins a Wi-Fi network, and every 15 minutes while open.
+function useAutoUpdates() {
+  useEffect(() => {
+    primeAutoUpdate();
+    const first = setTimeout(() => runAutoUpdate(), 4000);   // let the first screen settle
+    const app = AppState.addEventListener('change', st => { if (st === 'active') runAutoUpdate(); });
+    let wasWifi: boolean | null = null;
+    const net = NetInfo.addEventListener(n => {
+      const wifi = n.type === 'wifi' && !!n.isConnected;
+      if (wifi && wasWifi === false) setTimeout(() => runAutoUpdate(true), 5000);   // just joined: give it a moment
+      wasWifi = wifi;
+    });
+    const every = setInterval(() => runAutoUpdate(), 15 * 60 * 1000);
+    return () => { clearTimeout(first); app.remove(); net(); clearInterval(every); };
+  }, []);
+}
 
 function InitialLayout() {
+  useAutoUpdates();
   const { user, isLoading, mustChangePassword } = useAuth();
   const C = useTheme();
   const router   = useRouter();

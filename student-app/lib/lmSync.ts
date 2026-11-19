@@ -37,6 +37,8 @@ let state: LmSyncState = {
 };
 const listeners = new Set<() => void>();
 function set(patch: Partial<LmSyncState>) { state = { ...state, ...patch }; listeners.forEach(l => l()); }
+/** The current sync state, outside React. */
+export const lmSnapshot = (): LmSyncState => state;
 export function useLmSync(): LmSyncState {
   return useSyncExternalStore(l => { listeners.add(l); return () => { listeners.delete(l); }; }, () => state, () => state);
 }

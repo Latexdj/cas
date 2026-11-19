@@ -2,7 +2,7 @@
 // school server, and the last update check. The home screen and the
 // "Get new questions" screen both read it, so they always agree.
 import { useSyncExternalStore } from 'react';
-import { importUsb, importZip, localManifest, updatePack, type PackManifest, type ZipResult } from './quizPack';
+import { importUsb, importZip, localManifest, updatePack, type PackManifest, type UpdateResult, type ZipResult } from './quizPack';
 import { findSchoolServer, setManualAddress, tryAddress, type SchoolServer } from './schoolServer';
 
 export interface PackSyncState {
@@ -33,8 +33,8 @@ export function usePackSync(): PackSyncState {
 }
 
 /** Checks the school server and the internet for a newer pack. */
-export async function checkForUpdates(fresh = false) {
-  if (state.busy) return;
+export async function checkForUpdates(fresh = false): Promise<UpdateResult | undefined> {
+  if (state.busy) return undefined;
   set({ busy: true, status: 'Checking for new questions…', tone: 'info', server: undefined });
   const local = await localManifest();
   const find = () => findSchoolServer({ fresh, packVersion: local?.version ?? null })
@@ -47,6 +47,7 @@ export async function checkForUpdates(fresh = false) {
   else if (r.status === 'offline') set({ status: 'No school server or internet right now. Your questions still work.', tone: 'info' });
   else set({ status: 'The update stopped part way. Try again when the connection is better.', tone: 'bad' });
   set({ busy: false, checkedAt: Date.now() });
+  return r;
 }
 
 let started = false;
