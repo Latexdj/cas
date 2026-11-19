@@ -53,7 +53,8 @@
             ]
           }
         }
-      ]
+      ],
+      "./plugins/withArmOnly"
     ],
     "extra": {
       "router": {},

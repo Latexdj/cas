@@ -6,6 +6,7 @@ import { useTheme } from 'next-themes';
 import { getTeacher, getTeacherColors } from '@/lib/teacher-auth';
 import { teacherApi } from '@/lib/teacher-api';
 import type jsQRType from 'jsqr';
+import { compressToBase64 } from '@/lib/compressImage';
 
 interface TimetableSlot {
   id: string;
@@ -88,29 +89,6 @@ function isEditWindowOpen(sessionDate: string, lessonEndTime: string | null): bo
   if (isNaN(endDt.getTime())) return true;           // parse failure = assume editable
   const cutoff = new Date(endDt.getTime() + 30 * 60 * 1000);
   return new Date() <= cutoff;
-}
-
-function compressToBase64(file: File): Promise<{ dataUrl: string; kb: number }> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-      const compress = (w: number, q: number): string => {
-        const canvas = document.createElement('canvas');
-        const scale = Math.min(1, w / img.width);
-        canvas.width  = Math.round(img.width  * scale);
-        canvas.height = Math.round(img.height * scale);
-        canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height);
-        return canvas.toDataURL('image/jpeg', q);
-      };
-      let dataUrl = compress(640, 0.4);
-      if (dataUrl.length * 0.75 > 40 * 1024) dataUrl = compress(480, 0.25);
-      resolve({ dataUrl, kb: Math.round(dataUrl.length * 0.75 / 1024) });
-    };
-    img.onerror = reject;
-    img.src = url;
-  });
 }
 
 export default function SubmitPage() {

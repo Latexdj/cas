@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { ObservationCriterion, LessonObservationDetail, AcademicYear, TeacherLessonOption } from '@/types/api';
 import { confirmAction, notify } from '@/components/ui/dialogs';
+import { compressToBase64 } from '@/lib/compressImage';
 
 const SCORE_LABELS: Record<number, string> = { 1: '1 — Ineffective', 2: '2 — Developing', 3: '3 — Effective', 4: '4 — Highly Effective' };
 
@@ -68,6 +69,16 @@ export default function ObservationDetail({ apiClient, backHref, observationId }
   }, [apiClient, observationId]);
 
   useEffect(() => { load(); }, [load]);
+
+  // After adding or removing a photo, only the photos are refreshed: a full
+  // reload would put every field back to its last saved value and lose what
+  // the observer has typed since.
+  async function refreshPhotos() {
+    try {
+      const { data } = await apiClient.get<LessonObservationDetail>(`/api/lesson-observation/${observationId}`);
+      setObs(prev => (prev ? { ...prev, photos: data.photos } : data));
+    } catch { /* the photo is saved; the list updates next time */ }
+  }
 
   useEffect(() => {
     apiClient.get<AcademicYear[]>('/api/academic-years').then(r => setAcademicYears(r.data)).catch(() => {});
@@ -194,21 +205,17 @@ export default function ObservationDetail({ apiClient, backHref, observationId }
     if (!file) return;
     setUploadingPhoto(true);
     try {
-      const base64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
-      await apiClient.post(`/api/lesson-observation/${observationId}/photos`, { photo_base64: base64 });
-      load();
+      // Shrunk like lesson-submission photos (about 40 KB).
+      const { dataUrl } = await compressToBase64(file);
+      await apiClient.post(`/api/lesson-observation/${observationId}/photos`, { photo_base64: dataUrl });
+      await refreshPhotos();
     } catch { notify('Failed to upload photo.'); }
     finally { setUploadingPhoto(false); e.target.value = ''; }
   }
 
   async function removePhoto(photoId: string) {
     if (!await confirmAction('Remove this photo?')) return;
-    try { await apiClient.delete(`/api/lesson-observation/${observationId}/photos/${photoId}`); load(); }
+    try { await apiClient.delete(`/api/lesson-observation/${observationId}/photos/${photoId}`); await refreshPhotos(); }
     catch { notify('Failed to remove photo.'); }
   }
 

@@ -5,6 +5,7 @@ import { useTheme } from '@/context/ThemeContext';
 import { api } from '@/lib/api';
 import { downloadAndShare, isPickError, pickFile } from '@/lib/files';
 import { SelfieCamera } from '@/components/SelfieCamera';
+import { compressPhoto } from '@/lib/compressPhoto';
 import { Body, Button, Card, ChoiceChips, Chip, Empty, Field, InlineConfirm, Loading, Notice, Picker, Progress, Row, Screen, Segmented, Title, errText } from '@/components/ui/kit';
 
 interface Year { id: string; name: string; is_current: boolean; current_semester?: number }
@@ -247,8 +248,12 @@ function ObservationDetail({ id, years, onBack }: { id: string; years: Year[]; o
     finally { setBusy(null); }
   }
   async function choosePhoto() {
-    const f = await pickFile(['image/*'], 8);
-    if (isPickError(f)) setMsg({ text: f.error, tone: 'bad' }); else if (f) addPhoto(f.data);
+    const f = await pickFile(['image/*'], 15);
+    if (isPickError(f)) { setMsg({ text: f.error, tone: 'bad' }); return; }
+    if (!f) return;
+    // Shrunk like lesson-submission photos (about 40 KB) before it goes up.
+    try { addPhoto((await compressPhoto(f.uri)).dataUrl); }
+    catch { setMsg({ text: 'That file could not be read as a picture.', tone: 'bad' }); }
   }
   async function removePhoto(pid: string) {
     try { await api.delete(`/api/lesson-observation/${id}/photos/${pid}`); await reload(); } catch (e) { setMsg({ text: errText(e, 'Could not remove the photo.'), tone: 'bad' }); }
@@ -368,7 +373,7 @@ function ObservationDetail({ id, years, onBack }: { id: string; years: Year[]; o
 
       <Card>
         <Title>Evidence photos</Title>
-        {camera ? <SelfieCamera facing="back" width={1200} onTaken={p => { setCamera(false); addPhoto(p.dataUrl); }} onCancel={() => setCamera(false)} /> : (
+        {camera ? <SelfieCamera facing="back" onTaken={p => { setCamera(false); addPhoto(p.dataUrl); }} onCancel={() => setCamera(false)} /> : (
           <>
             {o.photos.length === 0 ? <Body soft>No photos yet.</Body> : (
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
