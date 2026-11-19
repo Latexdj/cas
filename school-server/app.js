@@ -17,7 +17,7 @@ const zlib = require('zlib');
 const crypto = require('crypto');
 require('dns').setDefaultResultOrder('ipv4first');
 
-const VERSION = '1.6.0';
+const VERSION = '1.6.1';
 const PORT = Number(process.env.CAS_SERVER_PORT) || 8787;
 const ROOT = __dirname;
 const DATA = path.join(ROOT, 'data');
@@ -459,6 +459,26 @@ function lmScan() {
 const lmChanged = () => { lmCache = null; };
 
 /** Streams one LM file, honouring a Range header so downloads can resume. */
+// Big downloads (app updates and learning-material files) at the same time.
+// One router's Wi-Fi shared by a class of tablets slows to a crawl when every
+// tablet pulls a large file at once, and lessons on the same Wi-Fi suffer.
+// Over the limit, a tablet is told to try again shortly (the apps retry).
+// config.json "max_downloads" changes the limit.
+let bigDownloads = 0;
+const maxDownloads = () => Math.max(1, Math.min(20, Number(config().max_downloads) || 4));
+/** Starts a big download, or answers "busy" and returns false. */
+function takeDownloadSlot(res) {
+  if (bigDownloads >= maxDownloads()) {
+    send(res, 503, { error: 'The school server is busy sending files to other tablets. Try again in a minute.' }, { 'Retry-After': '60' });
+    return false;
+  }
+  bigDownloads++;
+  let freed = false;
+  const free = () => { if (!freed) { freed = true; bigDownloads--; } };
+  res.on('close', free); res.on('finish', free);
+  return true;
+}
+
 function sendLmFile(req, res, rel) {
   const abs = lmAbs(rel);
   let st;
@@ -471,9 +491,11 @@ function sendLmFile(req, res, rel) {
     let end = range[1] && range[2] ? Number(range[2]) : st.size - 1;
     if (start >= st.size || start > end) { res.writeHead(416, { ...base, 'Content-Range': `bytes */${st.size}` }); return res.end(); }
     end = Math.min(end, st.size - 1);
+    if (!takeDownloadSlot(res)) return;
     res.writeHead(206, { ...base, 'Content-Range': `bytes ${start}-${end}/${st.size}`, 'Content-Length': end - start + 1 });
     return fs.createReadStream(abs, { start, end }).pipe(res);
   }
+  if (!takeDownloadSlot(res)) return;
   res.writeHead(200, { ...base, 'Content-Length': st.size });
   fs.createReadStream(abs).pipe(res);
 }
@@ -890,6 +912,7 @@ async function handle(req, res) {
     const a = appInfo(apkRoute);
     const f = a && path.join(appDir(apkRoute), a.file);
     if (!f || !fs.existsSync(f)) return send(res, 404, { error: 'No app on the server yet.' });
+    if (!takeDownloadSlot(res)) return;
     res.writeHead(200, {
       'Content-Type': 'application/vnd.android.package-archive',
       'Content-Length': fs.statSync(f).size,
@@ -1169,6 +1192,17 @@ const server = http.createServer((req, res) => {
   handle(req, res).catch(e => { log('request failed', req.url, e.message); try { send(res, 500, { error: 'Server error' }); } catch { /* already sent */ } });
 });
 server.requestTimeout = 0; // large uploads and APK downloads on slow Wi-Fi
+// Another copy already serving (run.bat started twice): wait quietly instead
+// of failing, and don't let it count against a newly installed update.
+server.on('error', (e) => {
+  if (e.code !== 'EADDRINUSE') throw e;
+  log(`port ${PORT} is already in use: another copy of the server is running. This copy waits.`);
+  try {
+    const st = readJsonFile(UPDATE_STATE);
+    if (st && st.status === 'trial' && st.attempts > 0) { st.attempts -= 1; fs.writeFileSync(UPDATE_STATE, JSON.stringify(st, null, 2)); }
+  } catch { /* no update in progress */ }
+  setTimeout(() => process.exit(0), 10 * 60 * 1000);   // run.bat tries again later
+});
 server.listen(PORT, '0.0.0.0', () => {
   log(`CAS School Server ${VERSION} listening on port ${PORT}: ${lanAddresses().map(a => a.address).join(', ') || 'no network'}`);
 });
