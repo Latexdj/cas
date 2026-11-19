@@ -20,7 +20,7 @@ const { parsePaperText } = require('../services/pasco-text-import.service');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024, files: 20 } });
 
-const EXAMS   = ['WASSCE', 'BECE', 'NOVDEC', 'MOCK', 'OTHER'];
+const EXAMS   = ['WASSCE', 'BECE', 'NOVDEC', 'CTVET', 'MOCK', 'PRACTICE', 'OTHER'];
 const LETTERS = ['a', 'b', 'c', 'd', 'e'];
 
 const slugify = (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'subject';

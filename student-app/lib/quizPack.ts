@@ -31,9 +31,9 @@ export interface PackQuestion {
 }
 export interface SubjectPack { subject: string; slug: string; hash: string; papers: PackPaper[]; questions: PackQuestion[] }
 
-const EXAM_LABEL: Record<string, string> = { WASSCE: 'WASSCE', BECE: 'BECE', NOVDEC: 'Nov/Dec', MOCK: 'Mock', OTHER: '' };
+const EXAM_LABEL: Record<string, string> = { WASSCE: 'WASSCE', BECE: 'BECE', NOVDEC: 'Nov/Dec', CTVET: 'CTVET', MOCK: 'Mock', PRACTICE: 'Practice', OTHER: '' };
 /** Exams in the order they are shown. */
-export const EXAM_ORDER = ['WASSCE', 'BECE', 'NOVDEC', 'MOCK', 'OTHER'];
+export const EXAM_ORDER = ['WASSCE', 'BECE', 'NOVDEC', 'CTVET', 'MOCK', 'PRACTICE', 'OTHER'];
 export function examName(key: string) { return key === 'OTHER' ? 'Other' : EXAM_LABEL[key] ?? key; }
 /** Question ids in a pack that belong to one exam (all when exam is empty). */
 export function examFilter(pack: SubjectPack, exam: string | null | undefined) {

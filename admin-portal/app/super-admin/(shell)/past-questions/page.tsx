@@ -17,7 +17,7 @@ const P = {
 
 const EXAMS = [
   { key: 'WASSCE', label: 'WASSCE' }, { key: 'BECE', label: 'BECE' }, { key: 'NOVDEC', label: 'Nov/Dec' },
-  { key: 'MOCK', label: 'Mock' }, { key: 'OTHER', label: 'Other' },
+  { key: 'CTVET', label: 'CTVET' }, { key: 'MOCK', label: 'Mock' }, { key: 'PRACTICE', label: 'Practice' }, { key: 'OTHER', label: 'Other' },
 ];
 const examLabel = (k: string) => EXAMS.find(e => e.key === k)?.label ?? k;
 const LETTERS = ['A', 'B', 'C', 'D', 'E'];

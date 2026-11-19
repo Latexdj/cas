@@ -38,7 +38,7 @@ async function sourceBlocks(files) {
   return blocks;
 }
 
-const SYSTEM = `You convert scanned or typed examination past-question papers (WASSCE, BECE and school exams in Ghana) into structured data.
+const SYSTEM = `You convert scanned or typed examination past-question papers (WASSCE, BECE, CTVET and school exams in Ghana) into structured data.
 
 Rules:
 - Copy each question's wording exactly as printed. Fix only obvious scanning errors. Keep maths readable in plain text (x^2, sqrt(x), 3/4).
