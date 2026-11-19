@@ -5,3 +5,6 @@ dist/
 /ios/
 *.log
 .env
+
+# Gradle caches in local native modules
+modules/*/android/.gradle/
