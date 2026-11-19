@@ -1,0 +1,174 @@
+<!doctype html>
+<!-- Draw a diagram for a question, then hand it back as a PNG picture.
+     Used in a frame by Super Admin › Past Questions and the CAS School
+     Server's test editor (a copy lives in school-server/vendor). Sends
+     {type:'cas-diagram', png} or {type:'cas-diagram-cancel'} to the page that
+     opened it. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Draw a diagram</title>
+<style>
+  :root { --bg: #F4EFE6; --card: #FFFFFF; --ink: #1C1208; --soft: #4A3F32; --line: #E2D9CC; --green: #145C44; --deep: #0B3D2E; --on: #E8F2EC; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font: 14px system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+  .wrap { display: flex; flex-direction: column; height: 100%; }
+  .bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 8px 10px; background: var(--card); border-bottom: 1px solid var(--line); }
+  .group { display: flex; gap: 4px; align-items: center; padding-right: 8px; margin-right: 2px; border-right: 1px solid var(--line); }
+  .group:last-child { border-right: none; }
+  button { min-height: 36px; min-width: 36px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--ink); font: 600 13px system-ui, sans-serif; cursor: pointer; }
+  button[aria-pressed="true"] { background: var(--on); border-color: var(--green); color: var(--deep); }
+  button.primary { background: var(--green); border-color: var(--green); color: #fff; }
+  button:focus-visible { outline: 2px solid var(--green); outline-offset: 1px; }
+  .swatch { width: 26px; height: 26px; min-width: 26px; min-height: 26px; padding: 0; border-radius: 50%; }
+  .swatch[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--green); }
+  .stage { flex: 1; overflow: auto; display: flex; align-items: flex-start; justify-content: center; padding: 12px; }
+  canvas { background: #fff; border: 1px solid var(--line); border-radius: 8px; touch-action: none; cursor: crosshair; max-width: 100%; }
+  .hint { padding: 0 12px 10px; color: var(--soft); font-size: 13px; }
+  #textbox { position: fixed; display: none; min-width: 160px; padding: 6px 8px; border: 2px solid var(--green); border-radius: 6px; font: 18px system-ui, sans-serif; background: #fff; }
+  .label { font-size: 12px; color: var(--soft); margin-right: 2px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="bar" role="toolbar" aria-label="Drawing tools">
+    <div class="group" id="tools"></div>
+    <div class="group"><span class="label">Colour</span><span id="colours" style="display:flex;gap:6px"></span></div>
+    <div class="group"><span class="label">Line</span><span id="widths" style="display:flex;gap:4px"></span></div>
+    <div class="group"><button id="fill" aria-pressed="false" title="Fill shapes with light grey">Fill</button><button id="grid" aria-pressed="false" title="Squared paper, kept in the picture">Grid</button></div>
+    <div class="group"><button id="undo" title="Undo">Undo</button><button id="clear" title="Clear the drawing">Clear</button></div>
+    <div class="group" style="margin-left:auto"><button id="cancel">Cancel</button><button id="done" class="primary">Add to question</button></div>
+  </div>
+  <div class="stage"><canvas id="c" width="900" height="560" aria-label="Drawing area"></canvas></div>
+  <div class="hint" id="hint">Choose a tool, then drag on the white area. Text: click where the label goes, type, then press Enter.</div>
+</div>
+<input id="textbox" type="text" aria-label="Label text">
+<script>
+(function () {
+  const TOOLS = [
+    ['pen', 'Pen'], ['line', 'Line'], ['arrow', 'Arrow'], ['rect', 'Rectangle'], ['ellipse', 'Circle'],
+    ['tri', 'Triangle'], ['right', 'Right-angled triangle'], ['axes', 'Axes'], ['text', 'Text'],
+  ];
+  const COLOURS = [['#1C1208', 'Black'], ['#B83232', 'Red'], ['#1D4ED8', 'Blue'], ['#145C44', 'Green'], ['#C8780A', 'Orange']];
+  const WIDTHS = [[2, 'Thin'], [4, 'Medium'], [7, 'Thick']];
+  const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+  const box = document.getElementById('textbox');
+  let tool = 'line', colour = COLOURS[0][0], width = 2, fill = false, grid = false;
+  const shapes = []; let draft = null; let textAt = null;
+
+  function makeButtons(host, list, isOn, pick, cls) {
+    host.innerHTML = '';
+    for (const [v, name] of list) {
+      const b = document.createElement('button');
+      b.type = 'button'; b.title = name; b.setAttribute('aria-label', name);
+      if (cls === 'swatch') { b.className = 'swatch'; b.style.background = v; }
+      else b.textContent = cls === 'width' ? name : name.replace('Right-angled triangle', 'Right angle');
+      b.setAttribute('aria-pressed', String(isOn(v)));
+      b.onclick = () => { pick(v); render(); paintBars(); };
+      host.appendChild(b);
+    }
+  }
+  function paintBars() {
+    makeButtons(document.getElementById('tools'), TOOLS, v => v === tool, v => { tool = v; }, 'tool');
+    makeButtons(document.getElementById('colours'), COLOURS, v => v === colour, v => { colour = v; }, 'swatch');
+    makeButtons(document.getElementById('widths'), WIDTHS, v => v === width, v => { width = v; }, 'width');
+    document.getElementById('fill').setAttribute('aria-pressed', String(fill));
+    document.getElementById('grid').setAttribute('aria-pressed', String(grid));
+  }
+
+  function pos(e) {
+    const r = cv.getBoundingClientRect();
+    return { x: (e.clientX - r.left) * (cv.width / r.width), y: (e.clientY - r.top) * (cv.height / r.height) };
+  }
+  function arrowHead(x1, y1, x2, y2, w) {
+    const a = Math.atan2(y2 - y1, x2 - x1), L = 10 + w * 2;
+    ctx.beginPath(); ctx.moveTo(x2, y2);
+    ctx.lineTo(x2 - L * Math.cos(a - 0.45), y2 - L * Math.sin(a - 0.45));
+    ctx.lineTo(x2 - L * Math.cos(a + 0.45), y2 - L * Math.sin(a + 0.45));
+    ctx.closePath(); ctx.fill();
+  }
+  function draw(s) {
+    ctx.strokeStyle = s.colour; ctx.fillStyle = s.colour; ctx.lineWidth = s.width; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    const [a, b] = [s.pts[0], s.pts[s.pts.length - 1]];
+    const shapeFill = () => { if (s.fill) { ctx.save(); ctx.fillStyle = 'rgba(28,18,8,0.12)'; ctx.fill(); ctx.restore(); } ctx.stroke(); };
+    if (s.type === 'pen') { ctx.beginPath(); s.pts.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y))); ctx.stroke(); }
+    else if (s.type === 'line' || s.type === 'arrow') {
+      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+      if (s.type === 'arrow') arrowHead(a.x, a.y, b.x, b.y, s.width);
+    } else if (s.type === 'rect') { ctx.beginPath(); ctx.rect(a.x, a.y, b.x - a.x, b.y - a.y); shapeFill(); }
+    else if (s.type === 'ellipse') {
+      ctx.beginPath(); ctx.ellipse((a.x + b.x) / 2, (a.y + b.y) / 2, Math.abs(b.x - a.x) / 2, Math.abs(b.y - a.y) / 2, 0, 0, Math.PI * 2); shapeFill();
+    } else if (s.type === 'tri') {
+      ctx.beginPath(); ctx.moveTo((a.x + b.x) / 2, a.y); ctx.lineTo(b.x, b.y); ctx.lineTo(a.x, b.y); ctx.closePath(); shapeFill();
+    } else if (s.type === 'right') {
+      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(a.x, b.y); ctx.lineTo(b.x, b.y); ctx.closePath(); shapeFill();
+      const k = Math.min(16, Math.abs(b.x - a.x) / 4, Math.abs(b.y - a.y) / 4), sx = Math.sign(b.x - a.x) || 1, sy = Math.sign(a.y - b.y) || 1;
+      ctx.beginPath(); ctx.lineWidth = Math.max(1, s.width - 1);
+      ctx.moveTo(a.x + sx * k, b.y); ctx.lineTo(a.x + sx * k, b.y + sy * k); ctx.lineTo(a.x, b.y + sy * k); ctx.stroke();
+    } else if (s.type === 'axes') {
+      const ox = Math.min(a.x, b.x), oy = Math.max(a.y, b.y), w = Math.abs(b.x - a.x), h = Math.abs(b.y - a.y);
+      const cx = ox + w / 2, cy = oy - h / 2;
+      ctx.beginPath(); ctx.moveTo(ox, cy); ctx.lineTo(ox + w, cy); ctx.stroke(); arrowHead(ox, cy, ox + w, cy, s.width);
+      ctx.beginPath(); ctx.moveTo(cx, oy); ctx.lineTo(cx, oy - h); ctx.stroke(); arrowHead(cx, oy, cx, oy - h, s.width);
+      ctx.font = 'italic 18px Georgia, serif'; ctx.fillText('x', ox + w - 12, cy + 22); ctx.fillText('y', cx + 8, oy - h + 14); ctx.fillText('O', cx - 18, cy + 20);
+    } else if (s.type === 'text') { ctx.font = `${s.size}px system-ui, sans-serif`; ctx.textBaseline = 'top'; ctx.fillText(s.text, a.x, a.y); ctx.textBaseline = 'alphabetic'; }
+  }
+  function render() {
+    ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, cv.width, cv.height);
+    if (grid) {
+      ctx.strokeStyle = '#D9E2EC'; ctx.lineWidth = 1;
+      for (let x = 0; x <= cv.width; x += 20) { ctx.beginPath(); ctx.moveTo(x + 0.5, 0); ctx.lineTo(x + 0.5, cv.height); ctx.stroke(); }
+      for (let y = 0; y <= cv.height; y += 20) { ctx.beginPath(); ctx.moveTo(0, y + 0.5); ctx.lineTo(cv.width, y + 0.5); ctx.stroke(); }
+    }
+    for (const s of shapes) draw(s);
+    if (draft) draw(draft);
+  }
+
+  cv.addEventListener('pointerdown', e => {
+    const p = pos(e);
+    if (tool === 'text') { openText(e.clientX, e.clientY, p); return; }
+    cv.setPointerCapture(e.pointerId);
+    draft = { type: tool, pts: [p, p], colour, width, fill };
+  });
+  cv.addEventListener('pointermove', e => {
+    if (!draft) return;
+    const p = pos(e);
+    if (draft.type === 'pen') draft.pts.push(p); else draft.pts[1] = p;
+    render();
+  });
+  const finish = () => {
+    if (!draft) return;
+    const [a, b] = [draft.pts[0], draft.pts[draft.pts.length - 1]];
+    if (draft.type === 'pen' ? draft.pts.length > 2 : Math.hypot(b.x - a.x, b.y - a.y) > 4) shapes.push(draft);
+    draft = null; render();
+  };
+  cv.addEventListener('pointerup', finish); cv.addEventListener('pointercancel', finish);
+
+  function openText(cx, cy, p) {
+    textAt = p; box.value = ''; box.style.left = `${cx}px`; box.style.top = `${cy - 16}px`; box.style.display = 'block'; setTimeout(() => box.focus(), 0);
+  }
+  function commitText() {
+    if (textAt && box.value.trim()) shapes.push({ type: 'text', pts: [textAt], colour, width, size: 14 + width * 3, text: box.value.trim() });
+    textAt = null; box.style.display = 'none'; render();
+  }
+  box.addEventListener('keydown', e => { if (e.key === 'Enter') commitText(); if (e.key === 'Escape') { textAt = null; box.style.display = 'none'; } });
+  box.addEventListener('blur', commitText);
+
+  document.getElementById('fill').onclick = () => { fill = !fill; paintBars(); };
+  document.getElementById('grid').onclick = () => { grid = !grid; render(); paintBars(); };
+  document.getElementById('undo').onclick = () => { shapes.pop(); render(); };
+  document.getElementById('clear').onclick = () => { shapes.length = 0; render(); };
+  document.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key === 'z' && document.activeElement !== box) { shapes.pop(); render(); } });
+  const send = (msg) => { (window.parent !== window ? window.parent : window.opener)?.postMessage(msg, '*'); };
+  document.getElementById('cancel').onclick = () => send({ type: 'cas-diagram-cancel' });
+  document.getElementById('done').onclick = () => {
+    if (!shapes.length) { document.getElementById('hint').textContent = 'Draw something first, or press Cancel.'; return; }
+    render();
+    send({ type: 'cas-diagram', png: cv.toDataURL('image/png') });
+  };
+  paintBars(); render();
+})();
+</script>
+</body>
+</html>

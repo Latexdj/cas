@@ -69,6 +69,29 @@
   .pick { display: grid; gap: 6px; max-height: 420px; overflow: auto; border: 1px solid var(--line); border-radius: 10px; padding: 8px; }
   .pick label { font-weight: 400; color: var(--ink); display: grid; grid-template-columns: 22px 1fr; gap: 8px; align-items: start; padding: 6px; border-radius: 8px; }
   .pick label:hover { background: var(--sunken); }
+  /* Question editor with formatting */
+  .rte { border: 1px solid var(--line); border-radius: 10px; background: var(--card); min-width: 0; }
+  .rte-bar { display: flex; flex-wrap: wrap; gap: 2px; padding: 4px; border-bottom: 1px solid var(--line); background: var(--sunken); border-radius: 10px 10px 0 0; }
+  .rbtn { min-height: 34px; min-width: 34px; padding: 0 8px; border: 1px solid transparent; background: transparent; border-radius: 7px; font-size: 14px; }
+  .rbtn:hover { border-color: var(--line); background: var(--card); }
+  .rte-body { min-height: 72px; padding: 8px 12px; outline: none; overflow-x: auto; }
+  .rte.compact .rte-body { min-height: 40px; }
+  .rte-body:focus { box-shadow: inset 0 0 0 2px var(--brand); border-radius: 0 0 10px 10px; }
+  .rte-body:empty::before { content: attr(data-ph); color: var(--muted); }
+  .rte-body p { margin: 0 0 6px; } .rte-body p:last-child { margin-bottom: 0; }
+  .rte-body ul, .rte-body ol { margin: 0 0 6px; padding-left: 22px; }
+  .rte-body table { width: auto; border-collapse: collapse; margin: 4px 0 8px; }
+  .rte-body td, .rte-body th { border: 1px solid var(--muted); padding: 5px 9px; min-width: 56px; color: var(--ink); vertical-align: top; }
+  .rte-body th { font-weight: 700; background: var(--sunken); }
+  .opt .rte { grid-column: 3; }
+  .q.info { border-color: var(--brand); background: var(--brand-soft); }
+  #rtepop { position: fixed; z-index: 50; width: min(420px, calc(100vw - 16px)); max-height: 320px; overflow: auto; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 10px; box-shadow: 0 10px 30px rgba(0,0,0,.18); }
+  .pophead { font-size: 12px; color: var(--muted); margin: 6px 0 4px; }
+  .popgrid { display: flex; flex-wrap: wrap; gap: 4px; }
+  .popgrid button { min-height: 36px; min-width: 36px; padding: 0 8px; font-size: 16px; }
+  .popgrid.wide button { font-size: 13px; }
+  #diagram { position: fixed; inset: 0; z-index: 60; background: rgba(11,61,46,.55); display: flex; align-items: center; justify-content: center; padding: 16px; }
+  #diagram iframe { width: min(1000px, 100%); height: min(720px, 100%); border: none; border-radius: 16px; background: #F4EFE6; }
 </style>
 </head>
 <body>
@@ -120,7 +143,7 @@
       <label class="row" style="display:flex;font-weight:400"><input type="checkbox" id="frand"> Shuffle the question order</label>
     </div>
     <div class="row between"><h2>Questions <span class="muted" id="qcount"></span></h2>
-      <div class="row"><button id="addmcq">Add objective</button><button id="addshort">Add short answer</button><button id="addpasco">Add from Past Questions</button></div></div>
+      <div class="row"><button id="addmcq">Add objective</button><button id="addshort">Add short answer</button><button id="addinfo">Add information for several questions</button><button id="addpasco">Add from Past Questions</button></div></div>
     <div id="pasco" class="card" hidden style="background:var(--sunken)">
       <div class="row between"><strong>Add from Past Questions</strong><button class="link" id="pclose">Close</button></div>
       <select id="psubject"></select>
@@ -128,6 +151,8 @@
       <div class="row"><button class="primary" id="padd">Add selected</button><span class="muted" id="pnote"></span></div>
     </div>
     <input type="file" id="imgfile" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
+    <div id="rtepop" hidden role="dialog" aria-label="Insert"></div>
+    <div id="diagram" hidden role="dialog" aria-modal="true" aria-label="Draw a diagram"><iframe id="diagramframe" title="Draw a diagram" src="about:blank"></iframe></div>
     <div id="qs" style="display:grid;gap:10px"></div>
     <div id="edmsg" role="alert"></div>
     <div class="row"><button class="primary" id="saveopen">Save and open for students</button><button id="savedraft">Save as draft</button></div>
@@ -310,14 +335,14 @@ function alertInline(text) { const d = document.createElement('div'); d.classNam
 // ── Editor ──
 $('newtest').onclick = () => openEditor(null);
 $('edback').onclick = () => listTests();
-function blankQ(type) { return type === 'short' ? { type: 'short', text: '', marks: 2, explanation: '', images: [] } : { type: 'mcq', text: '', options: ['', '', '', ''], option_images: [], correct: '', marks: 1, explanation: '', images: [] }; }
+function blankQ(type) { if (type === 'info') return { type: 'info', text: '', covers: 2, images: [] }; return type === 'short' ? { type: 'short', text: '', marks: 2, explanation: '', images: [] } : { type: 'mcq', text: '', options: ['', '', '', ''], option_images: [], correct: '', marks: 1, explanation: '', images: [] }; }
 async function openEditor(id) {
   editing = id; msg($('edmsg'), '', ''); $('pasco').hidden = true;
   if (id) {
     const t = await api(`/lms/teacher/tests/${id}`);
     draft = { title: t.title, class_names: t.class_names || [], subject: t.subject, record: t.record_as === 'ca' ? `ca:${t.mode_id}` : t.record_as === 'exam' ? 'exam' : 'none',
       time_limit_mins: t.time_limit_mins || '', instructions: t.instructions || '',
-      show_answers: !!t.show_answers, randomise: !!t.randomise, questions: t.questions.map(q => ({ type: q.type, text: q.text, options: q.options, correct: q.correct, marks: q.marks, explanation: q.explanation || '',
+      show_answers: !!t.show_answers, randomise: !!t.randomise, questions: t.questions.map(q => ({ type: q.type, text: q.text, options: q.options, correct: q.correct, marks: q.marks, explanation: q.explanation || '', covers: q.covers || 1,
         images: q.images || [], option_images: q.option_images || [] })) };
   } else draft = { title: '', class_names: [], subject: me.subjects.length === 1 ? me.subjects[0].subject : '', record: me.modes.length ? `ca:${me.modes[0].id}` : 'none',
     time_limit_mins: '', instructions: '', show_answers: true, randomise: false, questions: [blankQ('mcq')] };
@@ -351,38 +376,67 @@ $('fclasses').addEventListener('change', (e) => {
   renderClasses();
 });
 function countLabel() {
-  const n = draft.questions.length, m = draft.questions.reduce((t, x) => t + (Number(x.marks) || 0), 0);
+  const real = draft.questions.filter(x => x.type !== 'info');
+  const n = real.length, m = real.reduce((t, x) => t + (Number(x.marks) || 0), 0);
   $('qcount').textContent = `(${n} question${n === 1 ? '' : 's'}, ${m} mark${m === 1 ? '' : 's'})`;
+}
+function picsHtml(q, i) {
+  return `${(q.images || []).length ? `<div class="pics">${q.images.map((u, n) => `<figure><img src="${esc(u)}" alt="Picture ${n + 1}"><figcaption>Picture ${n + 1}: <code>[image ${n + 1}]</code> marks where it goes. <button class="link danger" data-rmimg="${i}:${n}">Remove</button></figcaption></figure>`).join('')}</div>` : ''}
+      <div class="row"><button class="link" data-addimg="${i}" ${(q.images || []).length >= 6 ? 'disabled' : ''}>Add picture</button>
+        <span class="muted">${(q.images || []).length ? 'Pictures not placed with [image N] show under the text.' : 'Or use Draw in the toolbar for a diagram.'}</span></div>`;
 }
 function renderQs() {
   countLabel();
-  $('qs').innerHTML = draft.questions.map((q, i) => `
+  let no = 0;
+  $('qs').innerHTML = draft.questions.map((q, i) => {
+    const moves = `<button class="link" data-up="${i}" ${i === 0 ? 'disabled' : ''}>Move up</button><button class="link danger" data-rm="${i}">Remove</button>`;
+    if (q.type === 'info') {
+      const opts = Array.from({ length: 10 }, (_, k) => k + 1).map(k => `<option value="${k}" ${Number(q.covers) === k ? 'selected' : ''}>${k}</option>`).join('');
+      return `
+    <div class="q info" data-i="${i}">
+      <div class="row between"><strong>Information for the next <select data-f="covers" aria-label="How many questions it is for" style="width:auto;min-height:36px;padding:2px 8px">${opts}</select> question${Number(q.covers) === 1 ? '' : 's'}</strong>
+        <div class="row">${moves}</div></div>
+      <p class="muted">Students see this above each of those questions, for example "Use the following information to answer Questions ${no + 1} and ${no + 2}". Shuffled tests keep them together.</p>
+      ${rte('text', q.text, { label: 'Information', diagram: true, placeholder: 'Use the following information to answer the next questions.' })}
+      ${picsHtml(q, i)}
+    </div>`;
+    }
+    no++;
+    return `
     <div class="q" data-i="${i}">
-      <div class="row between"><strong>${i + 1}. ${q.type === 'short' ? 'Short answer' : 'Objective'}</strong>
-        <div class="row"><label class="row" style="display:flex">Marks <input data-f="marks" value="${esc(q.marks)}" inputmode="decimal" style="width:80px"></label>
-          <button class="link" data-up="${i}" ${i === 0 ? 'disabled' : ''}>Move up</button><button class="link danger" data-rm="${i}">Remove</button></div></div>
-      <textarea data-f="text" placeholder="Question">${esc(q.text)}</textarea>
-      ${(q.images || []).length ? `<div class="pics">${q.images.map((u, n) => `<figure><img src="${esc(u)}" alt="Picture ${n + 1}"><figcaption>Picture ${n + 1}: type <code>[image ${n + 1}]</code> where it goes. <button class="link danger" data-rmimg="${i}:${n}">Remove</button></figcaption></figure>`).join('')}</div>` : ''}
-      <div class="row"><button class="link" data-addimg="${i}" ${(q.images || []).length >= 6 ? 'disabled' : ''}>Add picture</button>
-        <span class="muted">${(q.images || []).length ? 'Pictures not placed with [image N] show under the question.' : ''}</span></div>
-      ${q.type === 'short' ? `<textarea data-f="explanation" placeholder="Marking guide for you (students don't see it)">${esc(q.explanation)}</textarea>` : `
-        ${q.options.map((o, k) => `<div class="opt"><input type="radio" name="c${i}" data-correct="${k}" ${q.correct === LET[k].toLowerCase() ? 'checked' : ''} aria-label="${LET[k]} is the answer"><strong>${LET[k]}</strong><input data-opt="${k}" value="${esc(o)}" placeholder="Option ${LET[k]}${(q.option_images || [])[k] ? ' (optional with a picture)' : ''}">
+      <div class="row between"><strong>${no}. ${q.type === 'short' ? 'Short answer' : 'Objective'}</strong>
+        <div class="row"><label class="row" style="display:flex">Marks <input data-f="marks" value="${esc(q.marks)}" inputmode="decimal" style="width:80px"></label>${moves}</div></div>
+      ${rte('text', q.text, { label: `Question ${no}`, diagram: true, placeholder: 'Question' })}
+      ${picsHtml(q, i)}
+      ${q.type === 'short' ? rte('explanation', q.explanation, { label: 'Marking guide', placeholder: "Marking guide for you (students don't see it)" }) : `
+        ${q.options.map((o, k) => `<div class="opt"><input type="radio" name="c${i}" data-correct="${k}" ${q.correct === LET[k].toLowerCase() ? 'checked' : ''} aria-label="${LET[k]} is the answer"><strong>${LET[k]}</strong>${rte(`opt:${k}`, o, { compact: true, label: `Option ${LET[k]}`, placeholder: `Option ${LET[k]}${(q.option_images || [])[k] ? ' (optional with a picture)' : ''}` })}
           ${(q.option_images || [])[k] ? '' : `<button class="link" data-optimg="${i}:${k}" aria-label="Add a picture to option ${LET[k]}">Picture</button>`}</div>
           ${(q.option_images || [])[k] ? `<div class="optimg"><img src="${esc(q.option_images[k])}" alt="Picture for option ${LET[k]}"><button class="link danger" data-rmoptimg="${i}:${k}">Remove picture</button></div>` : ''}`).join('')}
         <div class="row">${q.options.length < 5 ? `<button class="link" data-addopt="${i}">Add option</button>` : ''}${q.options.length > 2 ? `<button class="link" data-rmopt="${i}">Remove last option</button>` : ''}</div>
-        <input data-f="explanation" value="${esc(q.explanation)}" placeholder="Explanation shown after submitting (optional)">`}
-    </div>`).join('') || '<p class="muted">No questions yet.</p>';
+        ${rte('explanation', q.explanation, { label: 'Explanation', compact: true, placeholder: 'Explanation shown after submitting (optional)' })}`}
+    </div>`;
+  }).join('') || '<p class="muted">No questions yet.</p>';
 }
 $('qs').addEventListener('input', (e) => {
   const box = e.target.closest('[data-i]'); if (!box) return; const q = draft.questions[box.dataset.i];
+  const body = e.target.closest('.rte-body');
+  if (body) {
+    const f = body.closest('[data-rte]').dataset.rte;
+    const html = editorHtml(body);
+    if (f.startsWith('opt:')) q.options[Number(f.slice(4))] = html; else q[f] = html;
+    return;
+  }
   if (e.target.dataset.f) q[e.target.dataset.f] = e.target.value;
-  if (e.target.dataset.opt) q.options[e.target.dataset.opt] = e.target.value;
   if (e.target.dataset.correct !== undefined) q.correct = LET[e.target.dataset.correct].toLowerCase();
   if (e.target.dataset.f === 'marks') countLabel();
 });
-$('qs').addEventListener('change', (e) => { if (e.target.dataset.correct !== undefined) { const q = draft.questions[e.target.closest('[data-i]').dataset.i]; q.correct = LET[e.target.dataset.correct].toLowerCase(); } });
+$('qs').addEventListener('change', (e) => {
+  const box = e.target.closest('[data-i]'); if (!box) return; const q = draft.questions[box.dataset.i];
+  if (e.target.dataset.correct !== undefined) q.correct = LET[e.target.dataset.correct].toLowerCase();
+  if (e.target.dataset.f === 'covers') { q.covers = Number(e.target.value); renderQs(); }
+});
 $('qs').addEventListener('click', (e) => {
-  const b = e.target.closest('button'); if (!b) return;
+  const b = e.target.closest('button'); if (!b || b.classList.contains('rbtn')) return;
   if (b.dataset.rm) draft.questions.splice(+b.dataset.rm, 1);
   else if (b.dataset.up) { const i = +b.dataset.up; [draft.questions[i - 1], draft.questions[i]] = [draft.questions[i], draft.questions[i - 1]]; }
   else if (b.dataset.addopt) draft.questions[+b.dataset.addopt].options.push('');
@@ -422,6 +476,7 @@ $('imgfile').onchange = async () => {
 };
 $('addmcq').onclick = () => { draft.questions.push(blankQ('mcq')); renderQs(); };
 $('addshort').onclick = () => { draft.questions.push(blankQ('short')); renderQs(); };
+$('addinfo').onclick = () => { draft.questions.push(blankQ('info')); renderQs(); };
 
 // Past Questions picker
 let pascoQs = [];
@@ -436,15 +491,23 @@ $('psubject').onchange = async () => {
   if (!$('psubject').value) return;
   const d = await api(`/lms/teacher/pasco?subject=${encodeURIComponent($('psubject').value)}`);
   pascoQs = d.questions;
-  $('plist').innerHTML = pascoQs.map((q, i) => `<label><input type="checkbox" data-pq="${i}"><span><span class="muted">${esc(q.paper)}${q.no ? `, question ${q.no}` : ''}${q.type === 'short' ? ', theory' : ''}${q.has_picture ? ', has a picture' : ''}</span><br>${esc(q.text.slice(0, 220))}</span></label>`).join('');
+  $('plist').innerHTML = pascoQs.map((q, i) => `<label><input type="checkbox" data-pq="${i}"><span><span class="muted">${esc(q.paper)}${q.no ? `, question ${q.no}` : ''}${q.type === 'short' ? ', theory' : ''}${q.has_picture ? ', has a picture' : ''}</span><br>${esc((q.plain || q.text).slice(0, 220))}${q.group ? ' <span class="tag open">with shared information</span>' : ''}</span></label>`).join('');
 };
 $('padd').onclick = () => {
   const picked = [...document.querySelectorAll('[data-pq]:checked')].map(c => pascoQs[c.dataset.pq]);
-  for (const q of picked) {
+  let lastGroup = null;
+  picked.forEach((q, n) => {
+    // Grouped past questions bring their shared information, once, before them.
+    if (q.group && q.group.id !== lastGroup) {
+      let covers = 0;
+      for (let k = n; k < picked.length && picked[k].group && picked[k].group.id === q.group.id; k++) covers++;
+      draft.questions.push({ type: 'info', text: q.group.text, covers, images: (q.group.images || []).filter(Boolean) });
+    }
+    lastGroup = q.group ? q.group.id : null;
     draft.questions.push(q.type === 'short'
       ? { type: 'short', text: q.text, marks: 5, explanation: q.marking_scheme || '', images: (q.images || []).filter(Boolean) }
       : { type: 'mcq', text: q.text, options: q.options.slice(0, 5), option_images: (q.option_images || []).slice(0, 5), correct: q.correct || '', marks: 1, explanation: q.explanation || '', images: (q.images || []).filter(Boolean) });
-  }
+  });
   $('pnote').textContent = picked.length ? `Added ${picked.length}.` : 'Tick the questions to add.';
   document.querySelectorAll('[data-pq]:checked').forEach(c => { c.checked = false; });
   renderQs();
@@ -466,6 +529,168 @@ async function save(open) {
 }
 $('saveopen').onclick = () => save(true);
 $('savedraft').onclick = () => save(false);
+
+// ── Formatting: the question editor's toolbar ──
+// Questions, options and explanations are written as a small set of HTML
+// (bold, italic, underline, x², H₂O, lists, tables); the server keeps only
+// those tags. Symbols are plain characters. Pictures stay [image N] markers.
+const RICH = /^\s*<(p|ul|ol|table|div|h[1-6]|blockquote)[\s>]/i;
+const toEditHtml = (v) => !v ? '' : RICH.test(v) ? v : String(v).split('\n').map(l => `<p>${esc(l)}</p>`).join('');
+function rte(field, value, o = {}) {
+  const b = (cmd, html, title) => `<button type="button" class="rbtn" data-cmd="${cmd}" title="${title}" aria-label="${title}">${html}</button>`;
+  return `<div class="rte${o.compact ? ' compact' : ''}" data-rte="${field}">
+    <div class="rte-bar" role="toolbar" aria-label="Formatting for ${esc(o.label || 'this text')}">
+      ${b('bold', '<b>B</b>', 'Bold')}${b('italic', '<i>I</i>', 'Italic')}${b('underline', '<u>U</u>', 'Underline')}${b('subscript', 'x₂', 'Subscript, as in H₂O')}${b('superscript', 'x²', 'Superscript, as in x²')}
+      ${o.compact ? '' : b('insertUnorderedList', '• List', 'Bulleted list') + b('insertOrderedList', '1. List', 'Numbered list') + b('table', 'Table', 'Table')}
+      ${b('symbols', 'Ω Symbols', 'Symbols and shapes')}
+      ${o.diagram ? b('diagram', 'Draw', 'Draw a diagram') : ''}
+    </div>
+    <div class="rte-body" contenteditable="true" role="textbox" aria-multiline="${o.compact ? 'false' : 'true'}" aria-label="${esc(o.label || '')}" data-ph="${esc(o.placeholder || '')}">${toEditHtml(value)}</div>
+  </div>`;
+}
+/** The editor's content to save: '' when empty, always wrapped in a paragraph. */
+function editorHtml(body) {
+  const empty = !body.textContent.trim() && !body.querySelector('table');
+  if (empty) return '';
+  const html = body.innerHTML.trim();
+  return RICH.test(html) ? html : `<p>${html}</p>`;
+}
+const ALLOWED = new Set(['P', 'BR', 'B', 'STRONG', 'I', 'EM', 'U', 'S', 'SUB', 'SUP', 'UL', 'OL', 'LI', 'TABLE', 'THEAD', 'TBODY', 'TR', 'TH', 'TD', 'DIV']);
+/** Pasted HTML (from Word or a web page) reduced to the tags the server keeps. */
+function cleanPasted(html) {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const walk = (node) => {
+    for (const c of [...node.childNodes]) {
+      if (c.nodeType === 1) {
+        walk(c);
+        if (!ALLOWED.has(c.tagName)) { c.replaceWith(...c.childNodes); continue; }
+        for (const a of [...c.attributes]) if (!/^(colspan|rowspan)$/i.test(a.name)) c.removeAttribute(a.name);
+      } else if (c.nodeType !== 3) c.remove();
+    }
+  };
+  walk(doc.body);
+  return doc.body.innerHTML;
+}
+let savedRange = null, rangeBody = null;
+function keepRange(body) {
+  const sel = window.getSelection();
+  if (sel.rangeCount && body.contains(sel.anchorNode)) { savedRange = sel.getRangeAt(0).cloneRange(); rangeBody = body; }
+}
+function restoreRange() {
+  if (!savedRange || !rangeBody) return null;
+  rangeBody.focus();
+  const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(savedRange);
+  return rangeBody;
+}
+const changed = (body) => body.dispatchEvent(new Event('input', { bubbles: true }));
+function cellAtCaret(body) {
+  const sel = window.getSelection();
+  let n = sel.anchorNode; if (n && n.nodeType === 3) n = n.parentNode;
+  const cell = n && n.closest ? n.closest('td,th') : null;
+  return cell && body.contains(cell) ? cell : null;
+}
+function tableOp(body, op) {
+  if (op.startsWith('new:')) {
+    const [r, c] = op.slice(4).split('x').map(Number);
+    const head = `<tr>${'<th><br></th>'.repeat(c)}</tr>`;
+    const rows = `<tr>${'<td><br></td>'.repeat(c)}</tr>`.repeat(r - 1);
+    document.execCommand('insertHTML', false, `<table><tbody>${head}${rows}</tbody></table><p><br></p>`);
+    return changed(body);
+  }
+  const cell = cellAtCaret(body); if (!cell) return;
+  const tr = cell.parentNode, table = cell.closest('table'), idx = [...tr.children].indexOf(cell);
+  if (op === 'row') { const nr = tr.cloneNode(true); nr.querySelectorAll('td,th').forEach(c => { const td = document.createElement('td'); td.innerHTML = '<br>'; c.replaceWith(td); }); tr.after(nr); }
+  if (op === 'col') table.querySelectorAll('tr').forEach(row => { const ref = row.children[idx]; const c = document.createElement(ref && ref.tagName === 'TH' ? 'th' : 'td'); c.innerHTML = '<br>'; if (ref) ref.after(c); else row.appendChild(c); });
+  if (op === 'delrow') { if (table.querySelectorAll('tr').length > 1) tr.remove(); else table.remove(); }
+  if (op === 'delcol') { table.querySelectorAll('tr').forEach(row => row.children[idx] && row.children[idx].remove()); if (!table.querySelector('td,th')) table.remove(); }
+  if (op === 'deltable') table.remove();
+  changed(body);
+}
+const SYMBOLS = [
+  ['Maths', '± × ÷ = ≠ ≈ ≡ < > ≤ ≥ √ ∛ ∞ π ° ′ ″ ∠ ⊥ ∥ △ ∑ ∫ ∂ ∆ ∝ ∴ ∵ % ½ ⅓ ⅔ ¼ ¾ ² ³ ⁿ ⁻¹'],
+  ['Sets and logic', '∈ ∉ ⊂ ⊆ ⊃ ∪ ∩ ∅ ℕ ℤ ℚ ℝ ∀ ∃ ¬ ∧ ∨ ⇒ ⇔ ξ'],
+  ['Greek', 'α β γ δ ε θ λ μ ν ρ σ τ φ ω Γ Δ Θ Λ Σ Φ Ω'],
+  ['Science', '→ ⇌ ↑ ↓ ℃ ℉ Ω µ Å · • ⁺ ⁻ ₀ ₁ ₂ ₃ ₄'],
+  ['Money and units', 'GH¢ ₵ ¢ $ £ € ₦ m² m³ cm² cm³ km/h m/s m/s²'],
+  ['Arrows', '← → ↑ ↓ ↔ ↕ ⇐ ⇒ ⇑ ⇓ ↗ ↘ ↙ ↖'],
+  ['Shapes', '△ ▲ ▽ ▼ □ ■ ▭ ○ ● ◇ ◆ ◯ ⬠ ⬡ ☆ ★ ✓ ✗'],
+];
+function openPop(anchor, html) {
+  const pop = $('rtepop'); pop.innerHTML = html; pop.hidden = false;
+  const r = anchor.getBoundingClientRect();
+  pop.style.top = `${Math.min(window.innerHeight - 20, r.bottom + 6)}px`;
+  pop.style.left = `${Math.max(8, Math.min(window.innerWidth - pop.offsetWidth - 8, r.left))}px`;
+}
+document.addEventListener('mousedown', (e) => {
+  if (e.target.closest('.rbtn') || e.target.closest('#rtepop button')) e.preventDefault();   // keep the caret in the text
+  if (!e.target.closest('#rtepop') && !e.target.closest('.rbtn')) $('rtepop').hidden = true;
+});
+document.addEventListener('selectionchange', () => {
+  const sel = window.getSelection(); if (!sel.rangeCount) return;
+  let n = sel.anchorNode; if (n && n.nodeType === 3) n = n.parentNode;
+  const body = n && n.closest ? n.closest('.rte-body') : null;
+  if (body) keepRange(body);
+});
+$('qs').addEventListener('paste', (e) => {
+  const body = e.target.closest('.rte-body'); if (!body) return;
+  e.preventDefault();
+  const html = e.clipboardData.getData('text/html'), text = e.clipboardData.getData('text/plain');
+  if (html && /<(table|sub|sup|b|strong|i|em|u|ul|ol)\b/i.test(html)) document.execCommand('insertHTML', false, cleanPasted(html));
+  else document.execCommand('insertText', false, text);
+});
+$('qs').addEventListener('click', (e) => {
+  const b = e.target.closest('.rbtn'); if (!b) return;
+  const body = b.closest('.rte').querySelector('.rte-body');
+  const cmd = b.dataset.cmd;
+  if (!rangeBody || rangeBody !== body) { body.focus(); keepRange(body); }
+  if (['bold', 'italic', 'underline', 'subscript', 'superscript', 'insertUnorderedList', 'insertOrderedList'].includes(cmd)) {
+    restoreRange(); document.execCommand(cmd); changed(body); return;
+  }
+  if (cmd === 'symbols') {
+    openPop(b, SYMBOLS.map(([name, list]) => `<div class="pophead">${name}</div><div class="popgrid">${list.split(' ').map(s => `<button type="button" data-sym="${esc(s)}" aria-label="Insert ${esc(s)}">${esc(s)}</button>`).join('')}</div>`).join(''));
+    return;
+  }
+  if (cmd === 'table') {
+    const inTable = !!(restoreRange() && cellAtCaret(body));
+    openPop(b, inTable
+      ? `<div class="pophead">Table</div><div class="popgrid wide">${[['row', 'Add row'], ['col', 'Add column'], ['delrow', 'Remove row'], ['delcol', 'Remove column'], ['deltable', 'Delete table']].map(([op, l]) => `<button type="button" data-tbl="${op}">${l}</button>`).join('')}</div>`
+      : `<div class="pophead">Insert a table</div><div class="popgrid wide">${['2x2', '3x2', '3x3', '4x3', '5x2', '6x3'].map(k => `<button type="button" data-tbl="new:${k}">${k.replace('x', ' rows × ')} columns</button>`).join('')}</div>`);
+    return;
+  }
+  if (cmd === 'diagram') { openDiagram(+b.closest('[data-i]').dataset.i); return; }
+});
+$('rtepop').addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  const body = restoreRange(); if (!body) return;
+  if (b.dataset.sym) { document.execCommand('insertText', false, b.dataset.sym); changed(body); keepRange(body); return; }
+  if (b.dataset.tbl) { tableOp(body, b.dataset.tbl); $('rtepop').hidden = true; }
+});
+
+// ── Draw a diagram ──
+let diagramFor = null;
+function openDiagram(i) { diagramFor = i; $('diagram').hidden = false; $('diagramframe').src = '/diagram-tool.html'; }
+function closeDiagram() { $('diagram').hidden = true; $('diagramframe').src = 'about:blank'; diagramFor = null; }
+window.addEventListener('message', async (e) => {
+  if (e.source !== $('diagramframe').contentWindow) return;
+  const d = e.data || {};
+  if (d.type === 'cas-diagram-cancel') return closeDiagram();
+  if (d.type !== 'cas-diagram' || typeof d.png !== 'string' || !d.png.startsWith('data:image/png;base64,')) return;
+  const i = diagramFor; closeDiagram();
+  const q = draft.questions[i]; if (!q) return;
+  msg($('edmsg'), 'Adding the diagram…', 'info');
+  try {
+    const blob = await (await fetch(d.png)).blob();
+    const r = await fetch('/lms/teacher/images', { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'image/png' }, body: blob });
+    const res = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(res.error || 'The diagram could not be added.');
+    q.images = q.images || []; q.images.push(res.url);
+    // Its marker goes where the caret was in this question, or at the end.
+    const box = document.querySelector(`[data-i="${i}"] [data-rte="text"] .rte-body`);
+    if (box && rangeBody === box && restoreRange()) { document.execCommand('insertParagraph'); document.execCommand('insertText', false, `[image ${q.images.length}]`); document.execCommand('insertParagraph'); changed(box); }
+    else q.text = `${q.text || ''}<p>[image ${q.images.length}]</p>`;
+    msg($('edmsg'), '', ''); renderQs();
+  } catch (err) { msg($('edmsg'), err.message, 'bad'); }
+});
 
 // ── Results ──
 $('rback').onclick = () => listTests();

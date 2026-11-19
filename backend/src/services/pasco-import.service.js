@@ -41,7 +41,8 @@ async function sourceBlocks(files) {
 const SYSTEM = `You convert scanned or typed examination past-question papers (WASSCE, BECE, CTVET and school exams in Ghana) into structured data.
 
 Rules:
-- Copy each question's wording exactly as printed. Fix only obvious scanning errors. Keep maths readable in plain text (x^2, sqrt(x), 3/4).
+- Copy each question's wording exactly as printed. Fix only obvious scanning errors.
+- Text is plain, but you may use these HTML tags where the paper needs them: <table>, <tr>, <th>, <td> for tables (for example a list of costs with amounts); <sup> and <sub> for powers and chemical formulae (x<sup>2</sup>, H<sub>2</sub>O); <strong> and <em> for bold and italic words. Write √, π, ±, ×, ÷, °, ≤, ≥, ≠ and GH¢ as those characters.
 - "objective" = multiple choice with lettered options. "theory" = written answer (essay, calculation, structured question). Keep a theory question's sub-parts (a), (b), (i) together in one question_text, on separate lines.
 - options: the option texts in order A, B, C, D (and E if printed), without the letters. Empty array for theory.
 - correct_letter: the answer if an answer key or marked answer appears on the paper; otherwise your own best answer. answer_found_on_paper says which.
@@ -50,10 +51,12 @@ Rules:
 - has_diagram: true when the question depends on a figure, graph, table image or map that text cannot carry.
 - Figures: put a marker on its own line exactly where each figure appears in the question: [image 1] for the first, [image 2] for the second. Do not describe the figure. If an option is itself a figure (for example four graphs labelled A to D), write [image] as that option's text.
 - topic: a short syllabus topic name. difficulty: easy, medium or hard.
+- Shared information: when the paper gives information for several questions ("Use the following information to answer Questions 8 and 9", a passage, a table or a diagram), put it once in groups: info is the full text exactly as printed, starting with that instruction line, with [image 1] markers for its figures; questions lists the question numbers it covers; question_type says whether they are objective or theory. Do not repeat the information inside those questions' question_text.
 - Never invent questions that are not on the paper.
 
 Reply with JSON only, no prose and no code fences:
-{"questions":[{"question_no":1,"question_type":"objective","question_text":"...","options":["...","...","...","..."],"correct_letter":"B","answer_found_on_paper":false,"marking_scheme":null,"explanation":"...","has_diagram":false,"topic":"...","difficulty":"medium"}],"more_after":true}
+{"questions":[{"question_no":1,"question_type":"objective","question_text":"...","options":["...","...","...","..."],"correct_letter":"B","answer_found_on_paper":false,"marking_scheme":null,"explanation":"...","has_diagram":false,"topic":"...","difficulty":"medium"}],"groups":[{"info":"Use the following information to answer Questions 8 and 9. ...","questions":[8,9],"question_type":"objective"}],"more_after":true}
+groups is an empty array when no information is shared in this batch.
 more_after is true when the paper has further questions after the last one you returned.`;
 
 const OTHER_WAYS = "Paste the paper's text, import a spreadsheet, or add questions by hand instead.";
@@ -86,6 +89,7 @@ function parseJson(text) {
 }
 
 const LETTERS = ['a', 'b', 'c', 'd', 'e'];
+const { asRich } = require('../utils/rich-text');
 
 // Normalises one model question into a row for lms_pasco_questions, or null.
 function toRow(q) {
@@ -99,14 +103,14 @@ function toRow(q) {
   const base = {
     question_no:   Number.isInteger(q.question_no) ? q.question_no : null,
     question_type: type,
-    question_text: text,
-    explanation:   type === 'objective' && q.explanation ? String(q.explanation).trim() : null,
+    question_text: asRich(text),
+    explanation:   type === 'objective' && q.explanation ? asRich(String(q.explanation).trim()) : null,
     topic:         q.topic ? String(q.topic).trim().slice(0, 120) : null,
     difficulty,
     has_diagram:   diagram,
   };
   if (type === 'theory') {
-    const scheme = q.marking_scheme ? String(q.marking_scheme).trim() : null;
+    const scheme = q.marking_scheme ? asRich(String(q.marking_scheme).trim()) : null;
     return { ...base, options: null, marking_scheme: scheme,
       answer_source: found ? 'paper' : 'ai', needs_review: !found || diagram || !scheme };
   }
@@ -114,7 +118,7 @@ function toRow(q) {
   // no text, so the reviewer attaches the picture.
   const raw = (Array.isArray(q.options) ? q.options : []).map(o => String(o ?? '').trim()).slice(0, 5);
   const pictureOpt = raw.map(o => /^\[image[^\]]*\]$/i.test(o));
-  const opts = raw.map((o, i) => (pictureOpt[i] ? '' : o)).filter((o, i) => o || pictureOpt[i]);
+  const opts = raw.map((o, i) => (pictureOpt[i] ? '' : asRich(o))).filter((o, i) => o || pictureOpt[i]);
   const idx = LETTERS.indexOf(String(q.correct_letter || '').trim().toLowerCase());
   const okIdx = idx >= 0 && idx < opts.length;
   const anyPicture = pictureOpt.some(Boolean);
@@ -135,6 +139,7 @@ async function importPaper(files, { exam, subject, year, paperLabel }) {
   const paper = await sourceBlocks(files);
   const label = [exam, subject, year, paperLabel].filter(Boolean).join(' ');
   const rows = [];
+  const groups = [];   // { info, type, nos }
   let next = 1, note = null;
 
   for (let call = 0; call < MAX_CALLS; call++) {
@@ -167,13 +172,18 @@ async function importPaper(files, { exam, subject, year, paperLabel }) {
       if (row.question_no != null && seen.has(key)) continue;
       seen.add(key); rows.push(row); added++;
     }
+    for (const g of Array.isArray(data.groups) ? data.groups : []) {
+      const info = asRich(String(g?.info || '').trim());
+      const nos = (Array.isArray(g?.questions) ? g.questions : []).map(n => parseInt(n, 10)).filter(Number.isInteger);
+      if (info && nos.length) groups.push({ info, type: g.question_type === 'theory' ? 'theory' : 'objective', nos });
+    }
     const lastNo = Math.max(0, ...rows.map(r => r.question_no || 0));
     next = lastNo + 1;
     if (!data.more_after || added === 0) break;
     if (call === MAX_CALLS - 1) note = `Stopped at ${rows.length} questions (the import limit). Add any missing questions by hand.`;
   }
   if (rows.length === 0 && !note) note = 'No questions were found in the file.';
-  return { rows, note };
+  return { rows, note, groups };
 }
 
 module.exports = { importPaper, aiErrorMessage, PDF_MIME, DOCX_MIME, IMAGE_MIME };

@@ -5,6 +5,7 @@ import { router, useLocalSearchParams, useNavigation } from 'expo-router';
 import { useTheme } from '@/context/ThemeContext';
 import { createThemedStyles } from '@/lib/themedStyles';
 import { QuestionBody } from '@/components/QuestionBody';
+import { SharedInfo } from '@/components/SharedInfo';
 import { getResult, saveAnswers, startTest, submitTest, type CtAttempt, type CtResult } from '@/lib/classTests';
 import { RouteError } from '@/components/RouteError';
 
@@ -107,7 +108,8 @@ export default function TakeTest() {
                 {q.type === 'mcq' && <Ionicons name={ok ? 'checkmark-circle' : q.your_answer ? 'close-circle' : 'remove-circle'} size={20} color={ok ? C.success : q.your_answer ? C.danger : C.muted} />}
                 <Text style={[s.label, { color: C.textSoft }]}>Question {n + 1}, {q.marks} mark{q.marks === 1 ? '' : 's'}</Text>
               </View>
-              <QuestionBody text={q.text} images={q.images || []} imageHeight={180} textStyle={[s.body, { color: C.text }]} />
+              {q.info && <SharedInfo text={q.info.text} html={q.info.html} images={q.info.images || []} fontSize={14} />}
+              <QuestionBody text={q.text} html={q.html} images={q.images || []} imageHeight={180} textStyle={[s.body, { color: C.text }]} />
               {q.type === 'mcq' ? (
                 <>
                   <Text style={[s.small, { color: C.textSoft }]}>
@@ -120,7 +122,7 @@ export default function TakeTest() {
                   {!ok && !!q.correct && !!q.option_images?.[LETTERS.indexOf(q.correct)] && (
                     <Image source={{ uri: q.option_images[LETTERS.indexOf(q.correct)]! }} resizeMode="contain" accessibilityLabel="Picture for the right answer" style={s.optImgSmall} />
                   )}
-                  {q.explanation && <Text style={[s.small, { color: C.textSoft }]}>{q.explanation}</Text>}
+                  {q.explanation && <QuestionBody text={q.explanation} html={q.explanation_html} images={[]} showUnplaced={false} textStyle={[s.small, { color: C.textSoft }]} />}
                 </>
               ) : (
                 <>
@@ -169,7 +171,8 @@ export default function TakeTest() {
       )}
       <ScrollView contentContainerStyle={s.page} keyboardShouldPersistTaps="handled">
         {i === 0 && !!data.quiz.instructions && <Text style={[s.small, { color: C.textSoft }]}>{data.quiz.instructions}</Text>}
-        <QuestionBody text={q.text} images={q.images || []} textStyle={[s.question, { color: C.text }]} />
+        {q.info && <SharedInfo key={`info-${q.id}`} text={q.info.text} html={q.info.html} images={q.info.images || []} />}
+        <QuestionBody text={q.text} html={q.html} images={q.images || []} textStyle={[s.question, { color: C.text }]} />
         {q.type === 'mcq' ? (
           <View style={{ gap: 10 }}>
             {q.options.map((opt, k) => {
@@ -180,7 +183,9 @@ export default function TakeTest() {
                   style={[s.option, { borderColor: on ? C.primaryText : C.border, backgroundColor: on ? C.primaryLight : C.surface }]}>
                   <Text style={[s.optLetter, { color: on ? C.primaryText : C.text }]}>{letter.toUpperCase()}</Text>
                   <View style={{ flex: 1, gap: 6 }}>
-                    {!!opt && <Text style={[s.optText, { color: C.text }]}>{opt}</Text>}
+                    {!!opt && (q.options_html?.[k]
+                      ? <QuestionBody text={opt} html={q.options_html[k]} images={[]} showUnplaced={false} textStyle={[s.optText, { color: C.text }]} />
+                      : <Text style={[s.optText, { color: C.text }]}>{opt}</Text>)}
                     {!!q.option_images?.[k] && (
                       <Image source={{ uri: q.option_images[k]! }} resizeMode="contain" accessibilityLabel={`Picture for option ${letter.toUpperCase()}`} style={s.optImg} />
                     )}

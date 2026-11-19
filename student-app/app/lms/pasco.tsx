@@ -10,6 +10,7 @@ import { Dropdown } from '@/components/ui/Dropdown';
 import { Input } from '@/components/ui/Input';
 import { gradeBadge } from '@/lib/grade';
 import { QuestionBody } from '@/components/QuestionBody';
+import { SharedInfo } from '@/components/SharedInfo';
 import type { PascoQuestion } from '@/types/api';
 import { createThemedStyles } from '@/lib/themedStyles';
 
@@ -136,7 +137,8 @@ export default function PascoScreen() {
         </View>
 
         <View style={{ marginBottom: 12 }}>
-          <QuestionBody text={q.question_text} images={q.images?.length ? q.images : (q.image_url ? [q.image_url] : [])}
+          {q.group && <View style={{ marginBottom: 10 }}><SharedInfo key={q.id} text={q.group.text} html={q.group.html} images={q.group.images} /></View>}
+          <QuestionBody text={q.question_text} html={q.question_html} images={q.images?.length ? q.images : (q.image_url ? [q.image_url] : [])}
             textStyle={[s.questionText, { color: C.text, marginBottom: 0 }]} />
         </View>
 
@@ -159,7 +161,9 @@ export default function PascoScreen() {
               <View style={{ flex: 1, gap: 6 }}>
                 {!!pic && <Image source={{ uri: pic }} resizeMode="contain" accessibilityLabel={`Option ${letter.toUpperCase()} picture`}
                   style={{ width: '100%', height: 120, backgroundColor: '#FFFFFF', borderRadius: 8 }} />}
-                {!!text && <Text style={[s.optionText, { color: C.text }]}>{text}</Text>}
+                {!!text && (q.options_html?.[['a', 'b', 'c', 'd'].indexOf(letter)]
+                  ? <QuestionBody text={text} html={q.options_html[['a', 'b', 'c', 'd'].indexOf(letter)]} images={[]} showUnplaced={false} textStyle={[s.optionText, { color: C.text }]} />
+                  : <Text style={[s.optionText, { color: C.text }]}>{text}</Text>)}
               </View>
               {revealed && isCorrect && <Ionicons name="checkmark-circle" size={18} color={C.success} />}
               {revealed && isSelected && !isCorrect && <Ionicons name="close-circle" size={18} color={C.danger} />}
@@ -172,7 +176,7 @@ export default function PascoScreen() {
             <Text style={[s.feedbackTitle, { color: selected === q.correct_option ? C.success : C.danger }]}>
               {selected === q.correct_option ? 'Correct!' : `Incorrect. The correct answer is ${q.correct_option.toUpperCase()}.`}
             </Text>
-            {q.explanation && <Text style={[s.feedbackExplanation, { color: C.textSoft }]}>{q.explanation}</Text>}
+            {q.explanation && <QuestionBody text={q.explanation} html={q.explanation_html} images={[]} showUnplaced={false} textStyle={[s.feedbackExplanation, { color: C.textSoft }]} />}
           </Card>
         )}
 

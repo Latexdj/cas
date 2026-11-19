@@ -6,7 +6,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { saApi } from '@/lib/super-admin-api';
-import { RichQuestion, insertMarker, renumberMarkers } from '@/components/past-questions/RichQuestion';
+import { RichQuestion, renumberMarkers } from '@/components/past-questions/RichQuestion';
+import { QuestionEditor, type QuestionEditorHandle } from '@/components/past-questions/QuestionEditor';
+import { DiagramDialog } from '@/components/past-questions/DiagramDialog';
+import { plainOf } from '@/lib/richText';
 
 const P = {
   card: '#132B1C', border: '#2A3D28', sunken: '#0E1A0C', inputBg: '#0B1A0E',
@@ -32,7 +35,7 @@ interface Question {
   id: string; question_no: number | null; question_type: 'objective' | 'theory'; question_text: string;
   options: string[]; correct: string | null; explanation: string | null; marking_scheme: string | null;
   image_url: string | null; images: string[]; option_images: (string | null)[]; topic: string | null; difficulty: 'easy' | 'medium' | 'hard';
-  answer_source: string | null; needs_review: boolean; has_diagram: boolean;
+  answer_source: string | null; needs_review: boolean; has_diagram: boolean; group_id: string | null;
 }
 interface Summary {
   version: number; published_at: string | null;
@@ -231,7 +234,7 @@ function PaperList({ onOpen }: { onOpen: (id: string) => void }) {
 // ── One paper ─────────────────────────────────────────────────────────────────
 
 function PaperView({ id, onBack }: { id: string; onBack: () => void }) {
-  const [paper,   setPaper]   = useState<(Paper & { questions: Question[] }) | null>(null);
+  const [paper,   setPaper]   = useState<(Paper & { questions: Question[]; groups: InfoGroup[] }) | null>(null);
   const [error,   setError]   = useState('');
   const [notice,  setNotice]  = useState('');
   const [editing, setEditing] = useState<string | 'new' | null>(null);
@@ -315,6 +318,8 @@ function PaperView({ id, onBack }: { id: string; onBack: () => void }) {
       {metaOpen && <PaperMeta paper={paper} onSaved={async () => { setMetaOpen(false); await load(); }} />}
 
       <ImportPanel paper={paper} questionCount={qs.length} onChanged={load} />
+
+      <InfoBlocks paperId={paper.id} groups={paper.groups ?? []} questions={qs} onChanged={load} />
 
       <div style={{ display: 'grid', gap: 16, gridTemplateColumns: source ? 'minmax(0, 1fr) minmax(0, 1fr)' : 'minmax(0, 1fr)' }} className="pq-grid">
         {source && (
@@ -642,6 +647,7 @@ function QuestionCard({ q, onEdit, onChanged }: { q: Question; onEdit: () => voi
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', fontSize: 13, color: P.muted }}>
         <strong style={{ color: P.ink }}>{q.question_type === 'theory' ? 'Theory' : 'Objective'} {q.question_no ?? ''}</strong>
         {q.topic && <span>· {q.topic}</span>}
+        {q.group_id && <span style={chip(P.good, P.goodBg)}>Uses shared information</span>}
         <span>· {q.difficulty}</span>
         {q.needs_review && q.answer_source === 'ai' && <span style={chip(P.warn, P.warnBg)}>{q.question_type === 'theory' ? 'AI marking scheme, check' : 'AI answer, check'}</span>}
         {needsImage && <span style={chip(P.warn, P.warnBg)}>{missingOptionPic ? 'An option needs its picture' : 'Has a diagram, add image'}</span>}
@@ -657,7 +663,10 @@ function QuestionCard({ q, onEdit, onChanged }: { q: Question; onEdit: () => voi
                 <span>{LETTERS[i]}.</span>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 {q.option_images[i] && <img src={q.option_images[i]!} alt={`Option ${LETTERS[i]}`} style={{ ...thumb, width: 160, height: 100 }} />}
-                <span>{o || (!q.option_images[i] ? <em style={{ color: P.warn }}>picture missing</em> : '')}{right && ' (answer)'}</span>
+                <span style={{ display: 'inline-flex', gap: 6, alignItems: 'baseline', flexWrap: 'wrap' }}>
+                  {o ? <RichQuestion text={o} images={[]} showUnplaced={false} /> : (!q.option_images[i] ? <em style={{ color: P.warn }}>picture missing</em> : '')}
+                  {right && ' (answer)'}
+                </span>
               </li>
             );
           })}
@@ -668,7 +677,7 @@ function QuestionCard({ q, onEdit, onChanged }: { q: Question; onEdit: () => voi
           {q.marking_scheme ? <RichQuestion text={q.marking_scheme} images={q.images} showUnplaced={false} /> : 'None yet.'}
         </div>
       )}
-      {q.explanation && <p style={{ margin: 0, fontSize: 13, color: P.muted }}>{q.explanation}</p>}
+      {q.explanation && <RichQuestion text={q.explanation} images={[]} showUnplaced={false} textStyle={{ fontSize: 13, color: P.muted }} />}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
         {q.needs_review && <button style={btn('primary', busy)} disabled={busy} onClick={markChecked}>Mark checked</button>}
         <button style={btn('quiet', busy)} disabled={busy} onClick={onEdit}>Edit</button>
@@ -704,8 +713,9 @@ function QuestionForm({ paperId, question, onDone, onCancel }: { paperId: string
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
   const [imgBusy, setImgBusy] = useState(false);
-  const textRef = useRef<HTMLTextAreaElement>(null);
-  const schemeRef = useRef<HTMLTextAreaElement>(null);
+  const textRef = useRef<QuestionEditorHandle>(null);
+  const schemeRef = useRef<QuestionEditorHandle>(null);
+  const [drawing, setDrawing] = useState<'question_text' | 'marking_scheme' | null>(null);
   const target = useRef<'question_text' | 'marking_scheme'>('question_text');
   const optTarget = useRef(0);
   const savedOptions = question?.options.length ?? 0;
@@ -717,17 +727,22 @@ function QuestionForm({ paperId, question, onDone, onCancel }: { paperId: string
     try {
       const { data } = await saApi.post<Question>(`/api/pasco-bank/questions/${question.id}/images`, { image: await readAsDataUrl(file) });
       setImages(data.images);
-      const field = target.current;
-      const el = field === 'question_text' ? textRef.current : schemeRef.current;
-      setF(cur => {
-        const pos = el?.selectionStart ?? cur[field].length;
-        const { text, cursor } = insertMarker(cur[field], pos, data.images.length);
-        setTimeout(() => { el?.focus(); el?.setSelectionRange(cursor, cursor); }, 0);
-        return { ...cur, [field]: text };
-      });
+      (target.current === 'question_text' ? textRef : schemeRef).current?.insertMarker(data.images.length);
     } catch (e) { setErr(errMsg(e, 'Could not add the image.')); }
     finally { setImgBusy(false); }
   });
+  // A drawn diagram is saved as one of the question's pictures, placed at the cursor.
+  async function addDiagram(png: string) {
+    const field = drawing; setDrawing(null);
+    if (!question || !field) return;
+    setImgBusy(true); setErr('');
+    try {
+      const { data } = await saApi.post<Question>(`/api/pasco-bank/questions/${question.id}/images`, { image: png });
+      setImages(data.images);
+      (field === 'question_text' ? textRef : schemeRef).current?.insertMarker(data.images.length);
+    } catch (e) { setErr(errMsg(e, 'Could not add the diagram.')); }
+    finally { setImgBusy(false); }
+  }
   const replaceIdx = useRef(0);
   const replacePicker = usePicker(async (file) => {
     if (!question) return;
@@ -779,6 +794,7 @@ function QuestionForm({ paperId, question, onDone, onCancel }: { paperId: string
   return (
     <form onSubmit={save} style={{ background: P.card, border: `1px solid ${P.primary}`, borderRadius: 14, padding: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
       {insertPicker.input}{replacePicker.input}{optionPicker.input}
+      {drawing && <DiagramDialog onDone={addDiagram} onCancel={() => setDrawing(null)} />}
       <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))' }}>
         <div><label style={label} htmlFor="qf-type">Type</label>
           <select id="qf-type" style={input} value={f.question_type} onChange={e => setF({ ...f, question_type: e.target.value as 'objective' | 'theory' })}>
@@ -794,11 +810,13 @@ function QuestionForm({ paperId, question, onDone, onCancel }: { paperId: string
 
       <div>
         <label style={label} htmlFor="qf-text">Question</label>
-        <textarea id="qf-text" ref={textRef} style={{ ...input, minHeight: 110, fontFamily: 'inherit' }} value={f.question_text} onChange={e => setF({ ...f, question_text: e.target.value })} />
+        <QuestionEditor ref={textRef} id="qf-text" ariaLabel="Question" value={f.question_text}
+          onChange={v => setF(cur => ({ ...cur, question_text: v }))}
+          onDiagram={question ? () => setDrawing('question_text') : undefined} />
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', marginTop: 8 }}>
           {insertBtn('question_text')}
           <span style={{ fontSize: 12, color: P.muted }}>
-            {question ? 'Click in the text where the picture goes first. [image 1] marks the spot; move that line to move the picture.' : 'Add the question first, then edit it to add pictures.'}
+            {question ? 'Click in the text where the picture goes first. [image 1] marks the spot; move that line to move the picture.' : 'Add the question first, then edit it to add pictures and diagrams.'}
           </span>
         </div>
       </div>
@@ -833,9 +851,11 @@ function QuestionForm({ paperId, question, onDone, onCancel }: { paperId: string
               <span style={{ width: 16, color: P.ink2, fontWeight: 700 }}>{LETTERS[i]}</span>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               {f.option_images[i] && <img src={f.option_images[i]!} alt={`Option ${LETTERS[i]} picture`} style={thumb} />}
-              <input style={{ ...input, flex: 1, minWidth: 160, width: 'auto' }} aria-label={`Option ${LETTERS[i]}`} value={o}
-                placeholder={f.option_images[i] ? 'Optional text under the picture' : ''}
-                onChange={e => { const next = [...f.options]; next[i] = e.target.value; setF({ ...f, options: next }); }} />
+              <div style={{ flex: 1, minWidth: 200 }}>
+                <QuestionEditor compact ariaLabel={`Option ${LETTERS[i]}`} value={o}
+                  placeholder={f.option_images[i] ? 'Optional text under the picture' : ''}
+                  onChange={v => setF(cur => { const next = [...cur.options]; next[i] = v; return { ...cur, options: next }; })} />
+              </div>
               {f.option_images[i] ? (
                 <button type="button" style={btn('quiet', imgBusy)} disabled={imgBusy}
                   onClick={() => { const oi = [...f.option_images]; oi[i] = null; setF({ ...f, option_images: oi }); }}>Remove picture</button>
@@ -854,12 +874,14 @@ function QuestionForm({ paperId, question, onDone, onCancel }: { paperId: string
             }}>Remove last option</button>}
           </div>
           <div><label style={label} htmlFor="qf-exp">Explanation (optional)</label>
-            <textarea id="qf-exp" style={{ ...input, minHeight: 60, fontFamily: 'inherit' }} value={f.explanation} onChange={e => setF({ ...f, explanation: e.target.value })} /></div>
+            <QuestionEditor id="qf-exp" ariaLabel="Explanation" minHeight={60} value={f.explanation} onChange={v => setF(cur => ({ ...cur, explanation: v }))} /></div>
         </fieldset>
       ) : (
         <div>
           <label style={label} htmlFor="qf-scheme">Marking scheme</label>
-          <textarea id="qf-scheme" ref={schemeRef} style={{ ...input, minHeight: 120, fontFamily: 'inherit' }} value={f.marking_scheme} onChange={e => setF({ ...f, marking_scheme: e.target.value })} />
+          <QuestionEditor ref={schemeRef} id="qf-scheme" ariaLabel="Marking scheme" minHeight={120} value={f.marking_scheme}
+            onChange={v => setF(cur => ({ ...cur, marking_scheme: v }))}
+            onDiagram={question ? () => setDrawing('marking_scheme') : undefined} />
           <div style={{ marginTop: 8 }}>{insertBtn('marking_scheme')}</div>
         </div>
       )}
@@ -874,6 +896,157 @@ function QuestionForm({ paperId, question, onDone, onCancel }: { paperId: string
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
         <button type="submit" style={btn('primary', busy)} disabled={busy}>{question ? 'Save and mark checked' : 'Add question'}</button>
         <button type="button" style={btn()} onClick={onCancel}>Cancel</button>
+        {err && <span role="alert" style={{ fontSize: 13, color: P.bad }}>{err}</span>}
+      </div>
+    </form>
+  );
+}
+
+// ── Shared information ───────────────────────────────────────────────────────
+// "Use the following information to answer Questions 8 and 9": one block of
+// text, tables and pictures shown above each question it covers.
+
+interface InfoGroup { id: string; paper_id: string; info: string; images: string[] }
+const qLabel = (q: Question) => `${q.question_type === 'theory' ? 'Theory' : 'Objective'} ${q.question_no ?? '?'}`;
+/** "Objective 8, 9" style list of the questions a block covers. */
+function coverLabel(qs: Question[]) {
+  if (!qs.length) return 'no questions yet';
+  return (['objective', 'theory'] as const).map(t => {
+    const nos = qs.filter(q => q.question_type === t).map(q => q.question_no ?? '?');
+    return nos.length ? `${t === 'theory' ? 'Theory' : 'Objective'} ${nos.join(', ')}` : '';
+  }).filter(Boolean).join('; ');
+}
+
+function InfoBlocks({ paperId, groups, questions, onChanged }: { paperId: string; groups: InfoGroup[]; questions: Question[]; onChanged: () => Promise<void> }) {
+  const [editing, setEditing] = useState<string | 'new' | null>(null);
+  return (
+    <section aria-label="Shared information" style={{ background: P.card, border: `1px solid ${P.border}`, borderRadius: 14, padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', justifyContent: 'space-between' }}>
+        <div>
+          <h2 style={{ margin: 0, fontSize: 16, color: P.ink }}>Shared information</h2>
+          <p style={{ margin: '2px 0 0', fontSize: 13, color: P.muted }}>
+            Text, tables or pictures a group of questions uses, such as &quot;Use the following information to answer Questions 8 and 9&quot;. Students see it above each of those questions.
+          </p>
+        </div>
+        {editing !== 'new' && <button style={btn()} onClick={() => setEditing('new')}>Add information</button>}
+      </div>
+      {editing === 'new' && <InfoForm paperId={paperId} questions={questions} onDone={async () => { setEditing(null); await onChanged(); }} onCancel={() => setEditing(null)} />}
+      {groups.length === 0 && editing !== 'new' && <p style={{ margin: 0, fontSize: 13, color: P.muted }}>None in this paper.</p>}
+      {groups.map(g => {
+        const covered = questions.filter(q => q.group_id === g.id);
+        return editing === g.id
+          ? <InfoForm key={g.id} paperId={paperId} group={g} questions={questions} onDone={async () => { setEditing(null); await onChanged(); }} onCancel={() => setEditing(null)} />
+          : (
+            <article key={g.id} style={{ background: P.sunken, borderRadius: 10, padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ fontSize: 13, color: P.muted }}>For <strong style={{ color: P.ink }}>{coverLabel(covered)}</strong></div>
+              <RichQuestion text={g.info} images={g.images} textStyle={{ fontSize: 14, color: P.ink }} imageStyle={{ maxHeight: 220 }} />
+              <div><button style={btn()} onClick={() => setEditing(g.id)}>Edit</button></div>
+            </article>
+          );
+      })}
+    </section>
+  );
+}
+
+function InfoForm({ paperId, group, questions, onDone, onCancel }: { paperId: string; group?: InfoGroup; questions: Question[]; onDone: () => void; onCancel: () => void }) {
+  const [info, setInfo] = useState(group?.info ?? '');
+  const [images, setImages] = useState<string[]>(group?.images ?? []);
+  const [ids, setIds] = useState<Set<string>>(new Set(questions.filter(q => group && q.group_id === group.id).map(q => q.id)));
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [confirmDel, setConfirmDel] = useState(false);
+  const [drawing, setDrawing] = useState(false);
+  const ed = useRef<QuestionEditorHandle>(null);
+
+  async function addPicture(image: string) {
+    if (!group) return;
+    setBusy(true); setErr('');
+    try {
+      const { data } = await saApi.post<InfoGroup>(`/api/pasco-bank/groups/${group.id}/images`, { image });
+      setImages(data.images);
+      ed.current?.insertMarker(data.images.length);
+    } catch (e) { setErr(errMsg(e, 'Could not add the picture.')); }
+    finally { setBusy(false); }
+  }
+  const picker = usePicker(async (file) => addPicture(await readAsDataUrl(file)));
+  async function removePicture(n: number) {
+    if (!group) return;
+    setBusy(true); setErr('');
+    try {
+      const { data } = await saApi.delete<InfoGroup>(`/api/pasco-bank/groups/${group.id}/images/${n}`);
+      setImages(data.images); setInfo(cur => renumberMarkers(cur, n));
+    } catch (e) { setErr(errMsg(e, 'Could not remove the picture.')); }
+    finally { setBusy(false); }
+  }
+  async function save(e: React.FormEvent) {
+    e.preventDefault(); setBusy(true); setErr('');
+    try {
+      const body = { info, question_ids: [...ids] };
+      if (group) await saApi.put(`/api/pasco-bank/groups/${group.id}`, body);
+      else await saApi.post(`/api/pasco-bank/papers/${paperId}/groups`, body);
+      onDone();
+    } catch (x) { setErr(errMsg(x, 'Could not save the information.')); }
+    finally { setBusy(false); }
+  }
+  async function remove() {
+    if (!group) return;
+    setBusy(true);
+    try { await saApi.delete(`/api/pasco-bank/groups/${group.id}`); onDone(); }
+    catch (e) { setErr(errMsg(e, 'Could not remove it.')); setBusy(false); }
+  }
+  const toggle = (id: string) => setIds(cur => { const n = new Set(cur); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  const elsewhere = (q: Question) => !!q.group_id && q.group_id !== group?.id;
+
+  return (
+    <form onSubmit={save} style={{ border: `1px solid ${P.primary}`, borderRadius: 12, padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {picker.input}
+      {drawing && <DiagramDialog onDone={png => { setDrawing(false); addPicture(png); }} onCancel={() => setDrawing(false)} />}
+      <div>
+        <label style={label} htmlFor={`gi-${group?.id ?? 'new'}`}>Information</label>
+        <QuestionEditor ref={ed} id={`gi-${group?.id ?? 'new'}`} ariaLabel="Shared information" minHeight={130} value={info} onChange={setInfo}
+          placeholder="Use the following information to answer Questions 8 and 9."
+          onDiagram={group ? () => setDrawing(true) : undefined} />
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', marginTop: 8 }}>
+          <button type="button" style={btn('quiet', !group || busy)} disabled={!group || busy} onClick={picker.open}>Insert picture at cursor</button>
+          <span style={{ fontSize: 12, color: P.muted }}>{group ? 'For a table, use Table in the toolbar.' : 'Save it first, then edit it to add pictures and diagrams.'}</span>
+        </div>
+      </div>
+      {images.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+          {images.map((url, i) => (
+            <div key={url + i} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={url} alt={`Picture ${i + 1}`} style={thumb} />
+              <span style={{ fontSize: 13, color: P.ink2 }}>[image {i + 1}]</span>
+              <button type="button" style={btn('danger', busy)} disabled={busy} onClick={() => removePicture(i + 1)}>Remove</button>
+            </div>
+          ))}
+        </div>
+      )}
+      <fieldset style={{ border: 'none', padding: 0, margin: 0 }}>
+        <legend style={label}>Questions it covers</legend>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {questions.map(q => (
+            <label key={q.id} title={elsewhere(q) ? 'Already uses other information; ticking moves it here' : plainOf(q.question_text).slice(0, 120)}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: 36, padding: '0 10px', borderRadius: 8, fontSize: 13, cursor: 'pointer',
+                border: `1px solid ${ids.has(q.id) ? P.primary : P.border}`, background: ids.has(q.id) ? 'rgba(200,151,58,0.15)' : 'transparent', color: elsewhere(q) && !ids.has(q.id) ? P.muted : P.ink }}>
+              <input type="checkbox" checked={ids.has(q.id)} onChange={() => toggle(q.id)} style={{ width: 16, height: 16 }} />
+              {qLabel(q)}
+            </label>
+          ))}
+          {questions.length === 0 && <span style={{ fontSize: 13, color: P.muted }}>Add the questions first.</span>}
+        </div>
+      </fieldset>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        <button type="submit" style={btn('primary', busy)} disabled={busy}>{group ? 'Save information' : 'Add information'}</button>
+        <button type="button" style={btn()} onClick={onCancel}>Cancel</button>
+        {group && (confirmDel ? (
+          <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center', fontSize: 13, color: P.ink2 }}>
+            Remove this information? The questions stay.
+            <button type="button" style={btn('danger')} onClick={remove}>Remove</button>
+            <button type="button" style={btn()} onClick={() => setConfirmDel(false)}>Keep</button>
+          </span>
+        ) : <button type="button" style={btn('danger')} onClick={() => setConfirmDel(true)}>Remove</button>)}
         {err && <span role="alert" style={{ fontSize: 13, color: P.bad }}>{err}</span>}
       </div>
     </form>

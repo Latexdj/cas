@@ -316,6 +316,12 @@ export interface PascoQuestion {
   image_url?:     string | null;
   images?:        string[];
   option_images?: (string | null)[];
+  /** Formatted versions, when the question has them. */
+  question_html?: string | null;
+  explanation_html?: string | null;
+  options_html?: (string | null)[] | null;
+  /** Information a group of questions shares. */
+  group?: { text: string; html: string | null; images: string[] } | null;
 }
 
 export interface ClinicVisit {

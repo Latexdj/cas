@@ -23,7 +23,8 @@ type Round =
   | { type: 'climb'; ladder: ClimbQ[]; spares: ClimbPools };
 
 // Objective past questions the quiz can mark: an answer and at least two choices.
-const playable = (q: PackQuestion) => q.question_type === 'objective' && !!q.correct && q.options.filter(o => o !== null).length >= 2;
+// Questions that need shared information are left out: a game shows one question alone.
+const playable = (q: PackQuestion) => q.question_type === 'objective' && !!q.correct && !q.group_id && q.options.filter(o => o !== null).length >= 2;
 
 export default function GameScreen() {
   const C = useTheme();

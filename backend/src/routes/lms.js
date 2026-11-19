@@ -1,6 +1,7 @@
 const { recordQuiz } = require('../services/lms-record.service');
 const router = require('express').Router();
 const pool   = require('../config/db');
+const { isRich, toPlain } = require('../utils/rich-text');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
 const { checkModuleAccess } = require('../middleware/moduleAccess');
 const { uploadFile } = require('../services/storage.service');
@@ -594,10 +595,11 @@ router.get('/quizzes/:id/questions', async (req, res, next) => {
       const letters = ['a', 'b', 'c', 'd'];
       return {
         ...q,
-        option_a: a?.text ?? '',
-        option_b: b?.text ?? '',
-        option_c: c?.text ?? '',
-        option_d: d?.text ?? '',
+        option_a: toPlain(a?.text ?? ''),
+        option_b: toPlain(b?.text ?? ''),
+        option_c: toPlain(c?.text ?? ''),
+        option_d: toPlain(d?.text ?? ''),
+        options_html: [a, b, c, d].some(o => isRich(o?.text)) ? [a, b, c, d].map(o => html(o?.text)) : null,
         correct_option: correctIdx >= 0 ? letters[correctIdx] : null,
         options: undefined,
       };
@@ -920,9 +922,24 @@ router.get('/pasco', async (req, res, next) => {
       `SELECT q.*, (q.school_id IS NULL) AS is_shared FROM lms_pasco_questions q
         WHERE ${conds.join(' AND ')} ORDER BY ${order} LIMIT $${params.length}`,
       params);
+    // Shared information for grouped questions (Past Questions bank).
+    const gids = [...new Set(rows.map(q => q.group_id).filter(Boolean))];
+    const groups = new Map();
+    if (gids.length) {
+      const { rows: gs } = await pool.query('SELECT * FROM pasco_groups WHERE id = ANY($1::uuid[])', [gids]);
+      for (const g of gs) {
+        const imgs = Array.isArray(g.images) ? g.images.map(i => i?.url).filter(Boolean) : [];
+        groups.set(g.id, { text: toPlain(g.info), html: isRich(g.info) ? g.info : null, images: imgs });
+      }
+    }
     // Flatten JSONB options into option_a/b/c/d + correct_option, same convention
     // as GET /quizzes/:id/questions — the raw `options` array has no use on the wire.
-    res.json(rows.map(q => {
+    // Rich text: plain text in the usual fields (older apps show it as it is),
+    // the formatted version in *_html.
+    const html = (v) => (isRich(v) ? v : null);
+    res.json(rows.map(q0 => {
+      const q = { ...q0, question_text: toPlain(q0.question_text), question_html: html(q0.question_text),
+        explanation: toPlain(q0.explanation), explanation_html: html(q0.explanation), group: groups.get(q0.group_id) ?? null };
       if (!Array.isArray(q.options)) return q;
       const [a, b, c, d] = q.options;
       const correctIdx = q.options.findIndex((o) => o.is_correct === true);

@@ -17,7 +17,7 @@ const zlib = require('zlib');
 const crypto = require('crypto');
 require('dns').setDefaultResultOrder('ipv4first');
 
-const VERSION = '1.5.0';
+const VERSION = '1.6.0';
 const PORT = Number(process.env.CAS_SERVER_PORT) || 8787;
 const ROOT = __dirname;
 const DATA = path.join(ROOT, 'data');
@@ -282,17 +282,17 @@ async function syncFromCloud() {
         const r = await fetchWithTimeout(`${cloud}/api/pasco-bank/pack/subjects/${encodeURIComponent(s.slug)}`, 60000);
         if (!r.ok) throw new Error(`Downloading ${s.name} failed (HTTP ${r.status}).`);
         const pack = await r.json();
+        const grab = async (url, name) => {
+          if (!url) return null;
+          const rel = `images/${name}.${extOf(url)}`;
+          try {
+            const ir = await fetchWithTimeout(url, 30000);
+            if (!ir.ok) throw new Error(String(ir.status));
+            fs.writeFileSync(path.join(dir, rel), Buffer.from(await ir.arrayBuffer()));
+            return rel;
+          } catch { missing++; return null; }
+        };
         for (const q of pack.questions) {
-          const grab = async (url, name) => {
-            if (!url) return null;
-            const rel = `images/${name}.${extOf(url)}`;
-            try {
-              const ir = await fetchWithTimeout(url, 30000);
-              if (!ir.ok) throw new Error(String(ir.status));
-              fs.writeFileSync(path.join(dir, rel), Buffer.from(await ir.arrayBuffer()));
-              return rel;
-            } catch { missing++; return null; }
-          };
           const imgs = Array.isArray(q.images) ? q.images : (q.image_url ? [q.image_url] : []);
           q.images = [];
           for (const [n, url] of imgs.entries()) q.images.push(await grab(url, `${q.id}-${n + 1}`));
@@ -300,6 +300,12 @@ async function syncFromCloud() {
           if (Array.isArray(q.option_images)) {
             for (const [k, url] of q.option_images.entries()) q.option_images[k] = await grab(url, `${q.id}-o${k + 1}`);
           }
+        }
+        // Shared information ("Use the following to answer Questions 8 and 9") and its pictures.
+        for (const g of pack.groups || []) {
+          const imgs = Array.isArray(g.images) ? g.images : [];
+          g.images = [];
+          for (const [n, url] of imgs.entries()) g.images.push(await grab(url, `g-${g.id}-${n + 1}`));
         }
         writeJson(path.join(dir, 'subjects', `${s.slug}.json`), pack);
         // A subject with missing images keeps a different hash so it is retried.
@@ -327,11 +333,11 @@ async function syncFromCloud() {
 
 function imagePaths(pack) {
   const out = [];
+  const add = (p) => { if (typeof p === 'string' && p.startsWith('images/') && safeName(p.slice(7))) out.push(p); };
   for (const q of pack.questions || []) {
-    for (const p of [...(q.images || (q.image_url ? [q.image_url] : [])), ...(q.option_images || [])]) {
-      if (typeof p === 'string' && p.startsWith('images/') && safeName(p.slice(7))) out.push(p);
-    }
+    for (const p of [...(q.images || (q.image_url ? [q.image_url] : [])), ...(q.option_images || [])]) add(p);
   }
+  for (const g of pack.groups || []) for (const p of g.images || []) add(p);
   return out;
 }
 
@@ -594,13 +600,18 @@ function pascoForTeachers(subject) {
   if (!pack) return { subjects: [], questions: [] };
   const paperName = new Map((pack.papers || []).map(pp => [pp.id, [pp.exam, pp.year, pp.paper_label].filter(Boolean).join(' ')]));
   const packUrl = (x) => (typeof x === 'string' && x.startsWith('images/') ? `/pack/${x}` : null);
+  // Shared information for grouped questions, formatted where it has formatting.
+  const groups = new Map((pack.groups || []).map(g => [g.id, { id: g.id, text: g.html || g.text || '', images: (g.images || []).map(packUrl) }]));
   return {
     subject: pack.subject,
     questions: (pack.questions || []).map(q => ({
       id: q.id, type: q.question_type === 'theory' ? 'short' : 'mcq', paper: paperName.get(q.paper_id) || '', no: q.question_no,
       // Pictures come along; the server copies them into the test when it is saved.
-      text: String(q.question_text || '').replace(/\n{3,}/g, '\n\n').trim(), options: q.options || [],
-      correct: q.correct, explanation: q.explanation, marking_scheme: q.marking_scheme,
+      text: q.question_html || String(q.question_text || '').replace(/\n{3,}/g, '\n\n').trim(),
+      plain: String(q.question_text || '').replace(/\n{3,}/g, '\n\n').trim(),
+      options: (q.options || []).map((o, k) => (q.options_html && q.options_html[k]) || o),
+      correct: q.correct, explanation: q.explanation_html || q.explanation, marking_scheme: q.marking_scheme_html || q.marking_scheme,
+      group: q.group_id ? groups.get(q.group_id) || null : null,
       images: (Array.isArray(q.images) ? q.images : q.image_url ? [q.image_url] : []).map(packUrl),
       option_images: (q.option_images || []).map(packUrl),
       has_picture: !!((q.images && q.images.filter(Boolean).length) || q.image_url || (q.option_images || []).some(Boolean)),
@@ -793,6 +804,10 @@ async function handle(req, res) {
 
   // Offline LMS (tablets and the teacher page).
   if (p.startsWith('/lms/') && lms) { if (await lms.handle(req, res, url)) return; }
+  // The diagram tool the test editor opens (the same file Super Admin uses).
+  if (req.method === 'GET' && p === '/diagram-tool.html') {
+    return send(res, 200, fs.readFileSync(path.join(ROOT, 'vendor', 'diagram-tool.html'), 'utf8'));
+  }
   if (req.method === 'GET' && (p === '/teacher' || p === '/teacher/')) {
     return send(res, 200, fs.readFileSync(path.join(ROOT, 'teacher.html'), 'utf8'));
   }
@@ -823,6 +838,7 @@ async function handle(req, res) {
       q.image_url = abs(q.image_url);
       delete q.sources;
     }
+    for (const g of pack.groups || []) { if (Array.isArray(g.images)) g.images = g.images.map(abs); delete g.sources; }
     return send(res, 200, pack);
   }
   const img = p.match(/^\/pack\/images\/([A-Za-z0-9._-]+)$/);

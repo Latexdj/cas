@@ -2871,6 +2871,18 @@ async function runMigrations() {
       await pool.query(`ALTER TABLE lms_pasco_questions ADD COLUMN IF NOT EXISTS answer_source TEXT`);
       await pool.query(`ALTER TABLE lms_pasco_questions ADD COLUMN IF NOT EXISTS needs_review BOOLEAN NOT NULL DEFAULT false`);
       await pool.query(`ALTER TABLE lms_pasco_questions ADD COLUMN IF NOT EXISTS has_diagram BOOLEAN NOT NULL DEFAULT false`);
+      // Shared information ("Use the following to answer Questions 8 and 9"): one
+      // block of rich text and pictures that a group of questions in a paper share.
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS pasco_groups (
+          id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          paper_id   UUID NOT NULL REFERENCES pasco_papers(id) ON DELETE CASCADE,
+          info       TEXT NOT NULL DEFAULT '',
+          images     JSONB NOT NULL DEFAULT '[]',
+          created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )`);
+      await pool.query(`ALTER TABLE lms_pasco_questions ADD COLUMN IF NOT EXISTS group_id UUID REFERENCES pasco_groups(id) ON DELETE SET NULL`);
       // Several images per question, placed by [image N] markers in the text.
       await pool.query(`ALTER TABLE lms_pasco_questions ADD COLUMN IF NOT EXISTS images JSONB NOT NULL DEFAULT '[]'`);
       await pool.query(`

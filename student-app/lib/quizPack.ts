@@ -28,8 +28,22 @@ export interface PackQuestion {
   /** Online address each local picture came from, so unchanged ones aren't downloaded again. */
   sources?: Record<string, string>;
   topic: string | null; difficulty: string; year: number | null;
+  /** Formatted versions (tables, x², lists), when the question has them. */
+  question_html?: string | null; explanation_html?: string | null; marking_scheme_html?: string | null;
+  options_html?: (string | null)[] | null;
+  /** The shared information this question uses (SubjectPack.groups). */
+  group_id?: string | null;
 }
-export interface SubjectPack { subject: string; slug: string; hash: string; papers: PackPaper[]; questions: PackQuestion[] }
+/** Information a group of questions shares ("Use the following to answer Questions 8 and 9"). */
+export interface PackGroup {
+  id: string; text: string; html: string | null; images: (string | null)[];
+  sources?: Record<string, string>;
+}
+export interface SubjectPack { subject: string; slug: string; hash: string; papers: PackPaper[]; questions: PackQuestion[]; groups?: PackGroup[] }
+/** The shared information for a question, if it has some. */
+export function groupOf(pack: Pick<SubjectPack, 'groups'> | null | undefined, q: PackQuestion): PackGroup | null {
+  return (q.group_id && pack?.groups?.find(g => g.id === q.group_id)) || null;
+}
 
 const EXAM_LABEL: Record<string, string> = { WASSCE: 'WASSCE', BECE: 'BECE', NOVDEC: 'Nov/Dec', CTVET: 'CTVET', MOCK: 'Mock', PRACTICE: 'Practice', OTHER: '' };
 /** Exams in the order they are shown. */
@@ -119,6 +133,14 @@ async function eachImage(q: PackQuestion, fn: (path: string, name: string) => Pr
   }
   q.image_url = q.images[0] ?? null;
 }
+// The same for a block of shared information (pictures named g-<id>-<n>).
+async function eachGroupImage(g: PackGroup, fn: (path: string, name: string) => Promise<string | null>) {
+  g.images = g.images ?? [];
+  for (let n = 0; n < g.images.length; n++) {
+    const path = g.images[n];
+    if (path) g.images[n] = await fn(path, `g-${g.id}-${n + 1}`);
+  }
+}
 const imagePaths = (q: PackQuestion) =>
   [...(q.images ?? (q.image_url ? [q.image_url] : [])), ...(q.option_images ?? [])].filter((x): x is string => !!x);
 
@@ -134,6 +156,7 @@ async function prune(manifest: PackManifest) {
     if (!keep.has(name)) { await FileSystem.deleteAsync(`${SUBJECTS}${name}`, { idempotent: true }); continue; }
     const pack = await readJson<SubjectPack>(`${SUBJECTS}${name}`);
     pack?.questions.forEach(q => imagePaths(q).forEach(x => { if (x.startsWith('images/')) used.add(x.slice(7)); }));
+    pack?.groups?.forEach(g => (g.images ?? []).forEach(x => { if (x && x.startsWith('images/')) used.add(x.slice(7)); }));
   }
   for (const name of await FileSystem.readDirectoryAsync(IMAGES).catch(() => [] as string[])) {
     if (!used.has(name)) await FileSystem.deleteAsync(`${IMAGES}${name}`, { idempotent: true });
@@ -236,6 +259,23 @@ async function applyRemote(src: PackSource, remote: PackManifest, onProgress?: (
         });
         q.sources = sources;
       }
+      const oldG = new Map((old?.groups ?? []).map(g => [g.id, g]));
+      for (const g of pack.groups ?? []) {
+        if (WEB) continue;
+        const prev = oldG.get(g.id)?.sources ?? {};
+        const sources: Record<string, string> = {};
+        await eachGroupImage(g, async (src, name) => {
+          const rel = `images/${name}.${extOf(src)}`;
+          sources[name] = src;
+          const have = prev[name] === src && (await FileSystem.getInfoAsync(`${ROOT}${rel}`)).exists;
+          if (!have) {
+            try { await FileSystem.downloadAsync(src, `${ROOT}${rel}`); }
+            catch { missing = true; return null; }
+          }
+          return rel;
+        });
+        g.sources = sources;
+      }
       // A subject whose images failed keeps an old hash so it retries next time.
       await writeJson(`${SUBJECTS}${s.slug}.json`, pack);
       if (missing) s.hash = `${s.hash}-partial`;
@@ -266,6 +306,16 @@ export async function importUsb(): Promise<PackManifest | null> {
       if (!pack) continue;
       for (const q of pack.questions) {
         await eachImage(q, async (rel) => {
+          if (!rel.startsWith('images/')) return null;
+          try {
+            await FileSystem.deleteAsync(`${ROOT}${rel}`, { idempotent: true });
+            await FileSystem.copyAsync({ from: `file://${dir}/${rel}`, to: `${ROOT}${rel}` });
+            return rel;
+          } catch { return null; }
+        });
+      }
+      for (const g of pack.groups ?? []) {
+        await eachGroupImage(g, async (rel) => {
           if (!rel.startsWith('images/')) return null;
           try {
             await FileSystem.deleteAsync(`${ROOT}${rel}`, { idempotent: true });
@@ -358,6 +408,17 @@ export async function importZip(uri: string, opts: { force?: boolean } = {}): Pr
     if (!raw) continue;
     let pack: SubjectPack;
     try { pack = JSON.parse(strFromU8(raw)); } catch { continue; }
+    const fromZip = async (rel: string) => {
+      const img = rel.startsWith('images/') ? files[`${base}${rel}`] : undefined;
+      if (!img) return null;
+      if (WEB) {
+        const ext = rel.split('.').pop()?.toLowerCase() ?? 'png';
+        return `data:image/${ext === 'jpg' ? 'jpeg' : ext};base64,${bytesToB64(img)}`;
+      }
+      await FileSystem.writeAsStringAsync(`${ROOT}${rel}`, bytesToB64(img), { encoding: FileSystem.EncodingType.Base64 });
+      return rel;
+    };
+    for (const g of pack.groups ?? []) await eachGroupImage(g, fromZip);
     for (const q of pack.questions) {
       await eachImage(q, async (rel) => {
         const img = rel.startsWith('images/') ? files[`${base}${rel}`] : undefined;

@@ -4,7 +4,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams, useNavigation } from 'expo-router';
 import { useTheme } from '@/context/ThemeContext';
 import { createThemedStyles } from '@/lib/themedStyles';
-import { examFilter, examName, loadSubject, optionImage, paperTitle, questionImages, type PackQuestion, type SubjectPack } from '@/lib/quizPack';
+import { examFilter, examName, groupOf, loadSubject, optionImage, paperTitle, questionImages, resolveImage, type PackQuestion, type SubjectPack } from '@/lib/quizPack';
+import { SharedInfo } from '@/components/SharedInfo';
 import { QuestionBody } from '@/components/QuestionBody';
 import { getProgress, recordRound, type TheoryRating } from '@/lib/quizProgress';
 import { clearRound, loadRound, saveRound } from '@/lib/quizRound';
@@ -179,14 +180,14 @@ export default function PlayScreen() {
                 <Ionicons name={ok ? 'checkmark-circle' : mine ? 'close-circle' : 'remove-circle'} size={20} color={ok ? C.success : mine ? C.danger : C.muted} />
                 <Text style={[s.small, { color: C.textSoft }]}>Question {q.question_no ?? n + 1}{q.year ? `, ${q.year}` : ''}</Text>
               </View>
-              <QuestionBody text={q.question_text} images={questionImages(q)} placedElsewhere={q.marking_scheme} textStyle={[s.body, { color: C.text }]} imageHeight={160} />
+              <QuestionBody text={q.question_text} html={q.question_html} images={questionImages(q)} placedElsewhere={q.marking_scheme} textStyle={[s.body, { color: C.text }]} imageHeight={160} />
               <Text style={[s.small, { color: C.textSoft }]}>
                 {mine ? `Your answer: ${mine.toUpperCase()}. ${q.options[LETTERS.indexOf(mine)] || '(picture)'}` : 'Not answered'}
               </Text>
               {!ok && q.correct && (
                 <Text style={[s.small, { color: C.success, fontWeight: '700' }]}>Answer: {q.correct.toUpperCase()}. {q.options[LETTERS.indexOf(q.correct)] || '(picture)'}</Text>
               )}
-              {q.explanation && <Text style={[s.small, { color: C.textSoft }]}>{q.explanation}</Text>}
+              {q.explanation && <QuestionBody text={q.explanation} html={q.explanation_html} images={[]} showUnplaced={false} textStyle={[s.small, { color: C.textSoft }]} />}
             </View>
           );
         })}
@@ -204,6 +205,7 @@ export default function PlayScreen() {
   const chosen = answers[q.id];
   const revealed = instant && !!chosen;
   const pics = questionImages(q);
+  const info = groupOf(pack, q);
   const unanswered = qs.filter(x => x.question_type === 'objective' && !answers[x.id]).length;
 
   function next() { setShowScheme(false); setConfirmFinish(false); if (last) { finish(); } else setI(i + 1); }
@@ -221,7 +223,8 @@ export default function PlayScreen() {
       </View>
 
       <ScrollView contentContainerStyle={s.page}>
-        <QuestionBody text={q.question_text} images={pics} placedElsewhere={q.marking_scheme} textStyle={[s.question, { color: C.text }]} />
+        {info && <SharedInfo key={info.id} text={info.text} html={info.html} images={(info.images ?? []).map(resolveImage)} />}
+        <QuestionBody text={q.question_text} html={q.question_html} images={pics} placedElsewhere={q.marking_scheme} textStyle={[s.question, { color: C.text }]} />
 
         {q.question_type === 'objective' ? (
           <View style={{ gap: 10 }}>
@@ -244,7 +247,9 @@ export default function PlayScreen() {
                       <Image source={{ uri: optionImage(q, k)! }} resizeMode="contain" accessibilityLabel={`Option ${letter.toUpperCase()} picture`}
                         style={{ width: '100%', height: 130, backgroundColor: '#FFFFFF', borderRadius: 8 }} />
                     )}
-                    {!!opt && <Text style={[s.optText, { color: fg }]}>{opt}</Text>}
+                    {!!opt && (q.options_html?.[k]
+                      ? <QuestionBody text={opt} html={q.options_html[k]} images={[]} showUnplaced={false} textStyle={[s.optText, { color: fg }]} />
+                      : <Text style={[s.optText, { color: fg }]}>{opt}</Text>)}
                   </View>
                   {revealed && isRight && <Ionicons name="checkmark-circle" size={22} color={C.success} />}
                   {revealed && isChosen && !isRight && <Ionicons name="close-circle" size={22} color={C.danger} />}
@@ -256,7 +261,7 @@ export default function PlayScreen() {
                 <Text style={[s.body, { color: chosen === q.correct ? C.success : C.danger, fontWeight: '700' }]}>
                   {chosen === q.correct ? 'Correct' : `The answer is ${q.correct?.toUpperCase()}`}
                 </Text>
-                {q.explanation && <Text style={[s.body, { color: C.textSoft }]}>{q.explanation}</Text>}
+                {q.explanation && <QuestionBody text={q.explanation} html={q.explanation_html} images={[]} showUnplaced={false} textStyle={[s.body, { color: C.textSoft }]} />}
               </View>
             )}
           </View>
@@ -274,7 +279,7 @@ export default function PlayScreen() {
                 <View style={[s.card, { backgroundColor: C.surface, borderColor: C.border }]}>
                   <Text style={[s.small, { color: C.textSoft, fontWeight: '700' }]}>MARKING SCHEME</Text>
                   {q.marking_scheme
-                    ? <QuestionBody text={q.marking_scheme} images={pics} showUnplaced={false} textStyle={[s.body, { color: C.text }]} />
+                    ? <QuestionBody text={q.marking_scheme} html={q.marking_scheme_html} images={pics} showUnplaced={false} textStyle={[s.body, { color: C.text }]} />
                     : <Text style={[s.body, { color: C.text }]}>No marking scheme for this question.</Text>}
                 </View>
                 <Text style={[s.body, { color: C.text, fontWeight: '600' }]}>How did you do?</Text>

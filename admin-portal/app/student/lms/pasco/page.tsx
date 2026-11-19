@@ -20,6 +20,12 @@ interface PascoQuestion {
   image_url?: string | null;
   images?: string[];
   option_images?: (string | null)[];
+  /** Formatted versions (tables, sub/superscript), when the question has them. */
+  question_html?: string | null;
+  explanation_html?: string | null;
+  options_html?: (string | null)[] | null;
+  /** Information a group of questions shares. */
+  group?: { text: string; html: string | null; images: string[] } | null;
 }
 
 type Phase = 'setup' | 'practice' | 'done';
@@ -313,7 +319,14 @@ export default function PascoPage() {
             </span>
           )}
         </div>
-        <RichQuestion text={currentQ.question_text}
+        {currentQ.group && (
+          <div className="mb-3 rounded-xl border border-[#E2D9CC] bg-[#FDFAF5] p-3">
+            <p className="text-xs font-semibold text-slate-500 mb-1">Use this information</p>
+            <RichQuestion text={currentQ.group.html || currentQ.group.text} images={currentQ.group.images}
+              textClassName="text-sm text-slate-800" imageStyle={{ maxHeight: 260, width: '100%' }} />
+          </div>
+        )}
+        <RichQuestion text={currentQ.question_html || currentQ.question_text}
           images={currentQ.images?.length ? currentQ.images : (currentQ.image_url ? [currentQ.image_url] : [])}
           textClassName="text-base font-semibold text-slate-800 leading-relaxed" imageStyle={{ maxHeight: 288, width: '100%' }} />
       </div>
@@ -338,7 +351,9 @@ export default function PascoPage() {
                 <img src={currentQ.option_images[OPTIONS.indexOf(opt)]!} alt={`Option ${OPTION_LABELS[opt]}`}
                   className="max-h-40 max-w-full object-contain rounded-lg bg-white" />
               )}
-              {optTexts[opt] && <span className="text-sm text-slate-700">{optTexts[opt]}</span>}
+              {optTexts[opt] && (currentQ.options_html?.[OPTIONS.indexOf(opt)]
+                ? <RichQuestion text={currentQ.options_html[OPTIONS.indexOf(opt)]!} images={[]} showUnplaced={false} textClassName="text-sm text-slate-700" />
+                : <span className="text-sm text-slate-700">{optTexts[opt]}</span>)}
             </span>
             {revealed && opt === currentQ.correct_option && (
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="w-4 h-4 text-[#145C44] ml-auto shrink-0">
@@ -360,9 +375,9 @@ export default function PascoPage() {
           <p className={`text-sm font-bold mb-1 ${selected === currentQ.correct_option ? 'text-[#145C44]' : 'text-red-700'}`}>
             {selected === currentQ.correct_option ? 'Correct!' : `Incorrect. The correct answer is ${OPTION_LABELS[currentQ.correct_option]}.`}
           </p>
-          {currentQ.explanation && (
-            <p className="text-sm text-slate-600 leading-relaxed">{currentQ.explanation}</p>
-          )}
+          {currentQ.explanation && (currentQ.explanation_html
+            ? <RichQuestion text={currentQ.explanation_html} images={[]} showUnplaced={false} textClassName="text-sm text-slate-600" />
+            : <p className="text-sm text-slate-600 leading-relaxed">{currentQ.explanation}</p>)}
         </div>
       )}
 

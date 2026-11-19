@@ -15,8 +15,13 @@ export interface CtTest {
   result: { attempt_id: string; score: number | null; max_score: number | null; needs_marking: boolean } | null;
 }
 // Pictures: [image N] in the text marks where images[N-1] goes; option_images[k] goes with option k.
+export interface CtInfo { text: string; html: string | null; images?: string[] }
 export interface CtQuestion { id: string; type: 'mcq' | 'short'; text: string; options: string[]; marks: number;
-  images?: string[]; option_images?: (string | null)[] }
+  images?: string[]; option_images?: (string | null)[];
+  /** Formatting (tables, x², lists) when the teacher used it. */
+  html?: string | null; options_html?: (string | null)[] | null;
+  /** Information shared with other questions ("Use the following to answer..."). */
+  info?: CtInfo | null }
 export interface CtAttempt {
   attempt: { id: string; status: string; started_at: string; deadline_at: string | null; server_now: string };
   quiz: { id: string; title: string; subject: string; instructions: string | null; time_limit_mins: number | null; total_marks: number };
@@ -26,6 +31,7 @@ export interface CtAttempt {
 export interface CtResult {
   attempt_id: string; score: number | null; max_score: number | null; needs_marking: boolean; show_answers: boolean; late?: boolean;
   review: { id: string; type: 'mcq' | 'short'; text: string; options: string[]; images?: string[]; option_images?: (string | null)[];
+    html?: string | null; options_html?: (string | null)[] | null; info?: CtInfo | null; explanation_html?: string | null;
     correct: string | null; explanation: string | null;
     marks: number; your_answer: string | null; marks_awarded: number | null }[] | null;
 }
@@ -82,9 +88,10 @@ async function withSession<T>(fn: (s: CtSession) => Promise<T>): Promise<T> {
 
 // The server sends picture paths like /lms/img/x.jpg; the tablet needs the full address.
 const absUrl = (base: string, u: string | null | undefined) => (u ? (/^https?:/i.test(u) ? u : `${base}${u}`) : null);
-function withPics<T extends { images?: string[]; option_images?: (string | null)[] }>(base: string, q: T): T {
+function withPics<T extends { images?: string[]; option_images?: (string | null)[]; info?: CtInfo | null }>(base: string, q: T): T {
   return { ...q, images: (q.images || []).map(u => absUrl(base, u)).filter(Boolean) as string[],
-    option_images: (q.option_images || []).map(u => absUrl(base, u)) };
+    option_images: (q.option_images || []).map(u => absUrl(base, u)),
+    info: q.info ? { ...q.info, images: (q.info.images || []).map(u => absUrl(base, u)).filter(Boolean) as string[] } : q.info };
 }
 const resultPics = (base: string, r: CtResult): CtResult => ({ ...r, review: r.review ? r.review.map(q => withPics(base, q)) : r.review });
 

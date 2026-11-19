@@ -2,6 +2,7 @@
 // [image 2] ([image] = [image 1]). Images no marker places go at the end.
 
 import type { CSSProperties } from 'react';
+import { isRich } from '@/lib/richText';
 
 const MARKER = /\[image(?:\s+(\d+))?\]/gi;
 
@@ -52,6 +53,26 @@ export function RichQuestion({ text, images, textStyle, imageStyle, className, t
   className?: string; textClassName?: string; imageClassName?: string;
   showUnplaced?: boolean;
 }) {
+  // Rich text (HTML from the editor, cleaned by the server): pictures go where
+  // its [image N] markers are, inside the formatted text.
+  if (isRich(text)) {
+    const { unplaced } = splitMarkers(text, images.length, placedElsewhere);
+    const attr = (u: string) => u.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+    const html = text.replace(MARKER, (all, n) => {
+      const k = n ? parseInt(n, 10) : 1;
+      const url = images[k - 1];
+      return url ? `<img src="${attr(url)}" alt="Figure ${k}" class="cas-fig" />` : '';
+    });
+    return (
+      <div className={className} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div className={`cas-rich ${textClassName ?? ''}`} style={textStyle} dangerouslySetInnerHTML={{ __html: html }} />
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        {showUnplaced && unplaced.map(n => <img key={`u${n}`} src={images[n - 1]} alt={`Figure ${n}`} className={imageClassName}
+          style={{ display: 'block', maxWidth: '100%', maxHeight: 320, objectFit: 'contain', background: '#fff', borderRadius: 8, ...imageStyle }} />)}
+        <style>{RICH_CSS}</style>
+      </div>
+    );
+  }
   const { parts, unplaced } = splitMarkers(text, images.length, placedElsewhere);
   const img = (n: number, key: string) => (
     // eslint-disable-next-line @next/next/no-img-element
@@ -67,3 +88,15 @@ export function RichQuestion({ text, images, textStyle, imageStyle, className, t
     </div>
   );
 }
+
+// Formatted question text: tables with ruled cells, lists, pictures.
+export const RICH_CSS = `
+.cas-rich { line-height: 1.55; overflow-wrap: anywhere; }
+.cas-rich p { margin: 0 0 6px; }
+.cas-rich p:last-child { margin-bottom: 0; }
+.cas-rich ul, .cas-rich ol { margin: 0 0 6px; padding-left: 22px; }
+.cas-rich table { border-collapse: collapse; margin: 6px 0 8px; max-width: 100%; display: block; overflow-x: auto; }
+.cas-rich th, .cas-rich td { border: 1px solid currentColor; border-color: rgba(127,127,127,0.5); padding: 5px 9px; vertical-align: top; text-align: left; }
+.cas-rich th { font-weight: 700; background: rgba(127,127,127,0.12); }
+.cas-rich img.cas-fig { display: block; max-width: 100%; max-height: 320px; object-fit: contain; background: #fff; border-radius: 8px; margin: 6px 0; }
+`;

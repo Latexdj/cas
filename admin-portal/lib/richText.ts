@@ -20,3 +20,20 @@ export function plainTextToHtml(text: string): string {
     .map(p => `<p>${esc(p).replace(/\n/g, '<br>')}</p>`)
     .join('');
 }
+
+// Rich question text in the browser: the same rules as the backend's
+// utils/rich-text.js (rich text is HTML starting with a block tag; anything
+// else is plain text).
+export function isRich(s: string | null | undefined): boolean {
+  return typeof s === 'string' && /^\s*<(p|ul|ol|table|div|h[1-6]|blockquote)[\s>]/i.test(s);
+}
+
+/** Text without formatting, for short labels and search. */
+export function plainOf(s: string | null | undefined): string {
+  if (!s) return '';
+  if (!isRich(s)) return s;
+  const el = typeof document !== 'undefined' ? document.createElement('div') : null;
+  if (!el) return s.replace(/<[^>]+>/g, ' ');
+  el.innerHTML = s.replace(/<\/(p|li|tr)>/gi, '</$1>\n').replace(/<\/(td|th)>/gi, '</$1> ');
+  return (el.textContent || '').replace(/[ \t]+\n/g, '\n').trim();
+}

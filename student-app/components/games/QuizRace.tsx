@@ -61,7 +61,7 @@ export default function QuizRace({ questions, onFinish }: {
         <View style={{ width: `${(left / SECONDS) * 100}%`, height: 4, backgroundColor: left <= 5 ? C.danger : C.primaryText }} />
       </View>
       <ScrollView ref={scroll} contentContainerStyle={s.page}>
-        <QuestionBody text={q.question_text} images={questionImages(q)} textStyle={[s.question, { color: C.text }]} imageHeight={180} />
+        <QuestionBody text={q.question_text} html={q.question_html} images={questionImages(q)} textStyle={[s.question, { color: C.text }]} imageHeight={180} />
         <View style={{ gap: 10 }}>
           {q.options.map((opt, k) => {
             const letter = LETTERS[k];
@@ -80,7 +80,9 @@ export default function QuizRace({ questions, onFinish }: {
                     <Image source={{ uri: optionImage(q, k)! }} resizeMode="contain" accessibilityLabel={`Option ${letter.toUpperCase()} picture`}
                       style={{ width: '100%', height: 120, backgroundColor: '#FFFFFF', borderRadius: 8 }} />
                   )}
-                  {!!opt && <Text style={[s.optText, { color: fg }]}>{opt}</Text>}
+                  {!!opt && (q.options_html?.[k]
+                    ? <QuestionBody text={opt} html={q.options_html[k]} images={[]} showUnplaced={false} textStyle={[s.optText, { color: fg }]} />
+                    : <Text style={[s.optText, { color: fg }]}>{opt}</Text>)}
                 </View>
                 {revealed && isRight && <Ionicons name="checkmark-circle" size={22} color={C.success} />}
                 {revealed && isChosen && !isRight && <Ionicons name="close-circle" size={22} color={C.danger} />}

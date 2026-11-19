@@ -14,6 +14,8 @@ const path = require('path');
 const fs = require('fs');
 const { DatabaseSync } = require('node:sqlite');
 const bcrypt = require('./vendor/bcryptjs.js');
+// Rich question text (tables, x², lists): the same rules as CAS (backend utils/rich-text.js).
+const RT = require('./vendor/rich-text.js');
 
 const LETTERS = ['a', 'b', 'c', 'd', 'e'];
 const SESSION_HOURS = 12;
@@ -56,7 +58,9 @@ module.exports = function createLms(ctx) {
   // Added for merged classes and recording in the Assessments module.
   for (const sql of ['ALTER TABLE quizzes ADD COLUMN mode_id TEXT', 'ALTER TABLE quizzes ADD COLUMN record_as TEXT',
     'ALTER TABLE quizzes ADD COLUMN record_dirty INTEGER DEFAULT 0', 'ALTER TABLE quizzes ADD COLUMN record_note TEXT',
-    'ALTER TABLE questions ADD COLUMN images TEXT', 'ALTER TABLE questions ADD COLUMN option_images TEXT']) {
+    'ALTER TABLE questions ADD COLUMN images TEXT', 'ALTER TABLE questions ADD COLUMN option_images TEXT',
+    // Information blocks (type 'info'): how many of the following questions they cover.
+    'ALTER TABLE questions ADD COLUMN covers INTEGER']) {
     try { db.exec(sql); } catch { /* already there */ }
   }
   db.exec(`
@@ -524,9 +528,12 @@ module.exports = function createLms(ctx) {
           offline_ref: z.id, teacher_id: z.teacher_id, subject: z.subject, class_name: z.class_name, class_names: classList(z.class_name),
           mode_id: z.record_as === 'ca' ? z.mode_id : null, record_as_exam: z.record_as === 'exam', title: z.title,
           instructions: z.instructions, time_limit_mins: z.time_limit_mins, randomise: !!z.randomise, show_answers_after: !!z.show_answers,
-          questions: all('SELECT * FROM questions WHERE quiz_id=? ORDER BY sort', z.id).map(x => ({
-            local_id: x.id, type: x.type, text: x.text, options: JSON.parse(x.options || '[]'), correct: x.correct, explanation: x.explanation, marks: x.marks,
-          })),
+          // CAS's online tests are plain text: information blocks are written into each question they cover.
+          questions: units(quizQuestions(z.id)).flatMap(u => u.items.map(x => ({
+            local_id: x.id, type: x.type,
+            text: [u.info ? RT.toPlain(u.info.text) : null, RT.toPlain(x.text)].filter(Boolean).join('\n\n'),
+            options: (x.options || []).map(o => RT.toPlain(o)), correct: x.correct, explanation: RT.toPlain(x.explanation), marks: x.marks,
+          }))),
         })) };
         const r = await casFetch('/lms/quizzes', { method: 'POST', body });
         tx(() => {
@@ -809,13 +816,36 @@ module.exports = function createLms(ctx) {
   const sameClass = (testClasses, cls) => classList(testClasses).some(c => key(c) === key(cls));
   const quizQuestions = (quizId) => all('SELECT * FROM questions WHERE quiz_id=? ORDER BY sort', quizId)
     .map(x => ({ ...x, options: JSON.parse(x.options || '[]'), images: parseList(x.images), option_images: parseList(x.option_images) }));
-  const totalMarks = (qs) => qs.reduce((n, x) => n + (Number(x.marks) || 0), 0);
+  const totalMarks = (qs) => qs.reduce((n, x) => n + (x.type === 'info' ? 0 : Number(x.marks) || 0), 0);
+  // Information blocks ("Use the following to answer Questions 8 and 9") are
+  // not questions: no answer, no marks. Each covers the next `covers` questions.
+  const scored = (qs) => qs.filter(x => x.type !== 'info');
+  /** Groups a test's questions into units: one information block with the questions it covers, or one question. */
+  function units(qs) {
+    const out = []; let cur = null, left = 0;
+    for (const x of qs) {
+      if (x.type === 'info') { cur = { info: x, items: [] }; out.push(cur); left = Math.max(1, Math.min(50, Number(x.covers) || 1)); continue; }
+      if (cur && left > 0) { cur.items.push(x); left--; continue; }
+      cur = null; out.push({ info: null, items: [x] });
+    }
+    return out.filter(u => u.items.length);
+  }
+  const rich = (t) => ({ text: RT.toPlain(t) ?? '', html: RT.isRich(t) ? t : null });
+  const infoView = (inf) => (inf ? { ...rich(inf.text), images: inf.images } : null);
+  /** A question for students: plain text where older apps read it, the formatting in *_html, and its information. */
+  const studentQuestion = (x, inf) => {
+    const t = rich(x.text);
+    const opts = x.type === 'mcq' ? (x.options || []).map(o => rich(o)) : [];
+    return { id: x.id, type: x.type, text: t.text, html: t.html, options: opts.map(o => o.text),
+      options_html: opts.some(o => o.html) ? opts.map(o => o.html) : null, marks: x.marks,
+      images: x.images, option_images: x.type === 'mcq' ? x.option_images : [], info: infoView(inf) };
+  };
 
   /** Marks an attempt from its saved answers and closes it. */
   function finishAttempt(attemptId, at = nowIso()) {
     const a = one('SELECT * FROM attempts WHERE id=?', attemptId);
     if (!a || a.status === 'submitted') return a;
-    const qs = quizQuestions(a.quiz_id);
+    const qs = scored(quizQuestions(a.quiz_id));
     const ans = new Map(all('SELECT * FROM answers WHERE attempt_id=?', attemptId).map(x => [x.question_id, x]));
     let score = 0, needs = 0;
     tx(() => {
@@ -849,14 +879,15 @@ module.exports = function createLms(ctx) {
     crypto.createHash('md5').update(attemptId + x.id).digest('hex').localeCompare(crypto.createHash('md5').update(attemptId + y.id).digest('hex')));
 
   function attemptView(a, quiz) {
-    let qs = quizQuestions(quiz.id);
-    if (quiz.randomise) qs = orderFor(a.id, qs);
+    let us = units(quizQuestions(quiz.id));
+    // Shuffled tests keep an information block with its questions.
+    if (quiz.randomise) us = orderFor(a.id, us.map(u => ({ ...u, id: u.info ? u.info.id : u.items[0].id })));
+    const qs = us.flatMap(u => u.items.map(x => studentQuestion(x, u.info)));
     const ans = Object.fromEntries(all('SELECT * FROM answers WHERE attempt_id=?', a.id).map(x => [x.question_id, { selected: x.selected, text: x.text_answer }]));
     return {
       attempt: { id: a.id, status: a.status, started_at: a.started_at, deadline_at: a.deadline_at, server_now: nowIso() },
       quiz: { id: quiz.id, title: quiz.title, subject: quiz.subject, instructions: quiz.instructions, time_limit_mins: quiz.time_limit_mins, total_marks: totalMarks(qs) },
-      questions: qs.map(x => ({ id: x.id, type: x.type, text: x.text, options: x.type === 'mcq' ? x.options : [], marks: x.marks,
-        images: x.images, option_images: x.type === 'mcq' ? x.option_images : [] })),
+      questions: qs,
       answers: ans,
     };
   }
@@ -865,10 +896,11 @@ module.exports = function createLms(ctx) {
     const out = { attempt_id: a.id, score: a.score, max_score: a.max_score, needs_marking: !!a.needs_marking, show_answers: !!quiz.show_answers, review: null };
     if (quiz.show_answers) {
       const ans = new Map(all('SELECT * FROM answers WHERE attempt_id=?', a.id).map(x => [x.question_id, x]));
-      out.review = quizQuestions(quiz.id).map(x => {
+      out.review = units(quizQuestions(quiz.id)).flatMap(u => u.items.map(x => ({ x, inf: u.info }))).map(({ x, inf }) => {
         const an = ans.get(x.id);
-        return { id: x.id, type: x.type, text: x.text, options: x.options, images: x.images, option_images: x.option_images, correct: x.type === 'mcq' ? x.correct : null,
-          explanation: x.explanation, marks: x.marks, your_answer: an ? (x.type === 'mcq' ? an.selected : an.text_answer) : null,
+        const e = rich(x.explanation);
+        return { ...studentQuestion(x, inf), correct: x.type === 'mcq' ? x.correct : null,
+          explanation: e.text || null, explanation_html: e.html, marks: x.marks, your_answer: an ? (x.type === 'mcq' ? an.selected : an.text_answer) : null,
           marks_awarded: an?.marks ?? (x.type === 'mcq' ? 0 : null) };
       });
     }
@@ -961,7 +993,7 @@ module.exports = function createLms(ctx) {
           const atts = all('SELECT * FROM attempts WHERE quiz_id=? AND student_id=? ORDER BY started_at DESC', z.id, me.id);
           const open = z.status === 'open';
           if (!open && !atts.length) continue;   // closed tests only show if taken
-          const qs = quizQuestions(z.id);
+          const qs = scored(quizQuestions(z.id));
           const last = atts[0];
           const submittedCount = atts.filter(a => a.status === 'submitted').length;
           out.push({
@@ -1236,13 +1268,21 @@ module.exports = function createLms(ctx) {
     if (b.record_as === 'ca' && !modeList.some(m => m.id === b.mode_id)) return 'Choose which kind of assessment to record it as.';
     if (b.time_limit_mins && !(parseInt(b.time_limit_mins, 10) > 0 && parseInt(b.time_limit_mins, 10) <= 600)) return 'The time limit must be 1 to 600 minutes.';
     const qs = Array.isArray(b.questions) ? b.questions : [];
-    for (const [i, x] of qs.entries()) {
-      const n = i + 1;
-      if (!String(x.text || '').trim() && !(Array.isArray(x.images) && x.images.some(Boolean))) return `Question ${n} has no text or picture.`;
+    if (qs.length && !qs.some(x => x.type !== 'info')) return 'Add at least one question; information on its own is not a test.';
+    const plainOf = (t) => String(RT.toPlain(RT.sanitize(String(t || ''))) || '');
+    let n = 0;
+    for (const x of qs) {
+      if (x.type === 'info') {
+        if (!plainOf(x.text).trim() && !(Array.isArray(x.images) && x.images.some(Boolean))) return n ? `The information after question ${n} is empty.` : 'The information at the start of the test is empty.';
+        if (!(Number(x.covers) >= 1 && Number(x.covers) <= 50)) return n ? `Say how many questions the information after question ${n} is for.` : 'Say how many questions the information at the start is for.';
+        continue;
+      }
+      n++;
+      if (!plainOf(x.text).trim() && !/\[image/i.test(String(x.text || '')) && !(Array.isArray(x.images) && x.images.some(Boolean))) return `Question ${n} has no text or picture.`;
       if (Array.isArray(x.images) && x.images.filter(Boolean).length > 6) return `Question ${n} has more than 6 pictures.`;
       if (!(Number(x.marks) > 0)) return `Question ${n} needs marks above 0.`;
       if (x.type !== 'short') {
-        const opts = (x.options || []).map(o => String(o || '').trim());
+        const opts = (x.options || []).map(o => plainOf(o).trim());
         const oimg = Array.isArray(x.option_images) ? x.option_images : [];
         if (opts.length < 2 || opts.length > 5 || opts.some((o, k) => !o && !oimg[k])) return `Question ${n} needs 2 to 5 options, each with text or a picture.`;
         const ci = LETTERS.indexOf(String(x.correct || '').toLowerCase());
@@ -1252,14 +1292,20 @@ module.exports = function createLms(ctx) {
     return null;
   }
   function saveQuestions(quizId, qs) {
-    const ins = q('INSERT INTO questions(id,quiz_id,sort,type,text,options,correct,explanation,marks,images,option_images) VALUES(?,?,?,?,?,?,?,?,?,?,?)');
+    const ins = q('INSERT INTO questions(id,quiz_id,sort,type,text,options,correct,explanation,marks,images,option_images,covers) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)');
+    const clean = (t) => RT.sanitize(String(t ?? '').trim());
     (qs || []).forEach((x, i) => {
+      if (x.type === 'info') {
+        const images = (Array.isArray(x.images) ? x.images : []).map(keepImage).filter(Boolean).slice(0, 6);
+        ins.run(uuid(), quizId, i, 'info', clean(x.text), '[]', null, null, 0, JSON.stringify(images), '[]', Math.max(1, Math.min(50, parseInt(x.covers, 10) || 1)));
+        return;
+      }
       const short = x.type === 'short';
       const images = (Array.isArray(x.images) ? x.images : []).map(keepImage).filter(Boolean).slice(0, 6);
       const optImages = short ? [] : (x.options || []).map((_, k) => keepImage((x.option_images || [])[k]));
-      ins.run(uuid(), quizId, i, short ? 'short' : 'mcq', String(x.text || '').trim(),
-        JSON.stringify(short ? [] : x.options.map(o => String(o).trim())), short ? null : String(x.correct).toLowerCase(),
-        x.explanation || null, Number(x.marks) || 1, JSON.stringify(images), JSON.stringify(optImages));
+      ins.run(uuid(), quizId, i, short ? 'short' : 'mcq', clean(x.text),
+        JSON.stringify(short ? [] : x.options.map(o => clean(o))), short ? null : String(x.correct).toLowerCase(),
+        clean(x.explanation) || null, Number(x.marks) || 1, JSON.stringify(images), JSON.stringify(optImages), null);
     });
   }
 
@@ -1280,7 +1326,7 @@ module.exports = function createLms(ctx) {
         if (!st.attempt_id) continue;
         const an = one('SELECT * FROM answers WHERE attempt_id=? AND question_id=?', st.attempt_id, x.id);
         if (!an?.text_answer?.trim()) continue;
-        marking.push({ attempt_id: st.attempt_id, question_id: x.id, question: x.text, max: x.marks, student: st.name, answer: an.text_answer, marks: an.marks });
+        marking.push({ attempt_id: st.attempt_id, question_id: x.id, question: RT.toPlain(x.text), max: x.marks, student: st.name, answer: an.text_answer, marks: an.marks });
       }
     }
     const sub = list.filter(x => x.state === 'Submitted');

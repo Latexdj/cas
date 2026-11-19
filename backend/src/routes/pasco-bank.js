@@ -17,6 +17,7 @@ const { authenticate, superAdminOnly } = require('../middleware/auth');
 const { uploadFile } = require('../services/storage.service');
 const { importPaper, PDF_MIME, DOCX_MIME, IMAGE_MIME } = require('../services/pasco-import.service');
 const { parsePaperText } = require('../services/pasco-text-import.service');
+const { isRich, sanitize, toPlain } = require('../utils/rich-text');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024, files: 20 } });
 
@@ -29,6 +30,18 @@ function cleanText(v, max) {
   const s = String(v ?? '').trim();
   return s && s.length <= max ? s : null;
 }
+
+// Rich text (see utils/rich-text.js): cleaned to the allowed tags; empty
+// formatting ("<p></p>") counts as no text.
+function cleanRich(v, max) {
+  const s = sanitize(String(v ?? '').trim());
+  if (!s || s.length > max) return null;
+  return toPlain(s).trim() || /\[image/i.test(s) ? s : null;
+}
+
+// For the apps: plain text where it always was (older apps show it as it is)
+// and the rich version beside it for apps that can show formatting.
+const dual = (v) => (isRich(v) ? { plain: toPlain(v), html: v } : { plain: v ?? null, html: null });
 
 async function bumpPack(client = pool) {
   await client.query(`UPDATE pasco_pack_state SET version = version + 1, published_at = now() WHERE id`);
@@ -57,7 +70,29 @@ function shapeQuestion(q) {
     images, image_url: images[0] ?? null,
     topic: q.topic, difficulty: q.difficulty, year: q.year,
     answer_source: q.answer_source, needs_review: q.needs_review, has_diagram: q.has_diagram,
+    group_id: q.group_id ?? null,
   };
+}
+
+// A question as the apps get it: plain text in the usual fields, the rich
+// versions in *_html fields.
+function forApps(s) {
+  const t = dual(s.question_text), e = dual(s.explanation), m = dual(s.marking_scheme);
+  const opts = (s.options || []).map(dual);
+  return {
+    ...s,
+    question_text: t.plain, question_html: t.html,
+    explanation: e.plain, explanation_html: e.html,
+    marking_scheme: m.plain, marking_scheme_html: m.html,
+    options: opts.map(o => o.plain ?? ''),
+    options_html: opts.some(o => o.html) ? opts.map(o => o.html) : null,
+  };
+}
+const groupImages = (g) => (Array.isArray(g.images) ? g.images.map(i => i?.url).filter(Boolean) : []);
+const shapeGroup = (g) => ({ id: g.id, paper_id: g.paper_id, info: g.info, images: groupImages(g) });
+function shapeGroupForApps(g) {
+  const d = dual(g.info);
+  return { id: g.id, text: d.plain, html: d.html, images: groupImages(g) };
 }
 
 // ── PUBLIC: offline pack ──────────────────────────────────────────────────────
@@ -93,12 +128,16 @@ async function subjectPack(slug) {
     SELECT q.*, p.year ${PUBLISHED_SQL} AND p.subject_name = $1
     ORDER BY p.year DESC NULLS LAST, p.paper_label, q.question_type, q.question_no NULLS LAST, q.created_at`, [name]);
   const questions = qs.map(q => {
-    const s = shapeQuestion(q);
+    const s = forApps(shapeQuestion(q));
     delete s.answer_source; delete s.needs_review;
     return s;
   });
-  const hash = crypto.createHash('md5').update(JSON.stringify(questions)).digest('hex');
-  return { subject: name, slug, hash, papers, questions };
+  const groupIds = [...new Set(questions.map(q => q.group_id).filter(Boolean))];
+  const groups = groupIds.length
+    ? (await pool.query(`SELECT * FROM pasco_groups WHERE id = ANY($1::uuid[])`, [groupIds])).rows.map(shapeGroupForApps)
+    : [];
+  const hash = crypto.createHash('md5').update(JSON.stringify({ questions, groups })).digest('hex');
+  return { subject: name, slug, hash, papers, questions, groups };
 }
 
 router.get('/pack/manifest', async (req, res, next) => {
@@ -157,6 +196,11 @@ router.get('/pack/zip', async (req, res, next) => {
         q.images = imgs;
         q.image_url = imgs[0] ?? null;
         for (const [k, url] of q.option_images.entries()) if (url) q.option_images[k] = await grab(url, `${q.id}-o${k + 1}`);
+      }
+      for (const g of pack.groups || []) {
+        const imgs = [];
+        for (const [n, url] of g.images.entries()) imgs.push(await grab(url, `g-${g.id}-${n + 1}`));
+        g.images = imgs;
       }
       zip.append(JSON.stringify(pack), { name: `Past Questions/subjects/${pack.slug}.json` });
     }
@@ -225,7 +269,8 @@ router.get('/papers/:id', async (req, res, next) => {
     const { rows: qs } = await pool.query(`
       SELECT * FROM lms_pasco_questions WHERE paper_id = $1
        ORDER BY question_type, question_no NULLS LAST, created_at`, [req.params.id]);
-    res.json({ ...rows[0], questions: qs.map(shapeQuestion) });
+    const { rows: gs } = await pool.query(`SELECT * FROM pasco_groups WHERE paper_id = $1 ORDER BY created_at`, [req.params.id]);
+    res.json({ ...rows[0], questions: qs.map(shapeQuestion), groups: gs.map(shapeGroup) });
   } catch (err) { next(err); }
 });
 
@@ -308,25 +353,36 @@ router.post('/papers/:id/import', upload.array('files', 20), async (req, res, ne
 
     (async () => {
       try {
-        const { rows, note } = await importPaper(files, {
+        const { rows, note, groups } = await importPaper(files, {
           exam: p.exam, subject: p.subject_name, year: p.year, paperLabel: p.paper_label });
         const source = [p.exam, p.paper_label].filter(Boolean).join(' ');
         const client = await pool.connect();
         try {
           await client.query('BEGIN');
+          const made = [];   // { id, question_no, question_type } for the shared information
           for (const r of rows) {
-            await client.query(`
+            const { rows: [ins] } = await client.query(`
               INSERT INTO lms_pasco_questions
                 (school_id, paper_id, subject_name, year, source, question_no, question_type, question_text,
                  options, explanation, marking_scheme, topic, difficulty, answer_source, needs_review, has_diagram)
-              VALUES (NULL,$1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,$10,$11,$12,$13,$14,$15)`,
+              VALUES (NULL,$1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,$10,$11,$12,$13,$14,$15) RETURNING id, question_no, question_type`,
               [p.id, p.subject_name, p.year, source, r.question_no, r.question_type, r.question_text,
                r.options ? JSON.stringify(r.options) : null, r.explanation, r.marking_scheme, r.topic,
                r.difficulty, r.answer_source, r.needs_review, r.has_diagram]);
+            made.push(ins);
+          }
+          let shared = 0;
+          for (const g of groups || []) {
+            const ids = made.filter(m => m.question_type === g.type && g.nos.includes(m.question_no)).map(m => m.id);
+            if (!ids.length) continue;
+            const { rows: [grp] } = await client.query('INSERT INTO pasco_groups (paper_id, info) VALUES ($1, $2) RETURNING id', [p.id, g.info]);
+            await client.query('UPDATE lms_pasco_questions SET group_id = $1 WHERE id = ANY($2::uuid[])', [grp.id, ids]);
+            shared++;
           }
           const diagrams = rows.filter(r => r.has_diagram).length;
           const parts = rows.length ? [`Read ${rows.length} question${rows.length === 1 ? '' : 's'}.`] : [];
           if (diagrams) parts.push(`${diagrams} need${diagrams === 1 ? 's' : ''} a diagram image.`);
+          if (shared) parts.push(`${shared} block${shared === 1 ? '' : 's'} of shared information.`);
           if (note) parts.push(note);
           await client.query(`UPDATE pasco_papers SET import_status=$1, import_note=$2, updated_at=now() WHERE id=$3`,
             [rows.length ? 'done' : 'failed', parts.join(' '), p.id]);
@@ -441,19 +497,19 @@ router.post('/papers/:id/import-rows', async (req, res, next) => {
 // Validates a question body. options: string[]; correct: letter.
 function readQuestion(body) {
   const question_type = body.question_type === 'theory' ? 'theory' : 'objective';
-  const question_text = cleanText(body.question_text, 8000);
+  const question_text = cleanRich(body.question_text, 40000);
   if (!question_text) return { error: 'Question text is required.' };
   const difficulty = ['easy', 'medium', 'hard'].includes(body.difficulty) ? body.difficulty : 'medium';
   const out = {
     question_type, question_text, difficulty,
     question_no: body.question_no === '' || body.question_no == null ? null : parseInt(body.question_no, 10) || null,
     topic: body.topic ? cleanText(body.topic, 120) : null,
-    explanation: question_type === 'objective' && body.explanation ? cleanText(body.explanation, 4000) : null,
-    marking_scheme: question_type === 'theory' && body.marking_scheme ? cleanText(body.marking_scheme, 8000) : null,
+    explanation: question_type === 'objective' && body.explanation ? cleanRich(body.explanation, 16000) : null,
+    marking_scheme: question_type === 'theory' && body.marking_scheme ? cleanRich(body.marking_scheme, 40000) : null,
     options: null,
   };
   if (question_type === 'objective') {
-    const opts = (Array.isArray(body.options) ? body.options : []).map(o => String(o ?? '').trim());
+    const opts = (Array.isArray(body.options) ? body.options : []).map(o => cleanRich(o, 4000) ?? '');
     const pics = (Array.isArray(body.option_images) ? body.option_images : [])
       .map(u => (typeof u === 'string' && /^https?:\/\//.test(u) ? u : null));
     if (opts.length < 2 || opts.length > 5) return { error: 'An objective question needs 2 to 5 options.' };
@@ -614,6 +670,102 @@ router.post('/questions/:id/options/:k/image', async (req, res, next) => {
       [JSON.stringify(updated), cur.id]);
     if (cur.status === 'published') await bumpPack();
     res.json(shapeQuestion(rows[0]));
+  } catch (err) { next(err); }
+});
+
+// ── Shared information for a group of questions ─────────────────────────────
+// "Use the following information to answer Questions 8 and 9": rich text and
+// pictures (placed by [image N] markers, as in questions) that a group of the
+// paper's questions share. question_ids says which questions it covers.
+
+async function groupOf(id) {
+  const { rows } = await pool.query(`
+    SELECT g.*, p.status FROM pasco_groups g JOIN pasco_papers p ON p.id = g.paper_id
+     WHERE g.id = $1 AND p.school_id IS NULL`, [id]);
+  return rows[0] || null;
+}
+
+async function setMembers(client, group, ids) {
+  const list = (Array.isArray(ids) ? ids : []).filter(x => typeof x === 'string');
+  await client.query(`UPDATE lms_pasco_questions SET group_id = NULL, updated_at = now() WHERE group_id = $1 AND NOT (id = ANY($2::uuid[]))`, [group.id, list]);
+  if (list.length) {
+    await client.query(`UPDATE lms_pasco_questions SET group_id = $1, updated_at = now() WHERE paper_id = $2 AND id = ANY($3::uuid[])`,
+      [group.id, group.paper_id, list]);
+  }
+}
+
+async function groupResponse(id) {
+  const { rows: [g] } = await pool.query('SELECT * FROM pasco_groups WHERE id = $1', [id]);
+  const { rows } = await pool.query('SELECT id FROM lms_pasco_questions WHERE group_id = $1', [id]);
+  return { ...shapeGroup(g), question_ids: rows.map(r => r.id) };
+}
+
+router.post('/papers/:id/groups', async (req, res, next) => {
+  try {
+    const paper = await sharedPaper(req.params.id);
+    if (!paper) return res.status(404).json({ error: 'Paper not found' });
+    const info = cleanRich(req.body?.info, 60000);
+    if (!info) return res.status(400).json({ error: 'Write the information first.' });
+    const { rows: [g] } = await pool.query('INSERT INTO pasco_groups (paper_id, info) VALUES ($1, $2) RETURNING *', [paper.id, info]);
+    await setMembers(pool, g, req.body?.question_ids);
+    if (paper.status === 'published') await bumpPack();
+    res.status(201).json(await groupResponse(g.id));
+  } catch (err) { next(err); }
+});
+
+router.put('/groups/:id', async (req, res, next) => {
+  try {
+    const g = await groupOf(req.params.id);
+    if (!g) return res.status(404).json({ error: 'That information block was not found.' });
+    const info = cleanRich(req.body?.info, 60000);
+    if (!info) return res.status(400).json({ error: 'Write the information first.' });
+    await pool.query('UPDATE pasco_groups SET info = $1, updated_at = now() WHERE id = $2', [info, g.id]);
+    if (Array.isArray(req.body?.question_ids)) await setMembers(pool, g, req.body.question_ids);
+    if (g.status === 'published') await bumpPack();
+    res.json(await groupResponse(g.id));
+  } catch (err) { next(err); }
+});
+
+router.delete('/groups/:id', async (req, res, next) => {
+  try {
+    const g = await groupOf(req.params.id);
+    if (!g) return res.status(404).json({ error: 'That information block was not found.' });
+    await pool.query('DELETE FROM pasco_groups WHERE id = $1', [g.id]);
+    if (g.status === 'published') await bumpPack();
+    res.json({ message: 'Information removed' });
+  } catch (err) { next(err); }
+});
+
+// A picture for the information: { image: data URI }; { replace: N } swaps picture N.
+router.post('/groups/:id/images', async (req, res, next) => {
+  try {
+    const g = await groupOf(req.params.id);
+    if (!g) return res.status(404).json({ error: 'That information block was not found.' });
+    const images = groupImages(g);
+    const replace = req.body?.replace ? parseInt(req.body.replace, 10) : null;
+    if (replace && (replace < 1 || replace > images.length)) return res.status(400).json({ error: 'No such picture.' });
+    if (!replace && images.length >= 6) return res.status(400).json({ error: 'Information can have up to 6 pictures.' });
+    const { url, error } = await storeImage(req.body?.image, g.paper_id, `g-${g.id}`);
+    if (error) return res.status(400).json({ error });
+    if (replace) images[replace - 1] = url; else images.push(url);
+    await pool.query('UPDATE pasco_groups SET images = $1::jsonb, updated_at = now() WHERE id = $2', [JSON.stringify(images.map(u => ({ url: u }))), g.id]);
+    if (g.status === 'published') await bumpPack();
+    res.json(await groupResponse(g.id));
+  } catch (err) { next(err); }
+});
+
+router.delete('/groups/:id/images/:n', async (req, res, next) => {
+  try {
+    const g = await groupOf(req.params.id);
+    if (!g) return res.status(404).json({ error: 'That information block was not found.' });
+    const images = groupImages(g);
+    const n = parseInt(req.params.n, 10);
+    if (!(n >= 1 && n <= images.length)) return res.status(404).json({ error: 'No such picture.' });
+    images.splice(n - 1, 1);
+    await pool.query('UPDATE pasco_groups SET images = $1::jsonb, info = $2, updated_at = now() WHERE id = $3',
+      [JSON.stringify(images.map(u => ({ url: u }))), renumber(g.info, n), g.id]);
+    if (g.status === 'published') await bumpPack();
+    res.json(await groupResponse(g.id));
   } catch (err) { next(err); }
 });
 

@@ -12,8 +12,10 @@ export interface ClimbQ {
   subject: string;
   source: string | null;          // e.g. "WASSCE 2019"
   text: string;
+  html?: string | null;
   images: (string | null)[];
   options: string[];
+  optionsHtml?: (string | null)[] | null;
   optionImages: (string | null)[];
   correct: number;                 // index into options
   explanation: string | null;
@@ -31,10 +33,12 @@ function fromPack(q: PackQuestion, subject: string, source: string | null): Clim
   const opts = q.options ?? [];
   // Four or five choices, each with text or a picture, and a known answer.
   if (q.question_type !== 'objective' || k < 0 || k >= opts.length || opts.length < 4 || opts.length > 5) return null;
+  // A question that needs shared information can't stand alone in a game.
+  if (q.group_id) return null;
   if (opts.some((o, i) => !o && !optionImage(q, i))) return null;
   const band: Band = q.difficulty === 'easy' || q.difficulty === 'hard' ? q.difficulty : 'medium';
   return {
-    id: q.id, subject, source, text: q.question_text, images: questionImages(q), options: opts,
+    id: q.id, subject, source, text: q.question_text, html: q.question_html, images: questionImages(q), options: opts, optionsHtml: q.options_html,
     optionImages: opts.map((_, i) => optionImage(q, i)), correct: k, explanation: q.explanation, band,
   };
 }

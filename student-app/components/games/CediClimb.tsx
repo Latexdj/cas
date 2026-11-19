@@ -130,7 +130,7 @@ export default function CediClimb({ ladder, spares, onFinish }: {
 
       <ScrollView ref={scroll} contentContainerStyle={s.page}>
         <Text style={[s.subject, { color: C.textSoft }]}>{q.subject}{q.source ? `, ${q.source}` : ''}</Text>
-        <QuestionBody text={q.text} images={q.images} textStyle={[s.question, { color: C.text }]} imageHeight={170} />
+        <QuestionBody text={q.text} html={q.html} images={q.images} textStyle={[s.question, { color: C.text }]} imageHeight={170} />
         <View style={{ gap: 10 }}>
           {q.options.map((opt, i) => {
             if (removed.has(i)) return <View key={i} style={[s.option, s.gone, { borderColor: C.border }]}><Text style={[s.letter, { color: C.muted }]}>{LETTERS[i]}</Text></View>;
@@ -148,7 +148,9 @@ export default function CediClimb({ ladder, spares, onFinish }: {
                     <Image source={{ uri: q.optionImages[i]! }} resizeMode="contain" accessibilityLabel={`Option ${LETTERS[i]} picture`}
                       style={{ width: '100%', height: 110, backgroundColor: '#FFFFFF', borderRadius: 8 }} />
                   )}
-                  {!!opt && <Text style={[s.optText, { color: fg }]}>{opt}</Text>}
+                  {!!opt && (q.optionsHtml?.[i]
+                    ? <QuestionBody text={opt} html={q.optionsHtml[i]} images={[]} showUnplaced={false} textStyle={[s.optText, { color: fg }]} />
+                    : <Text style={[s.optText, { color: fg }]}>{opt}</Text>)}
                 </View>
                 {reveal && isRight && <Ionicons name="checkmark-circle" size={22} color={C.success} />}
                 {wasTried && <Ionicons name="close-circle" size={22} color={C.danger} />}

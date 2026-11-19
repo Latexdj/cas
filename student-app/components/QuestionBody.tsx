@@ -2,6 +2,8 @@
 // ([image] = [image 1]). Pictures no marker places go at the end.
 import React from 'react';
 import { Image, Text, View, type TextStyle } from 'react-native';
+import { RichText } from './RichText';
+import { isRich, parseRich, placedImages } from '@/lib/richText';
 
 const MARKER = /\[image(?:\s+(\d+))?\]/gi;
 
@@ -26,12 +28,28 @@ function split(text: string, count: number, elsewhere?: string | null) {
   return { parts, unplaced };
 }
 
-export function QuestionBody({ text, images, textStyle, showUnplaced = true, imageHeight = 220, placedElsewhere }: {
+export function QuestionBody({ text, html, images, textStyle, showUnplaced = true, imageHeight = 220, placedElsewhere }: {
   text: string; images: (string | null)[]; textStyle?: TextStyle | TextStyle[];
+  /** The formatted version (tables, x², lists) when there is one; shown instead of text. */
+  html?: string | null;
   showUnplaced?: boolean; imageHeight?: number;
   /** Other text whose [image N] markers also count as placed, e.g. the marking scheme. */
   placedElsewhere?: string | null;
 }) {
+  if (isRich(html)) {
+    const placed = placedImages(parseRich(html));
+    for (const m of (placedElsewhere ?? '').matchAll(MARKER)) placed.add(m[1] ? parseInt(m[1], 10) : 1);
+    const unplaced = Array.from({ length: images.length }, (_, i) => i + 1).filter(n => !placed.has(n) && images[n - 1]);
+    return (
+      <View style={{ gap: 10 }}>
+        <RichText html={html} images={images} textStyle={textStyle} imageHeight={imageHeight} />
+        {showUnplaced && unplaced.map(n => (
+          <Image key={`u${n}`} source={{ uri: images[n - 1]! }} resizeMode="contain" accessibilityLabel={`Figure ${n}`}
+            style={{ width: '100%', height: imageHeight, backgroundColor: '#FFFFFF', borderRadius: 12 }} />
+        ))}
+      </View>
+    );
+  }
   const { parts, unplaced } = split(text, images.length, placedElsewhere);
   const pic = (n: number, key: string) => {
     const uri = images[n - 1];
